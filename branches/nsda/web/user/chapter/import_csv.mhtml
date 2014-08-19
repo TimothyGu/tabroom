@@ -1,0 +1,120 @@
+<%args>
+	$tourn
+	$account
+	$chapter_id => undef
+</%args>
+<%init>
+
+    my $chapter;
+
+    unless ($chapter_id) {
+
+        my @chapters = $account->chapters;
+        $chapter = shift @chapters if scalar @chapters == 1;
+
+        unless ($chapter) { 
+            my $err = "You have not chosen a team/school.  Please choose at right";
+            $m->redirect("/user/home.mhtml?err=$err");
+        }   
+
+    } else { 
+        $chapter = Tab::Chapter->retrieve($chapter_id);
+    }   
+
+</%init>
+
+	<div class="left huge">
+
+		<h2><% $chapter->name %>: Students & Judges</h2>
+
+		<& tabbar.mas, chapter => $chapter, whoami => "students" &> 
+
+		<h4>Import from Spreadsheets</h4>
+
+		<p>Files must be saved in CSV (Comma Separated Values) format.  Please
+		use the templates provided below</p>
+
+		<form enctype="multipart/form-data" onsubmit="return uploadThis()" name="students" action="import_csv_students.mhtml" method="post">
+		<input type="hidden" name="chapter_id" value="<% $chapter_id %>">
+
+		<div class="evenrow">
+
+			<span class="quarter smallish">
+				Students
+			</span>
+
+			<span class="half">
+				<div class="uploader">
+					<input type="file" name="students" style="opacity: 0;" onchange="uploaderName()" id="upload">
+					<span id="filename" class="filename" style="-webkit-user-select: none;">No file selected</span>
+					<span class="action" style="-webkit-user-select: none;">Choose File</span>
+				</div>
+			</span>
+
+			<span class="quarter rightalign">
+				<input type="submit" value="Upload">
+			</span>
+
+		</div>
+		
+		</form>
+
+		<form enctype="multipart/form-data" onsubmit="return uploadThis()" name="judges" action="import_csv_judges.mhtml" method="post">
+		<input type="hidden" name="chapter_id" value="<% $chapter_id %>">
+
+		<div class="oddrow">
+
+			<span class="quarter">
+				Judges:
+			</span>
+
+			<span class="half">
+				<div class="uploader">
+				<input type="file" name="judges" style="opacity: 0;" onchange="uploaderName()" id="upload">
+				<span id="filename" class="filename" style="-webkit-user-select: none;">No file selected</span>
+				<span class="action" style="-webkit-user-select: none;">Choose File</span>
+				</div>
+			</span>
+
+			<span class="quarter rightalign">
+				<input type="submit" value="Upload">
+			</span>
+
+		</div>
+		</form>
+
+		<h4 class="martop">Templates</h4>
+
+		<div class="evenrow centeralign martop">
+
+			<a class="third dkblue centeralign"  href="import_csv_template.mhtml">
+				Download Students template
+			</a>
+
+			<a class="third dkblue centeralign" href="import_csv_template.mhtml?judge=y">
+				Download Judges template
+			</a>
+
+		</div>
+
+	</div>
+
+	<div class="right">
+
+		<div class="sidenote">
+
+			<h4>Return</h4>
+
+			<a href="students.mhtml?chapter_id=<% $chapter_id %>" class="blue block">
+				Student Roster
+			</a>
+
+			<a href="judges.mhtml?chapter_id=<% $chapter_id %>" class="blue block">
+				Judge Roster
+			</a>
+
+		</div>
+
+	</div>
+
+

@@ -1,0 +1,187 @@
+<%args>
+	$round_id
+	$filename
+	$schools => undef
+</%args>
+<%init>
+
+	my $filepath = $Tab::file_root."tmp/".$filename;
+
+	use POSIX;
+
+	my $round = Tab::Round->retrieve($round_id);
+	my $event = $round->event;
+	my $tourn = $event->tourn;
+
+	my $no_judge_codes++ if	$event->judge_group->setting("no_codes");
+
+	undef $schools if $tourn->setting("school_codes") eq "none";
+	my $names++ if $event->setting("code_style") eq "names" || $event->setting("code_style") eq "last_names" || $event->setting("code_style") eq "names_lastfirst";
+
+	my @panels = sort {$a->letter cmp $b->letter} $round->panels;
+	@panels = sort {length($a->letter) <=> length($b->letter)} @panels;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	my $start = $round->start_time;
+	$start = $round->timeslot->start unless $start;
+	$start->set_time_zone($tz);
+
+	my $tabular = "\\begin{tabular}{p{.25in}p{1.25in}p{1.25in}p{4in}}\n";
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my $size = "\\large\n";
+	$size = "\\normalsize\n" if $names || $schools || $ncfl;
+
+	if ($ncfl) { 
+		$tabular = "\\begin{tabular}{p{.25in}p{1.75in}p{1.25in}p{3.5in}}\n" if $schools;
+		$tabular= "\\begin{tabular}{p{.25in}p{1.5in}p{1.25in}p{3.5in}}\n" unless $schools;
+	}
+
+	print TEXOUT $size;
+	print TEXOUT "\\noindent\n";
+	print TEXOUT "\\LARGE {\\bf ". Tab::texify($round->realname)." } ";
+	print TEXOUT "\\hspace{2in} ";
+	print TEXOUT "\\large Start: ".$start->hour_12.":".$start->strftime("%M")." ".$start->strftime("%p");
+	print TEXOUT " \\hfill \\LARGE {\\bf ".Tab::texify($round->event->name)." } \n";
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\newline\n";
+
+	print TEXOUT $size;
+	print TEXOUT $tabular;
+	print TEXOUT "\\rowcolor[rgb]{1.0,.95,.66}\[5.5pt\]\[5.5pt\]\n";
+	print TEXOUT "\\parbox[l][.25in][c]{.25in}{{\\bf S}} & {\\bf Judge(s)} & {\\bf Room} & {\\bf Entries} \\\\ \n"; 
+	print TEXOUT "\\end{tabular}\n";
+	print TEXOUT "\\newline\n";
+
+	my $switch;
+	my $length;
+
+	my %panel_entries = ();
+
+	foreach my $panel (@panels) {
+
+		my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+		@{$panel_entries{$panel->id}} = @entries;
+
+		foreach my $entry (@entries) { 
+			if ($names) { 
+				$length = length($entry->name) if $length < length($entry->name);
+			} else { 
+				$length = length($entry->code) if $length < length($entry->code);
+			}
+		}
+	}
+
+	$length = $length * .08 if $names;
+	$length = $length * .11 unless $names;
+
+	foreach my $panel (@panels) {
+
+		my @judges = $m->comp("/funclib/panel_judges.mas", panel => $panel);;
+
+		my $room_name = $panel->room->name if $panel->room;
+
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+		print TEXOUT $size;
+		print TEXOUT Tab::texify($panel->letter) ." & ";
+		print TEXOUT "\\raggedright ";
+
+		my $notfirst;
+		foreach my $judge (@judges) { 
+
+			if ($ncfl) { 
+
+				if ($schools) { 
+					print TEXOUT " \\newline " if $notfirst;
+					print TEXOUT "\\parbox[l][.20in][c]{.70in}{";
+				} else { 
+					print TEXOUT "\\parbox[l][.20in][c]{.4in}{";
+				}
+
+				print TEXOUT Tab::texify($judge->school->region->code)." " if $schools;
+				print TEXOUT Tab::texify($judge->code);
+				print TEXOUT "}\n";
+				print TEXOUT Tab::texify($judge->last) if $schools;
+				$notfirst++;
+
+			} else { 
+
+				print TEXOUT " \\newline " if $notfirst;
+
+				if ($schools) {
+					print TEXOUT Tab::texify($judge->school->code)." " if $judge->school && $judge->school->id;
+					print TEXOUT " XX " unless $judge->school->id;
+				}
+
+				print TEXOUT Tab::texify($judge->code." ".$judge->last) unless $no_judge_codes; 
+				print TEXOUT Tab::texify(substr($judge->last.", ".$judge->first,0,13)) if $no_judge_codes; 
+				$notfirst++;
+
+			}
+		}
+
+		print TEXOUT $size;
+		print TEXOUT " & ";
+		print TEXOUT Tab::texify($room_name) ." & ";
+		print TEXOUT "\\raggedright ";
+
+		if ($schools) { 
+
+			foreach my $entry (@{$panel_entries{$panel->id}}) { 
+
+				next if $entry->dropped;
+
+				my $moniker;
+				my $mylength = $length;
+
+				if ($ncfl) { 
+					$moniker = $entry->school->region->code;
+				} else { 
+					$moniker = $entry->school->code;
+				}
+
+				$mylength = $mylength + (length($moniker) * .10) unless $ncfl;
+				$mylength = $mylength + (.35) if $ncfl;
+
+				$mylength = "1.90" if $mylength > 1.90;
+
+				print TEXOUT "\\parbox[l][.25in][c]{".$mylength."in}{";
+
+				if ($names) { 
+					print TEXOUT Tab::texify($moniker." ".$entry->name);
+				} else { 
+					print TEXOUT Tab::texify($moniker." ".$entry->code);
+				}
+				print TEXOUT "} ";
+			}
+
+		} else { 
+
+			foreach my $entry (@{$panel_entries{$panel->id}}) { 
+				next if $entry->dropped;
+				print TEXOUT "\\parbox[l][.30in][c]{".$length."in}{";
+				print TEXOUT Tab::texify($entry->name) if $names;
+				print TEXOUT Tab::texify($entry->code) unless $names;
+				print TEXOUT "} ";
+			}
+		}
+
+		print TEXOUT "\n";
+		print TEXOUT "\\end{tabular}\n";
+		print TEXOUT "\\newline\n";
+
+	}
+
+	close TEXOUT;
+
+	return;
+
+</%init>

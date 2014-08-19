@@ -1,0 +1,181 @@
+<%args>
+	$event_id
+	$tourn
+	$sort => undef
+	$drops => undef
+	$waitlist => undef
+	$at_large => undef
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id);
+
+	$m->abort unless $event;
+
+	my @clear = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, waitlist => 0 );
+	my @dropped = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 1 );
+	my @waitlisted = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, waitlist => 1 );
+	my @at_large = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, seed => "atlarge");
+
+	my $total = (scalar @clear) + (scalar @dropped) + (scalar @waitlisted);
+
+	my @entries = @clear;
+	@entries = @dropped if $drops;
+	@entries = @waitlisted if $waitlist;
+	@entries = @at_large if $at_large;
+
+	my $namestring = "Entries";
+	$namestring = "Drops" if $drops;
+	$namestring = "Waitlist" if $waitlist;
+
+	@entries = sort {$a->reg_time <=> $b->reg_time} @entries;
+	@entries = sort {$a->code <=> $b->code} @entries unless $waitlist;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $no_codes++ if $event->setting("code_style") eq "names";
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, event => $event, drops => $drops, waitlist => $waitlist, at_large => $at_large &>
+
+	<div class="left huge">
+
+	<div class="full">
+
+		<span class="half">
+			<h4><% $event->abbr." ".$namestring %></h4>
+		</span>
+		<span class="half martop rightalign smallish">
+			<span class="quarter">
+				In <% scalar @clear %>
+			</span>
+			<span class="quarter">
+				Drops <% scalar @dropped %>
+			</span>
+			<span class="quarter">
+				WL <% scalar @waitlisted %>
+			</span>
+			<span class="quarter">
+				Total <% $total %>
+			</span>
+		</span>
+
+		
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<table id="sortme">
+
+			<thead>
+
+			<tr class="yellowrow">
+
+%				unless ($no_codes) { 
+					<th class="smaller">
+						Code
+					</th>
+%				}
+
+				<th class="smaller">
+					Entry Name
+				</th>
+
+				<th class="smaller">
+					School
+				</th>
+
+				<th class="smaller">
+					Registered
+				</th>
+
+%				if ($drops) {
+
+					<th class="smaller">
+						Dropped
+					</th>
+
+%				} else { 
+
+					<th>
+					</th>
+%				}
+
+			</tr>
+			</thead>
+			<tbody>
+
+%			foreach my $entry (@entries) { 
+
+%				next if $entry->dropped && $waitlist;
+
+				<tr class="<% ($entry->dropped && not defined $drops) ? "strike" : "" %>" >
+
+%					unless ($no_codes) { 
+						<td class="smallish">
+							<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+								<% $entry->code %>
+							</a>
+						</td>
+%					}
+
+					<td class="smallish">
+						<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+							<% $entry->name %>
+						</a>
+					</td>
+
+					<td class="smallish">
+
+						<span class="padno  <% $waitlist ? "threequarter" : "" %>">
+							<a class="white" href="/register/school/entries.mhtml?event_id=<% $entry->event->id %>&school_id=<% $entry->school->id %>">
+							<% $entry->school->short_name %> 
+							</a>
+						</span>
+%						if ($waitlist) { 
+							<span class="quarter ">
+								<% scalar Tab::Entry->search( event => $entry->event->id, school => $entry->school->id, waitlist => 0, dropped => 0, unconfirmed => 0) %>
+							</span>
+%						}
+					</td>
+
+					<td class="smallish">
+						<span class="hidden">
+							<% ($entry->reg_time) ? ($entry->reg_time->set_time_zone($tz)->epoch) : "" %>
+						</span>
+						<% ($entry->reg_time) ? &Tab::niceshortdt($entry->reg_time->set_time_zone($tz)) : "" %>
+					</td>
+
+					<td class="smallish centeralign">
+
+%						if ($waitlist) { 
+
+%							my $warn = "This will remove the entry from the waitlist.  The coaches will be notified by email.";
+							<a class="dkgreen block" href="waitlist_admit.mhtml?entry_id=<% $entry->id %>"  <& "/funclib/confirm.mas", warn => $warn &> >
+								Admit
+							</a>
+
+%						} elsif ($drops) { 
+							
+							<% ($entry->drop_time) ? &Tab::niceshortdt($entry->drop_time->set_time_zone($tz)) : "" %>
+							<% ($entry->drop_by) ? $entry->drop_by->first." ".$entry->drop_by->last : "" %>
+
+%						} else { 
+
+							<% ($entry->dropped) ? "DROP" : "" %>
+							<% ($entry->waitlist) ? "WL" : "" %>
+							<% ($entry->dq) ? "DQ" : "" %>
+
+%						}
+
+					</td>
+
+				</tr>
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+

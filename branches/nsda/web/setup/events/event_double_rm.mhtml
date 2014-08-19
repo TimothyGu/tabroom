@@ -1,0 +1,23 @@
+<%args>
+	$event_double_id
+</%args>
+<%init>
+
+	my $event_double = Tab::EventDouble->retrieve($event_double_id);
+
+	my $msg = "Does not exist";
+	$m->redirect("/setup/events/double_entry.mhtml?msg=$msg") unless $event_double;
+
+
+	foreach my $event ($event_double->events) { 
+		$event->event_double("");
+		$event->update;
+	};
+
+	$msg = "Double entry grouping ".$event_double->name." deleted";
+	$event_double->delete();
+	$m->redirect("/setup/events/double_entry.mhtml?msg=$msg");
+
+</%init>
+
+

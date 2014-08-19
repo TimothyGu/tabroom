@@ -1,0 +1,40 @@
+<%args>
+	$tourn
+	$whoami => undef
+</%args>
+<%init>
+
+</%init>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>Printout Types</h4>
+
+			<a class="<% $whoami eq "events" ? "dk" : "" %>blue block" href="index.mhtml">
+				Postings
+			</a>
+
+			<a class="<% $whoami eq "tabs" ? "dk" : "" %>blue block" href="tabs.mhtml">
+				Tab Sheets
+			</a>
+
+%			if ($tourn->setting("ncfl")) { 
+				<a class="<% $whoami eq "ncfl" ? "dk" : "" %>blue block" href="ncfls.mhtml">
+					NCFL
+				</a>
+%			}
+
+			<a class="<% $whoami eq "messages" ? "dk" : "" %>blue block" href="messages.mhtml">
+				Ballot Messages
+			</a>
+
+			<a class="<% $whoami eq "disaster" ? "dk" : "" %>blue block" href="disasters.mhtml">
+				Disaster Check
+			</a>
+	
+		</div>
+	</div>
+
+

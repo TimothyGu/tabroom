@@ -1,0 +1,181 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my @pref_groups;
+
+	my %group_schools = ();
+
+	my %group_pref_style = ();
+
+	foreach my $group ($tourn->groups) { 
+	
+		$group_pref_style{$group->id} = $group->setting('prefs');
+
+		if ($group_pref_style{$group->id}) { 
+			push (@pref_groups, $group);
+		}
+	}
+
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "prefs" &>
+
+	<div class="left huge">
+
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<h2>Pref status</h2>
+
+		<table cellpadding="4" cellspacing="1" id="sortme">
+
+			<thead>
+
+				<tr class="yellowrow">
+
+					<th class="smaller">
+						Entry
+					</th>
+
+					<th class="smaller">
+						School
+					</th>
+
+					<th class="smaller">
+						Tot
+					</th>
+
+					<th class="smaller">
+						Pref
+					</th>
+
+					<th class="smaller">
+						Strike
+					</th>
+
+					<th class="smaller">
+						Cnfl
+					</th>
+
+					<th class="smaller">
+						Left
+					</th>
+
+				</tr>
+
+			</thead>
+
+			<tbody>
+
+<%perl>
+
+				foreach my $group (@pref_groups) { 
+
+					my @judges = $group->judges( active => 1);
+
+					foreach my $event ($group->events) { 
+
+						my @event_struck_judges = $m->comp("/funclib/event_strike_judges.mas", event => $event);
+
+						foreach my $entry (sort {$a->name cmp $b->name} $event->entries( dropped => 0, waitlist => 0, unconfirmed => 0)) { 
+
+							my %judge_ratings = ();
+							my @rated;
+							my @struck;
+							my $notleft;
+
+							if ($group_pref_style{$group->id} eq "tiered" || $group_pref_style{$group->id} eq "tiered_round" || $group_pref_style{$group->id} eq "caps") { 
+								%judge_ratings = $m->comp("/funclib/judge_entry_rating.mas", entry => $entry, type => "rated_tier");
+								@struck = $m->comp("/funclib/judge_entry_rating.mas", entry => $entry, type => "struck_tier");
+							} else { 
+								@rated = $m->comp("/funclib/judge_entry_rating.mas", entry => $entry, type => "rated");
+							} 
+
+							my @conflicts = $m->comp("/funclib/judge_entry_rating.mas", entry => $entry, type => "conflicted");
+
+							my %used;
+							foreach my $conf (@conflicts) {
+								$used{$conf->id}++;
+							}
+
+							foreach my $strike (@event_struck_judges) { 
+								next if $used{$strike->id}++;
+								$used{$strike->id}++;
+							}
+
+							my @real_rated;
+
+							foreach my $rate (@rated) {
+								next if $used{$rate->id};
+								push @real_rated, $rate;
+							}
+
+							my %tier_count = ();
+
+							foreach my $key (keys %judge_ratings) { 
+								$tier_count{$judge_ratings{$key}}++;
+								push @real_rated, $judge_ratings{$key};
+							}
+
+							my $left = (scalar @judges) - (scalar @conflicts + scalar @real_rated + scalar @event_struck_judges + scalar (keys %judge_ratings) ) unless $group_pref_style{$group->id} eq "caps";
+
+</%perl>
+
+							<tr <% $left > 0 ? 'class="lirdrow"' : "" %>>
+
+								<td class="smallish nospace">
+									<a class="white" href="/register/entry/prefs.mhtml?entry_id=<% $entry->id %>">
+										<% $entry->code %>
+									</a>
+								</td>
+
+									
+								<td class="smallish medpsan">
+									<% $entry->school->short_name %>
+								</td>
+
+								<td class="centeralign smallish">
+									<% scalar @judges %>
+								</td>
+
+								<td class="centeralign smallish">
+%									if ($group_pref_style{$group->id} eq "caps") { 
+
+%										foreach my $key (sort keys %tier_count) { 
+											<span class="evensmallerspan">
+												<% $key %>-<% $tier_count{$key} %>
+											</span>
+%										} 
+
+%									} else { 
+										<% scalar @real_rated %>
+%									} 
+								</td>
+
+								<td class="centeralign smallish">
+									<% scalar @struck %>
+								</td>
+
+								<td class="centeralign smallish">
+									<% (scalar @conflicts + scalar @event_struck_judges) %>
+								</td>
+
+								<td class="centeralign smallish">
+									<% scalar @judges - (scalar @conflicts + scalar @real_rated + scalar @struck + scalar @event_struck_judges) %>
+								</td>
+
+							</tr>
+
+%						} 
+%					}
+
+%				}
+
+			</tbody>
+
+		</table>
+
+	</div>
+

@@ -1,0 +1,34 @@
+<%args>
+	$account
+	$paradigm => undef
+</%args>
+<%init>
+
+	my $tz = $account->tz;
+	$tz = "UTC" unless $tz;
+
+	my $now = DateTime->now(time_zone => $tz);
+
+	use HTML::Scrubber;
+
+	if ($paradigm) { 
+
+		$account->setting("paradigm", "text", $paradigm);
+		$account->setting("paradigm_timestamp", "date", $now);
+		$account->update;
+
+	} else { 
+
+		$account->setting("paradigm", "");
+		$account->setting("paradigm_timestamp", "");
+		$account->update;
+	}
+
+
+	$account->update;
+
+	my $msg = "Paradigm saved";
+	$m->redirect("/user/judge/paradigm.mhtml?msg=$msg");
+
+
+</%init>

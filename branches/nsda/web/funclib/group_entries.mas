@@ -1,0 +1,55 @@
+<%args>
+	$group
+	$school    => undef
+	$preffable => undef
+</%args>
+<%perl>
+
+	my $pref_limit;
+
+	if ($preffable) { 
+		$pref_limit = "
+			and not exists ( 
+				select event_setting.id
+				from event_setting
+				where event_setting.event = event.id
+				and event_setting.tag = \"no_prefs\"
+				and event_setting.value = 1
+			)
+		";
+	}
+
+	if ($school) { 
+
+		Tab::Entry->set_sql( by_group => "
+	       	select distinct entry.* 
+			from entry, event
+			where entry.event = event.id
+			and event.judge_group = ? 
+			and entry.school = ? 
+			and entry.waitlist != 1
+			and entry.dropped != 1
+			and entry.unconfirmed != 1
+			".$pref_limit."
+			order by event.name, entry.code");
+		
+    	return Tab::Entry->search_by_group($group->id, $school->id);
+
+	} else { 
+
+		Tab::Entry->set_sql( by_group => "
+	       	select distinct entry.* 
+			from entry, event
+			where entry.event = event.id
+			and event.judge_group = ? 
+			and entry.waitlist != 1
+			and entry.dropped != 1
+			and entry.unconfirmed != 1
+			".$pref_limit."
+			order by event.name, entry.code");
+		
+    	return Tab::Entry->search_by_group($group->id);
+	}
+
+</%perl>
+

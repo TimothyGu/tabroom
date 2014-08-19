@@ -1,0 +1,62 @@
+<%args>
+	$circuit
+	$approved => undef
+	$approval => undef
+	$future => undef
+</%args>
+<%perl>
+
+	if ($approval) { 
+
+	    Tab::Tourn->set_sql(approvals => "
+	        select distinct tourn.* 
+	        from tourn, tourn_circuit
+	        where tourn.id = tourn_circuit.tourn
+	        and tourn_circuit.circuit = ?
+	        and tourn_circuit.approved != 1
+	        order by tourn.start DESC");
+
+		return Tab::Tourn->search_approvals($circuit->id);
+
+	} 
+
+	if ($approved) { 
+
+	    Tab::Tourn->set_sql(approved => "
+	        select distinct tourn.* 
+	        from tourn, tourn_circuit
+	        where tourn.id = tourn_circuit.tourn
+	        and tourn_circuit.circuit = ?
+	        and tourn_circuit.approved = 1
+	        order by tourn.start DESC");
+
+		return Tab::Tourn->search_approved($circuit->id);
+
+	} 
+
+	if ($future) { 
+
+	    Tab::Tourn->set_sql(future_by_circuit => "
+    	    select distinct tourn.* 
+    	    from tourn, tourn_circuit
+    	    where tourn.id = tourn_circuit.tourn
+    	    and tourn_circuit.circuit = ?
+			and tourn.hidden != 1
+			and tourn.start > now()
+        	order by tourn.start");
+
+		return Tab::Tourn->search_future_by_circuit($circuit->id);
+
+	}
+
+    Tab::Tourn->set_sql(by_circuit => "
+        select distinct tourn.* 
+        from tourn, tourn_circuit
+        where tourn.id = tourn_circuit.tourn
+        and tourn_circuit.circuit = ?
+		and tourn.hidden != 1
+        order by tourn.start DESC");
+
+	return Tab::Tourn->search_by_circuit($circuit->id);
+
+</%perl>

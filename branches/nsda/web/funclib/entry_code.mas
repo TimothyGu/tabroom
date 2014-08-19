@@ -1,0 +1,179 @@
+<%args>
+	$entry
+	$style => undef
+	$full => undef
+</%args>
+<%init>
+
+	my $code;
+
+	my $event = $entry->event;
+	my $tourn = $event->tourn;
+
+	my $setting = $event->setting("code_style");
+	my $enable_hybrids++ if $event->setting("hybrids");
+
+	my $hybrid = Tab::Strike->search( entry => $entry->id, type => "hybrid")->first if $enable_hybrids;
+
+	if ($setting eq "names" || $setting eq "school_names" || $setting eq "last_names" || $setting eq "names_lastfirst" || $setting eq "school_name_only" ) { 
+
+		my @students = $entry->students;
+
+		my $first_name;
+		my $last_name;
+		my $notfirst;
+
+		foreach my $student (@students) { 
+			$first_name = $student->first;
+			$last_name .= " & " if $notfirst;
+			$last_name .= $student->last;
+			$notfirst++;
+		}
+
+		my $name;
+		
+		$name = $entry->school->short_name if $setting eq "school_names" || $setting eq "school_name_only";
+
+		unless ($setting eq "school_name_only") { 
+
+			$name .= "/".$hybrid->school->short_name if $setting eq "school_names" && $hybrid;
+
+			if ($notfirst > 1) { 
+				$name .= " ".$last_name;
+			} else { 
+				$name .= " ".$first_name." ".$last_name if $setting eq "names" || $setting eq "school_names";
+				$name .= " ".$last_name.", ".$first_name if $setting eq "names_lastfirst";
+				$name .= " ".$last_name if $setting eq "last_names";
+			}
+
+		}
+
+		return $name;
+
+	} elsif ( $setting eq "numbers" || $setting eq "school_number" || $setting eq "schoolname_code" ) { 
+
+		my @entries = $m->comp("/funclib/tourn_entries.mas", tourn => $tourn, all => "yes" );
+
+		my %entry_code;
+
+		foreach my $entry (@entries) { 
+			my $code = $entry->code;
+			my $number_only = ( split ' ', $code )[ -1 ];
+
+			$entry_code{$code}++;
+			$entry_code{$number_only}++;
+		}
+
+		my $code_start = $event->setting("code_start");
+		$code_start = 100 unless $code_start;
+
+		my $school_name = $entry->school->short_name;
+		my $school_code = $entry->school->code;
+
+		while ($entry_code{$code_start} ) { 
+			$code_start++;
+			$code_start++ if $code_start eq 69;
+			$code_start++ if $code_start eq 666;
+		}
+
+		while ($entry_code{$school_name." ".$code_start} ) { 
+			$code_start++;
+			$code_start++ if $code_start eq 69;
+			$code_start++ if $code_start eq 666;
+		}
+
+		while ($entry_code{$school_code." ".$code_start} ) { 
+			$code_start++;
+			$code_start++ if $code_start eq 69;
+			$code_start++ if $code_start eq 666;
+		}
+
+		my $code;
+		$code = $school_code." " if $setting eq "school_number";
+		$code = $school_name." " if $setting eq "schoolname_code";
+		$code .= "/".$hybrid->school->code if $setting eq "school_number" && $hybrid;
+		$code .= "/".$hybrid->school->name if $setting eq "schoolname_code" && $hybrid;
+		$code .= $code_start;
+
+		return $code;
+
+	} else { 
+
+		my @entries = $event->entries;
+		my %entry_code = map { $_->code => $_->id } @entries;
+
+		my $school_code;
+
+		if ($setting eq "full_initials" || $setting eq "register") { 
+			$school_code = $entry->school->short_name;
+			$school_code .= "/".$hybrid->school->short_name if $hybrid;
+		}
+
+		if ($setting eq "initials") { 
+			$school_code = $entry->school->code;
+			$school_code .= "/".$hybrid->school->code if $hybrid;
+		}
+
+		if ($setting eq "code_name") { 
+			$school_code = $entry->school->code;
+			$school_code .= "/".$hybrid->school->code if $hybrid;
+		}
+
+		return $school_code." TBA" if $entry->tba;
+
+		my @students = $entry->students;
+
+		if ($setting eq "code_name") { 
+
+			if (scalar @students == 1) { 
+				$code = $students[0]->first." ".$students[0]->last;
+			} else { 
+				foreach my $student (@students) { 
+					$code .= " & " if $code;
+					$code .= $student->last;
+				}
+			}
+
+		} else { 
+
+			if (scalar @students == 1) { 
+				$code .= ucfirst(substr($students[0]->first,0,1)).ucfirst(substr($students[0]->last,0,1));
+			} else { 
+				foreach my $student (@students) { 
+					$code .= ucfirst(substr($student->last,0,1));
+				}
+			}
+
+			if ($entry_code{$school_code." ".$code} && $entry_code{$school_code." ".$code} != $entry->id ) { 
+				if (scalar @students == 1) { 
+					$code = ucfirst(substr($students[0]->first,0,1)).ucfirst(substr($students[0]->last,0,2));
+				} else { 
+					foreach my $student (@students) { 
+						$code = ucfirst(substr($student->last,0,2));
+					}
+				}
+			}
+		
+			if ($entry_code{$school_code." ".$code} && $entry_code{$school_code." ".$code} != $entry->id ) { 
+				if (scalar @students == 1) { 
+					$code = ucfirst(substr($students[0]->first,0,2)).ucfirst(substr($students[0]->last,0,2));
+				} else { 
+					foreach my $student (@students) { 
+						$code = ucfirst(substr($student->last,0,3));
+					}
+				}
+			}
+
+			$code = "XX" if $entry_code{$school_code." ".$code} && $entry_code{$school_code." ".$code} != $entry->id;
+
+			while ($entry_code{$school_code." ".$code} && $entry_code{$school_code." ".$code} != $entry->id) { 
+				$code++;
+			}
+
+		}
+
+		return ($school_code." ".$code);
+	
+	}
+
+</%init>

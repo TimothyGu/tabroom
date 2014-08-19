@@ -1,0 +1,62 @@
+<%args>
+	$chapter_id
+	$account
+	$session
+</%args>
+<%init>
+
+	my $chapter = Tab::Chapter->retrieve($chapter_id);
+	$m->comp("/user/chapter/auth.mas", chapter => $chapter, account => $account, session => $session);
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge"> 
+
+		<h2>Welcome, <% $chapter->name %></h2>
+
+		<& tabbar.mas, chapter => $chapter &> 
+
+		<h4>Your school or team has been created</h4>
+
+		<p>
+			Now you have to complete three quick steps before registering for
+			tournaments.
+		</p>
+
+		<ul> 
+
+			<li>
+				You need to enter your student names into your roster.  The
+				student roster is under the "Students" tab above.  You need
+				only enter each student name once; you can just pick existing
+				students from your roster for future tournaments.
+			</li>
+
+			<li>
+				You need to enter judges into your judge roster, the same as
+				your students.
+			</li>
+
+			<li>
+				And finally, you must join the circuits for the tournaments you
+				want to register for.
+			</li>
+
+		</ul>
+
+		<p>
+			Each of these steps is exwhiteed in greater detail as you click on
+			each link.
+		</p>
+
+		<p>
+			After the three steps are completed, click on the Tournaments tab
+			above, and start registering for tournaments!
+		</p>
+
+	</div>
+
+	<& /user/menu.mas, chapter => $chapter, account => $account &> 
+

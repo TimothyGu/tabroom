@@ -1,0 +1,25 @@
+<%args>
+	$event_id
+	$tourn
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id);
+
+	my @entries = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, waitlist => 0 );
+
+	my $apda++ if $event->setting("apda");
+
+	foreach my $entry (@entries) { 
+		$entry->pair_seed($ARGS{$entry->id});
+		$entry->pair_seed(4) if $apda && $ARGS{$entry->id} == 0;
+		$entry->pair_seed(4) if $apda && not defined  $ARGS{$entry->id};
+		$entry->update;
+	}
+
+	my $msg = "Seedings saved";
+
+	$m->redirect("seeds.mhtml?event_id=".$event->id."&msg=$msg");
+
+
+</%init>

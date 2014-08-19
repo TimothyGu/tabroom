@@ -1,0 +1,72 @@
+<%args> 
+	$account
+	$entry_id
+	$tourn
+</%args>
+<%init>
+
+	my $entry = Tab::Entry->retrieve($entry_id);
+
+	my $msg = "Entry not found";
+	$m->redirect("/register/index.mhtml?msg=$msg") unless $entry;
+
+	my $event = $entry->event;
+	my $school = $entry->school;
+
+	my @ballots = $entry->ballots;
+
+	foreach (@ballots) {
+		$_->delete;
+	}
+
+	my $entry_code = $entry->code;
+
+	my @students = $entry->students;
+
+	my $text = "Entry ".$entry->code." dropped in ".$entry->event->abbr;;
+
+	my $change = Tab::TournChange->create({
+		tourn => $tourn->id,
+		school => $entry->school->id,
+		type => "registration",
+		text => $text,
+		account => $account->id
+	}); 
+
+	system "$Tab::eventlogger $text";
+
+	$entry->delete;
+
+	# Delete housing requests unless the student(s) are entered in other events
+
+	if ($tourn->setting("housing")) { 
+
+		foreach my $student (@students) { 
+		
+			unless ($m->comp("/funclib/student_entries.mas", tourn => $tourn)) { 
+
+				my @days = $m->comp("/funclib/tourn_days.mas", tourn => $tourn);
+	   			my $day_before = $days[0]->clone;
+				$day_before->subtract( days => 1);
+				push (@days, $day_before);
+
+				foreach my $day (sort {$a->epoch <=> $b->epoch} @days) {
+
+					foreach my $housing ($student->housing($tourn,$day)) { 
+
+						$housing->delete if $housing;
+
+					}
+				}
+			} 
+		}
+	} 
+	
+	$school->individuals( $school->individuals - scalar @students) if $school->individuals;
+	$school->update if $school->individuals;
+
+	$msg = "Entry ". $entry_code ." deleted";
+
+	$m->redirect("/register/school/entries.mhtml?school_id=".$school->id."&event_id=".$event->id."&msg=$msg");
+
+</%init>

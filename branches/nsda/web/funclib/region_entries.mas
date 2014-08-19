@@ -1,0 +1,71 @@
+<%args>
+	$region
+	$event => undef
+	$group => undef
+	$tourn => undef
+	$pool => undef
+</%args>
+<%init>
+
+	if ($event) { 
+
+		Tab::Entry->set_sql(by_region_and_event => "
+			select distinct entry.*
+			from entry, school
+			where entry.school = school.id
+			and school.region = ? 
+			and entry.event = ? 
+			order by entry.code
+		");
+
+		return Tab::Entry->search_by_region_and_event($region->id, $event->id);
+
+	} elsif ($group) { 
+
+		Tab::Entry->set_sql(by_region_and_group => "
+			select distinct entry.*
+			from entry, school, event
+			where entry.school = school.id
+			and school.region = ? 
+			and entry.event = event.id
+			and event.judge_group = ? 
+			order by entry.code
+		");
+
+		return Tab::Entry->search_by_region_and_group($region->id, $group->id);
+
+	} elsif ($pool) { 
+
+		Tab::Entry->set_sql(by_region_and_pool => "
+			select distinct entry.*
+			from entry, school, round
+			where entry.school = school.id
+			and school.region = ? 
+			and entry.event = round.event
+			and round.pool = ?
+			order by length(entry.code), entry.code, entry.name
+		");
+
+		return Tab::Entry->search_by_region_and_pool($region->id, $pool->id);
+
+	} else { 
+
+		Tab::Entry->set_sql(by_region => "
+			select distinct entry.*, school.name as schname, region.name as regname, region.code as regcode
+			from entry, school, region
+			where entry.school = school.id
+			and school.region = region.id
+			and region.id = ?
+			and school.tourn = ? 
+			order by length(entry.code), entry.code, entry.name
+		");
+
+		return Tab::Entry->search_by_region($region->id, $tourn->id);
+
+	}
+
+	return;
+
+
+</%init>
+

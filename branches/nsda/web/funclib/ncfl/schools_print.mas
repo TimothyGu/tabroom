@@ -1,0 +1,35 @@
+<%args>
+	$diocese_id
+	$tourn_id
+	$filename
+	$filepath
+</%args>
+<%init>
+
+	use POSIX;
+
+	my $diocese = Tab::Region->retrieve($diocese_id);
+	my $tourn  = Tab::Tourn->retrieve($tourn_id);
+
+    open (TEXOUT, ">>$filepath"."$filename.tex");
+
+	my @schools = sort {$a->name cmp $b->name} Tab::School->search( region => $diocese_id, tourn => $tourn->id );
+
+	print TEXOUT "\\begin{tabular}{p{2.5in}p{4.25in}}\n";
+	print TEXOUT "\\multicolumn{2}{l}{\\Large Schools from ". $diocese->name ."}\\\\\n";
+	print TEXOUT "\\rowcolor[rgb]{1,.95,.95}\[5.5pt\]\[5.5pt\]\n";
+	print TEXOUT "{\\bf School} & {\\bf Coaches} \\\\ \n";
+
+	my $switch = 1;
+
+	foreach my $school (@schools) { 
+		print TEXOUT "\\rowcolor[rgb]{.9,.9,.9}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);		
+		print TEXOUT &Tab::texify($school->name) ." & ";
+		print TEXOUT &Tab::texify($school->chapter->coaches)." \\\\ \n ";
+	}
+
+	print TEXOUT "\\end{tabular}\n ";
+	print TEXOUT "\\medskip\n ";
+	close TEXOUT;
+
+</%init>

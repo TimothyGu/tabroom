@@ -1,0 +1,267 @@
+<%args>
+	$account
+	$tourn
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $start = $tourn->start->set_time_zone($tz);
+	my $end = $tourn->end->set_time_zone($tz);
+
+	my $reg_start = $tourn->reg_start->set_time_zone($tz);
+	my $reg_end = $tourn->reg_end->set_time_zone($tz);
+
+	my $freeze_deadline = $tourn->setting("freeze_deadline");
+	$freeze_deadline = $reg_end->clone unless $freeze_deadline;
+	$freeze_deadline->set_time_zone($tz) if $freeze_deadline;
+
+	my $drop_deadline = $tourn->setting("drop_deadline");
+	$drop_deadline = $reg_end->clone unless $drop_deadline;
+	$drop_deadline->set_time_zone($tz) if $drop_deadline;
+
+	my $judge_deadline = $tourn->setting("judge_deadline");
+	$judge_deadline = $reg_end->clone unless $judge_deadline;
+	$judge_deadline->set_time_zone($tz) if $judge_deadline;
+
+	my $fine_deadline = $tourn->setting("fine_deadline");
+	$fine_deadline = $reg_end->clone unless $fine_deadline;
+	$fine_deadline->set_time_zone($tz) if $fine_deadline;
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge">
+
+		<form action="dates_save.mhtml" method="post">
+
+		<h2><% $tourn->name %></h2>
+
+		<& tabbar.mas, tourn => $tourn, whoami => "dates" &>
+
+		<div>
+			<span class="twothird">
+				<h4>Dates</h4>
+			</span>
+
+			<span class="third rightalign">
+				Times are <% Tab::tzname($tz) %>
+			</span>
+		</div>
+
+		<& /funclib/datepicker.mas, id => "start" &>
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Tournament begins
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="start" id="start" size="10" value="<% Tab::pickerdate($start) %>">
+						at
+					<& /funclib/timepicker.mas, name => "starttime", time => $start &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id => "end" &>
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Tournament ends
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="end" id="end" size="10" value="<% Tab::pickerdate($end) %>">
+						at
+					<& /funclib/timepicker.mas, name => "endtime", time => $end &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id => "reg_start", max => $start &> 
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Online registration opens:
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="reg_start" id="reg_start" size="10" value="<% Tab::pickerdate($reg_start) %>">
+						at
+					<& /funclib/timepicker.mas, name => "reg_starttime", time => $reg_start &>
+				</span>
+			</span>
+
+		</div>
+
+%		undef $switch;
+
+		<h4>Deadlines</h4>
+
+		<& /funclib/datepicker.mas, id => "reg_end" , max => $start &> 
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					New entries due by:
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="reg_end" id="reg_end" size="10" value="<% Tab::pickerdate($reg_end) %>">
+						at
+					<& /funclib/timepicker.mas, name => "reg_endtime", time => $reg_end &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id =>"freeze_deadline" , max => $start &> 
+		
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Fees & Obligations freeze:
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="freeze_deadline" id="freeze_deadline" size="10" value="<% Tab::pickerdate($freeze_deadline) %>">
+						at
+					<& /funclib/timepicker.mas, name => "freeze_deadlinetime", time => $freeze_deadline &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id =>"judge_deadline" , max => $start &> 
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Judge entries due: 
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="judge_deadline" id="judge_deadline" size="10" value="<% Tab::pickerdate($judge_deadline) %>">
+						at
+					<& /funclib/timepicker.mas, name => "judge_deadlinetime", time => $judge_deadline &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id =>"drop_deadline" , max => $start &> 
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half block divider">
+				<span class="full">
+					Online drop & namechanges:
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="drop_deadline" id="drop_deadline" size="10" value="<% Tab::pickerdate($drop_deadline) %>">
+						at
+					<& /funclib/timepicker.mas, name => "drop_deadlinetime", time => $drop_deadline &>
+				</span>
+			</span>
+
+		</div>
+
+		<& /funclib/datepicker.mas, id =>"fine_deadline", max => $start &> 
+
+		<div class="nowrap <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="half divider">
+				<span class="full">
+					Nuisance fines apply after:
+				</span>
+			</span>
+
+			<span class="half divided centeralign">
+				<span class="full">
+					<input type="text" name="fine_deadline" id="fine_deadline" size="10" value="<% Tab::pickerdate($fine_deadline) %>">
+						at 
+					<& /funclib/timepicker.mas, name => "fine_deadlinetime", time => $fine_deadline &>
+				</span>
+			</span>
+
+		</div>
+
+		<div class="nowrap liblrow block rightalign">
+			<input  type="submit" value="  Save Dates   ">
+			</form>
+		</div>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+			
+			<h4 style="font-size: 17px;">Deadlines Exwhiteed</h4>
+
+				<p>
+					"New entries due by" is the deadline by which all new
+					competitors must be registered
+				</p>
+
+				<p>
+					"Fees & Obligations Freeze" is the point after which
+					judge burdens and entry fees will still apply 
+					for dropped entries.
+				</p>
+
+				<p>
+					"Judge entries due" is the deadline by which all judges
+					must be added.  You can set earlier deadlines by
+					judge group in the Judge Group menu.
+				</p>
+
+				<p>
+					"Online drops & namechanges" is the deadline past which 
+					coaches cannot change names or drop entries online;
+					an admin must then do it.
+				</p>
+
+				<p>
+					"Nuisance fines apply" is the point past which changes will
+					also incur additional nuisance fees on top of entry fees;
+					you can set nuisance fee amounts in Setup -> Money.
+				</p>
+
+
+
+		</div>
+
+	</div>
+
+
+

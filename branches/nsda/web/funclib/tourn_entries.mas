@@ -1,0 +1,105 @@
+<%args>
+	$tourn
+	$all => undef
+	$code => undef
+	$last => undef
+	$novii => undef
+	$by_region => undef
+</%args>
+<%perl>
+
+	if ($code) { 
+
+		Tab::Entry->set_sql( by_tourn => "
+			select distinct entry.* 
+			from entry, event
+			where entry.event = event.id
+			and event.tourn = ? 
+			and entry.code = ? 
+			and entry.unconfirmed = 0
+			and entry.dropped = 0
+			order by event.name, entry.code");
+		
+		return Tab::Entry->search_by_tourn($tourn->id, $code);
+
+	} elsif ($last) { 
+
+		Tab::Entry->set_sql( by_tourn => "
+			select distinct entry.* 
+			from entry, event, entry_student, student
+			where entry.event = event.id
+			and event.tourn = ? 
+			and entry.id = entry_student.entry
+			and entry_student.student = student.id
+			and student.last = ? 
+			and entry.unconfirmed = 0
+			and entry.dropped = 0
+			order by event.name, entry.code");
+		
+		return Tab::Entry->search_by_tourn($tourn->id, $code);
+
+	} elsif ($novii) { 
+	
+		Tab::Entry->set_sql( novii_by_tourn => "
+			select distinct entry.* 
+			from entry, event
+			where entry.event = event.id
+			and event.tourn = ? 
+			and entry.unconfirmed = 0
+			and entry.dropped = 0
+			and not exists (
+				select student.id
+				from student, entry_student
+				where entry_student.entry = entry.id
+				and entry_student.student = student.id
+				and student.novice = 0
+			)
+			order by event.name, entry.code");
+		
+		return Tab::Entry->search_novii_by_tourn($tourn->id);
+	
+	} elsif ($all) { 
+	
+		Tab::Entry->set_sql( all_by_tourn => "
+			select distinct entry.id, entry.code, school.name as schname, school.code as othername
+			from entry, school
+			where entry.school = school.id
+			and school.tourn = ? 
+			order by school.name, entry.code");
+	
+		return Tab::Entry->search_all_by_tourn($tourn->id);
+	
+	} elsif ($by_region)  { 
+
+		Tab::Entry->set_sql( region_by_tourn => "
+			select distinct entry.*, school.name as schname, region.name as regname, region.code as regcode, region.id as region
+			from entry, event, school, region
+			where entry.event = event.id
+			and event.tourn = ? 
+			and entry.unconfirmed = 0
+			and entry.waitlist = 0
+			and entry.dropped = 0
+			and entry.school = school.id
+			and school.region = region.id
+			order by region.code, entry.code");
+		
+		return Tab::Entry->search_region_by_tourn($tourn->id);
+
+	} else { 
+
+		Tab::Entry->set_sql( by_tourn => "
+			select distinct entry.id, entry.code, entry.name, entry.school, entry.event
+			from entry, event
+			where entry.event = event.id
+			and event.tourn = ? 
+			and entry.unconfirmed = 0
+			and entry.dropped = 0
+			and entry.waitlist = 0
+			order by event.name, entry.code");
+		
+		return Tab::Entry->search_by_tourn($tourn->id);
+
+	}
+
+</%perl>
+

@@ -1,0 +1,315 @@
+<%args>
+	$tourn
+	$school_id => undef
+	$group_id
+	$from => undef
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+	my $school = Tab::School->retrieve($school_id) if $school_id;
+	my $switch;
+
+</%init>
+
+
+%	if ($school) { 
+		<& /register/menubar.mas, school => $school, whoami => "judges", tourn => $tourn &>
+%	} else { 
+		<& menu.mas, group => $group, whoami => "add", tourn => $tourn &>
+		<div class="left huge">
+%	}
+
+		<h4>Add a judge by Tabroom account</h4>
+
+			<table width="100%" cellpadding="4" cellspacing="1">
+
+				<tr class="yellowrow centeralign">
+		
+					<td>
+						<form action="add_save.mhtml" method="post">
+						<input type="hidden" name="group_id" value="<% $group->id %>">
+						<input type="hidden" name="from" value="1">
+						<input type="email" name="email" placeholder="Email address" size="25">
+					</td>
+
+%					if ($group->setting("rounds_per")) { 
+
+						<td>
+							<input type="number" name="obligation" placeholder="Rounds" size="4" min=0 max=9999>
+						</td>
+
+						<td>
+							<input type="number" name="hired" placeholder="Hired" size="4" min=0 max=9999>
+						</td>
+%					}
+
+					<td>
+						<select name="school_id" class="chosen fixedsmall" tabindex="-1">
+
+							<option value="">Hired Judge</option>
+
+%							foreach my $school ($tourn->schools) { 
+								<option value="<% $school->id %>" <% $school->id == $school_id ? "selected" : "" %>> <% $school->name %> </option>
+%							}
+						</select>
+					</td>
+
+					<td>
+						<input type="submit" value="Go" tabindex="-1" class="thin">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+
+			<h4 class="martop">Or, add a judge without an Tabroom account</h4>
+
+			<table cellpadding="4" cellspacing="1">
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						<form action="add_save.mhtml" method="post">
+						<input type="hidden" name="from" value="1">
+						<input type="hidden" name="group_id" value="<% $group->id %>">
+						First name
+					</td>
+
+					<td>
+						<input type="text" name="first" placeholder="First name">
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						Last name
+					</td>
+
+					<td>
+						<input type="text" name="last" placeholder="Last name">
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						ADA access required?
+					</td>
+
+					<td>
+						<input type="checkbox" id="ada" class="largecheck" name="ada" value="1">
+					</td>
+
+				</tr>
+
+%				if ($group->setting("judge_contacts")) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							Phone Number
+						</td>
+
+						<td>
+							<input type="tel" name="phone" size="30">
+						</td>
+
+					</tr>
+
+%				}
+
+%				if ($group->setting("tab_ratings")) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							Tab Rating
+						</td>
+
+						<td>
+							<input type="number" name="tab_rating" value="">
+						</td>
+
+					</tr>
+%				}
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						Gender
+					</td>
+
+					<td>
+						F <input type="radio" name="gender" value="F">
+						M <input type="radio" name="gender" value="M">
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						School:
+					</td>
+
+					<td>
+
+						<select name="school_id" class="chosen fixed">
+
+							<option value="">Hired Judge</option>
+
+%							foreach my $school ($tourn->schools) { 
+								<option value="<% $school->id %>" <% $school->id == $school_id ? "selected" : "" %>>
+									<% $school->name %>
+								</option>
+%							}
+
+						</select>
+
+					</td>
+
+				</tr>
+
+%				if ($group->setting("rounds_per")) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							Rounds for school:
+						</td>
+
+						<td>
+							<input type="number" name="obligation" size="5">
+						</td>
+
+					</tr>
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							Rounds for hire:
+						</td>
+
+						<td>
+							<input type="number" name="hired" size="5">
+						</td>
+
+					</tr>
+
+%				}
+
+%				if ($group->setting("coach_ratings")) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							Coach Rating
+						</td>
+
+						<td>
+
+%						if ($group->rating_subsets) { 
+
+% 							foreach my $subset ($group->rating_subsets) { 
+
+									<span class="smallspan">
+										<% $subset->name %>
+									</span>
+						
+									<select name="<% $subset->id %>_rating" class="fixedsmall">
+										<option value="">Unrated</option>
+	
+%										foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) { 
+
+											<option value="<% $tier->id %>">
+												<% $tier->name %> - <% substr($tier->description,0,15) %>
+											</option>
+%										}
+
+									</select>
+%							} 
+
+%						}  else { 
+
+							<select name="rating">
+
+								<option value="">
+									Unrated
+								</option>
+
+%								foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) { 
+									<option value="<% $tier->id %>">
+										<% $tier->name %> - <% substr($tier->description,0,15) %>
+									</option>
+%								}
+
+							</select>
+		
+%						}
+
+						</td>
+
+					</tr>
+
+%				}
+
+%				if ($group->setting("first_year_outs")) {
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							First year judging?
+						</td>
+
+						<td>
+							<input type="checkbox" name="first_year" value="1">
+						</td>
+
+ 					</tr>
+
+%				}
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						Tab/Special Job 
+					</td>
+		
+					<td>
+						<input type="text" name="special" size="33">
+					</td>
+
+				</tr> 
+		
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						Coaches Notes
+					</td>
+
+					<td>
+						<input type="text" name="notes" size="33">
+					</td>
+
+				</tr>
+
+				<tr class="liblrow">
+
+					<td colspan="2" class="rightalign">
+						<input type="submit" value="Save and Add Another" style="width: 200px;">
+					</td>
+
+				</tr>
+
+			</table>
+
+	</div>
+
+%	if ($school) { 
+		<& /register/school/judge_menu.mas, school => $school, tourn => $tourn &>
+%	}

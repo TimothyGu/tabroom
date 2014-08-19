@@ -1,0 +1,29 @@
+<%args>
+	$tourn
+	$round_id => undef
+	$account
+</%args>
+<%init>
+
+	my $round = Tab::Round->retrieve($round_id);
+
+	my $realname = $round->realname if $round;
+	my $abbr = $round->event->abbr if $round;
+
+	my $text = $account->first." ".$account->last." (".$account->email.") has dumped the rooms out of round ".$realname." of ".$abbr;
+
+	Tab::TournChange->create({ 
+		type => 'tabbing',
+		event => $round->event->id,
+		tourn => $round->event->tourn->id,
+		account => $account->id,
+		text => $text
+	}); 
+
+	$m->comp("/funclib/round_clear_rooms.mas", round => $round) if $round;
+
+	my $msg = "Rooms have been dumped";
+
+	$m->redirect("/panel/schemat/show.mhtml?round_id=$round_id&msg=$msg");
+
+</%init>

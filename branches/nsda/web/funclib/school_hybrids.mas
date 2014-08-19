@@ -1,0 +1,82 @@
+<%args>
+	$school
+	$event       => undef
+	$others_only => undef
+</%args>
+<%init>
+
+	if ($event) { 
+		
+		Tab::Entry->set_sql( by_hybrid_event => "
+			select distinct entry.*
+			from entry, strike, school
+			where strike.school = ?
+			and entry.school = school.id
+			and strike.type = \"hybrid\"
+			and strike.entry = entry.id
+			and entry.event = ? 
+			order by entry.code
+		");
+
+		Tab::Entry->set_sql( by_my_hybrid_event => "
+			select distinct entry.*
+			from entry, strike, school
+			where entry.school = ?
+			and entry.event = ? 
+			and strike.type = \"hybrid\"
+			and strike.entry = entry.id
+			and strike.school = school.id
+		");
+
+		my @others = Tab::Entry->search_by_hybrid_event($school->id, $event->id), 
+		my @owns = Tab::Entry->search_by_my_hybrid_event($school->id, $event->id) unless $others_only;
+
+		my @return;
+
+		foreach my $other (@others, @owns) { 
+
+			my $strike = Tab::Strike->search( type => "hybrid", entry => $other->id)->first;
+
+
+			if ($other->school->id == $school->id) { 
+				$other->othername($strike->school->short_name);
+			} else { 
+				$other->othername($other->school->short_name);
+			}
+
+			push @return, $other;
+
+		}
+
+		return @return;
+
+	} else { 
+
+		Tab::Entry->set_sql( by_hybrid => "
+			select distinct entry.*, school.name as othername
+			from entry, strike, school
+			where strike.school = ?
+			and strike.type = \"hybrid\"
+			and strike.entry = entry.id
+			and school.id = entry.school
+			order by entry.code
+		");
+
+		Tab::Entry->set_sql( by_my_hybrid => "
+			select distinct entry.*, other.name as othername
+			from entry, strike, school, school other
+			where entry.school = ?
+			and strike.type = \"hybrid\"
+			and strike.entry = entry.id
+			and school.id = strike.school
+			and strike.school = other.id
+		");
+
+		my @hybrids = Tab::Entry->search_by_hybrid($school->id);
+		push @hybrids, Tab::Entry->search_by_my_hybrid($school->id) unless $others_only;
+
+		return @hybrids;
+
+	}
+
+</%init>

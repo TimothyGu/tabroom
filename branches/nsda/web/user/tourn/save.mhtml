@@ -1,0 +1,574 @@
+<%args>
+	$account
+	$name
+	$webname
+	$start
+	$end
+	$reg_start
+	$reg_end
+	$frozen
+	$judge
+	$drops
+	$fines
+	$circuit_string
+	$site_id   => undef
+	$site_name => undef
+	$state     => undef
+	$country   => undef
+	$tz        => undef
+	$test      => 0
+</%args>
+<%init>
+
+	$tz = "UTC" unless $tz;
+
+	unless ($site_name || $site_id) { 
+		my $return = "You must select an existing site, or give your site a name";
+		$m->redirect("location.mhtml?name=$name&start=$start&end=$end&reg_start=$reg_start&reg_end=$reg_end&drops=$drops&judge=$judge&frozen=$frozen&fines=$fines&circuit_string=$circuit_string&state=$state&tz=$tz&country=$country&error=$return");
+	}
+
+	my @circuits;
+
+	foreach my $circuit_id (split(/-/, $circuit_string)) { 
+		 push(@circuits, Tab::Circuit->retrieve($circuit_id));
+	}
+
+	my $default_circuit = $circuits[0];
+	$default_circuit = Tab::Circuit->retrieve("6") unless $default_circuit;
+	my $default_circuit_id = $default_circuit->id if $default_circuit;
+
+	my $startdt = DateTime::Format::MySQL->parse_datetime($start);
+	my $enddt = DateTime::Format::MySQL->parse_datetime($end) if $end;
+	my $reg_startdt = DateTime::Format::MySQL->parse_datetime($reg_start);
+	my $reg_enddt = DateTime::Format::MySQL->parse_datetime($reg_end);
+	my $frozendt = DateTime::Format::MySQL->parse_datetime($frozen);
+	my $finesdt = DateTime::Format::MySQL->parse_datetime($fines);
+	my $judgedt = DateTime::Format::MySQL->parse_datetime($judge);
+	my $dropsdt = DateTime::Format::MySQL->parse_datetime($drops);
+
+	$startdt->set_time_zone($tz);
+	$enddt->set_time_zone($tz);
+	$reg_startdt->set_time_zone($tz);
+	$reg_enddt->set_time_zone($tz);
+	$frozendt->set_time_zone($tz);
+	$finesdt->set_time_zone($tz);
+	$judgedt->set_time_zone($tz);
+	$dropsdt->set_time_zone($tz);
+
+	my $site = Tab::Site->retrieve($site_id) if $site_id;
+
+	unless ($site) { 
+
+		$site = Tab::Site->create({
+			circuit => $default_circuit_id,
+			host => $account->id,
+			name => $site_name
+		});
+
+		$site_id = $site->id;
+
+	}
+
+	my $tourn = Tab::Tourn->create( { 
+		name      => $name,
+		webname   => $webname,
+		start     => $startdt,
+		end       => $enddt,
+		reg_start => $reg_startdt,
+		reg_end   => $reg_enddt,
+		hidden    => $test,
+		state     => $state,
+		country   => $country,
+		tz        => $tz
+	});
+
+	$tourn->setting("freeze_deadline", "date", $frozendt);
+	$tourn->setting("fine_deadline", "date", $finesdt);
+	$tourn->setting("judge_deadline", "date", $judgedt);
+	$tourn->setting("drops_deadline", "date", $dropsdt);
+
+
+	my $join = Tab::TournSite->create ({
+		tourn => $tourn->id,
+		site  => $site_id
+	});
+
+	my $admin = Tab::TournAdmin->create ({
+		tourn   => $tourn->id,
+		account => $account->id,
+		contact => '1'
+	});
+
+
+	foreach my $circuit (@circuits) { 
+
+		my $approved = 0;
+		$approved = 1 if Tab::CircuitAdmin->search( account => $account->id, circuit => $circuit->id );
+
+		my $join = Tab::TournCircuit->create ({
+			tourn   => $tourn->id,
+			circuit => $circuit->id,
+			approved => $approved
+		});
+	}
+
+	$tourn->setting("school_codes", "shortname");
+
+	#Create default tiebreaker sets
+
+	my $tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name  => "Debate Prelims",
+		type  => "Team"
+	});
+
+	$tb_set->setting("noshows_never_break", "1");
+
+	Tab::Tiebreak->create({
+		name          => "winloss",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 2,
+		multiplier    => 1,
+		priority      => 3
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 4 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "opp_seed",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 5
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "coinflip",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 6 
+	}); 
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Debate Elims",
+		type => "Team"
+	});
+
+	Tab::Tiebreak->create({
+		name          => "winloss",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("equal_elims", "1");
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Debate Speakers",
+		type => "Speaker"
+	});
+
+	$tb_set->setting("noshows_never_break", "1");
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 1
+	});
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 2,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "opp_seed",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 4
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "judge_var",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 5 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "coinflip",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 6 
+	}); 
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Speech Prelims",
+		type => "Team"
+	});
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 2 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3 
+	}); 
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("truncate_to_smallest", 1);
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Speech Elims: Cumulative",
+		type => "Team"
+	});
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("equal_elims", "1");
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 4,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 4,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 4 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "judgepref",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 5 
+	}); 
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Speech Elims: Sudden Death",
+		type => "Team"
+	});
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("equal_elims", "1");
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "judgepref",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3
+	}); 
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Congress Prelims",
+		type => "Team"
+	});
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "judgepref",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 4
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 5
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "prelim",
+		highlow       => 0,
+		highlow_count => 0,	
+		multiplier    => 1,
+		priority      => 7
+	}); 
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("equal_elims", "1");
+
+	$tb_set = Tab::TiebreakSet->create({
+		tourn => $tourn->id,
+		name => "Congress Elims",
+		type => "Team"
+	});
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 1
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "judgepref",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 2
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 0,
+		highlow_count => 0,
+		multiplier    => 1,
+		priority      => 3
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "ranks",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 4
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "reciprocals",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 5 
+	}); 
+
+	Tab::Tiebreak->create({
+		name          => "points",
+		tb_set        => $tb_set->id,
+		count         => "last elim",
+		highlow       => 1,
+		highlow_count => 1,
+		multiplier    => 1,
+		priority      => 6 
+	}); 
+
+
+	$tb_set->setting("noshows_never_break", "1");
+	$tb_set->setting("equal_elims", "1");
+
+	$m->comp("/funclib/update_calendar.mas", tourn => $tourn) unless $tourn->hidden;
+	$m->redirect("/user/tourn/confirm.mhtml?tourn_id=".$tourn->id);
+
+</%init>
+

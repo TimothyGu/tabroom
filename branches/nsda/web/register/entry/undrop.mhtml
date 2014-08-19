@@ -1,0 +1,21 @@
+<%args> 
+	$entry_id
+	$tourn
+	$from => undef
+</%args>
+<%init>
+
+	my $entry = Tab::Entry->retrieve($entry_id);
+	$entry->dropped(0);
+	$entry->update;
+
+	my $reason_key = "Dropped ".$entry->code;	
+
+	foreach my $fine (Tab::SchoolFine->search( school => $entry->school->id, reason => $reason_key )) { 
+		$fine->delete;
+	}
+
+	my $msg = "Entry ". $entry->code ." un-dropped";
+	$m->redirect("$Tab::url_prefix/register/entry/edit.mhtml?entry_id=$entry->id&msg=$msg");
+
+</%init>

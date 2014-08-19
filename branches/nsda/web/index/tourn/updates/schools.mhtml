@@ -1,0 +1,88 @@
+<%args>
+	$account => undef
+	$tourn_id
+</%args>
+<%init>
+
+	unless ($account) { 
+		my $err = "You must be logged into a tabroom.com account to follow a school.  Log in above";
+		$m->redirect("index.mhtml?tourn_id=$tourn_id&err=$err");
+	}
+
+	my $tourn = Tab::Tourn->retrieve($tourn_id);
+
+	my ($e, $j, $schref) = $m->comp("/funclib/account_follows.mas", account => $account, tourn => $tourn);
+
+	my %already = ();
+
+	foreach my $sch (@{$schref}) { 
+		$already{$sch->id}++;
+	}
+
+</%init>
+
+    	<& sidebar.mas, tourn_id => $tourn_id, whoami => "schools" &>
+
+	    <div class="left huge">
+		
+			<div>
+				<span class="twothird">
+					<h2>
+						<% $tourn->name %> 
+					</h2>
+				</span>
+
+				<span class="third rightalign top">
+					<h4>
+						<% $tourn->location %>  
+					</h4>
+				</span>
+
+			</div>
+
+			<& /index/tourn/tourn_header.mas, tourn => $tourn, account => $account &>
+
+			<h4>Follow an entire school's entries </h4>
+
+%			if ($account && $schref && scalar @{$schref} > 0) { 
+
+				<p>Schools you are following.  Tap school name to cancel:</p>
+
+%				foreach my $school (@{$schref}) { 
+					<a class="half yellow" href="update_remove.mhtml?school_id=<% $school->id %>&tourn_id=<% $tourn_id %>">
+						Following: <% $school->code.": ".$school->name %>
+					</a>
+%				}
+
+%			}
+
+			<p>Tap a school to get a master text message or email for an entire
+			school's assignments.  Fair warning: these messages can be quite
+			large and if sent by text will likely be divided between multiple
+			messages.</p>
+
+			<br style="clear: both;">
+
+%			foreach my $school (sort {$a->name cmp $b->name} $tourn->schools) { 
+%				next if $already{$school->id};
+
+				<a class="smallish half <% $already{$school->id} ? "yellow" : "blue" %>"
+					href="<% $already{$school->id} ? "update_remove.mhtml" : "school_follow.mhtml" %>?school_id=<% $school->id %>&tourn_id=<% $tourn_id %>">
+					<span class="quarter">
+						<% $school->code %>
+					</span>
+					<span class="threequarter">
+						<% $school->name %>
+					</span>
+				</a>
+%			}
+
+	
+		
+
+
+
+
+
+		</div>
+

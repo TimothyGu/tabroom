@@ -1,0 +1,86 @@
+<%args>
+	$account => undef
+	$tourn_id
+	$round_id => undef
+	$event_id => undef
+</%args>
+<%init>
+
+	my $tourn =  Tab::Tourn->retrieve($tourn_id);
+
+	my $tz =  $account->tz if $account;
+	$tz = $tourn->tz unless $tz;
+
+	my @rounds = $m->comp('/funclib/published_rounds.mas', tourn => $tourn);
+	push (@rounds, $m->comp('/funclib/listed_rounds.mas', tourn => $tourn));
+
+	my @events = $tourn->events;
+	my $event = shift @events if scalar @events == 1;
+	$event_id = $event->id if $event;
+
+    #uniq 
+	my %seen = ();
+    @rounds = grep { ! $seen{$_->id} ++ } @rounds;
+
+	my %events_with_rounds = ();
+
+	my $current;
+
+	foreach my $round (@rounds) { 
+		
+		next unless $round->published;
+
+		push (@{$events_with_rounds{$round->event->id}}, $round);
+
+		next unless $event_id == $round->event->id;
+
+		if ($current < $round->name) { 
+			$round_id = $round->id;
+			$current = $round->name;
+		}
+
+	}
+
+    my $webpage = Tab::Webpage->search( tourn => $tourn_id, special => "postings")->first;
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter" style="vertical-align: top;">
+			<h4 style="text-align: right;">
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<br style="clear: both;">
+
+        <& ../tourn_header.mas, tourn => $tourn, account => $account &>
+
+
+%		my $round = Tab::Round->retrieve($round_id) if $round_id;
+
+%		if ($round) { 
+
+%			$m->redirect("/index/tourn/postings/round.mhtml?tourn_id=".$tourn->id."&round_id=".$round->id);
+
+%		} elsif ($webpage) { 
+
+			<p>
+				<% $webpage->content %>
+			</p>
+
+%		} 
+
+	</div>
+
+	<& menu.mas, tourn_id => $tourn_id, event_id => $event_id, round_id => $round_id &>
+

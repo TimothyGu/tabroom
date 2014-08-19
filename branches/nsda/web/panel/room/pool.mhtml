@@ -1,0 +1,145 @@
+<%args>
+	$tourn
+	$account
+	$pool_id => undef
+</%args>
+<%init>
+
+	my $tourn_access = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id )->first;
+	my $no_setup++ if $tourn_access && $tourn_access->no_setup;
+	undef $no_setup if $account->site_admin;
+
+	my $pool = Tab::RoomGroup->retrieve($pool_id);
+
+	my @pools = $tourn->room_groups;
+
+	my @rooms = $m->comp("/funclib/tourn_rooms.mas", tourn => $tourn, inactive => 0);
+	@rooms = map  { $_->[0] } sort { $a->[1] <=> $b->[1] } map  { [$_, $_->name=~/(\d+)/] } @rooms;
+	@rooms = map  { $_->[0] } sort { $a->[1] cmp $b->[1] } map  { [$_, $_->name=~/(\D+)/] } @rooms;
+
+	my @sites = $tourn->sites;
+	my $multi_sites++ if scalar @sites > 0;
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, pool_id => $pool_id, whoami => "pool", no_setup => $no_setup  &>
+
+	<div class="left huge">
+
+%		unless ($pool) { 
+
+			<h2>Choose a pool at right</h2>
+
+			<& tabbar.mas, tourn => $tourn, whoami => "pool" &>
+
+%		} else {
+
+%			my @pool_rooms = $m->comp("/funclib/pool_rooms.mas", pool => $pool);
+%			@pool_rooms = map  { $_->[0] } sort { $a->[1] <=> $b->[1] } map  { [$_, $_->name=~/(\d+)/] } @pool_rooms;
+%			@pool_rooms = map  { $_->[0] } sort { $a->[1] cmp $b->[1] } map  { [$_, $_->name=~/(\D+)/] } @pool_rooms;
+
+			<h2>Rooms for <% $pool->name %></h2>
+		
+			<& tabbar.mas, tourn => $tourn, whoami => "pool", pool_id => $pool->id  &>
+
+			<script type="text/javascript">
+				$(document).ready(function(){
+					$("input:checkbox.room").change(function() { 
+
+						var spanstring = '#span_' + $(this).attr("id");
+
+						if($(this).is(":checked")) { 
+							$.ajax({
+								url: 'pool_room_switch.mhtml',
+								type: 'POST',
+								data: { room_id:$(this).attr("id"), value:"1", pool_id:"<% $pool_id %>" },
+								success: function(data) { 
+									$(spanstring).removeClass('evenrow').addClass('liblrow');
+								}
+
+							});
+						} else {
+							$.ajax({
+								url: 'pool_room_switch.mhtml',
+								type: 'POST',
+								data: { room_id:$(this).attr("id"), value:"0", pool_id:"<% $pool_id %>" },
+								success: function(data){ 
+									$(spanstring).removeClass('liblrow').addClass('evenrow');
+								}
+							});
+						}
+					}); 
+				});
+			</script>
+
+%			my %used = ();
+
+			<div class="half smallish">
+
+				<h4><% scalar @pool_rooms %> in pool:</h4>
+
+%				foreach my $room (sort {$a->site->name cmp $b->site->name} @pool_rooms) { 
+%					next if $room->inactive;
+%					$used{$room->id}++;
+
+					<label for="<% $room->id %>">
+					<div class="optionblock liblrow martop-half" id="span_<% $room->id %>">
+
+						<span class="twothird padno">
+							<% $room->name %>
+							<% $multi_sites ? '<div class="tiny martop">'.$room->site->name."</div>" : ""%>
+						</span>
+
+						<span class="sixth centeralign">
+							<% $room->quality %> / <% $room->capacity %>
+						</span>
+
+						<span class="sixth centeralign">
+							<input type="checkbox" class="room" id="<% $room->id %>" name="<% $room->id %>" value="1" checked="checked">
+						</span>
+
+					</div>
+					</label>
+
+%				}
+
+			</div>
+
+%			if ($pool) { 
+
+				<div class="half smallish">
+
+					<h4><% scalar @rooms %> rooms:</h4>
+
+%					foreach my $room (sort {$a->site->name cmp $b->site->name} @rooms) { 
+
+%						next if $room->inactive;
+%						next if $used{$room->id};
+
+						<label for="<% $room->id %>">
+						<div class="optionblock evenrow martop-half" id="span_<% $room->id %>">
+
+							<span class="twothird padno ">
+								<% $room->name %>
+								<% $multi_sites ? '<div class="tiny martop">'.$room->site->name."</div>" : ""%>
+							</span>
+
+							<span class="sixth centeralign">
+								<% $room->quality %> / <% $room->capacity %>
+							</span>
+
+							<span class="sixth centeralign">
+								<input type="checkbox" class="room" style="margin: 0; margin-top: 2px;" 
+									id="<% $room->id %>" name="<% $room->id %>" value="1">
+							</span>
+
+						</div>
+						</label>
+%					}
+
+				</div>
+%			}
+%		}
+
+	</div>
+

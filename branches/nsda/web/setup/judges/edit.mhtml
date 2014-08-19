@@ -1,0 +1,382 @@
+<%args>
+	$account
+	$group_id => undef
+	$tourn
+	$new => undef
+	$page => undef
+</%args>
+<%perl>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id) if $group_id; 
+	my $switch;
+
+	$group = $tourn->groups->first if scalar $tourn->groups == 1 && not defined $new;
+	$group_id = $group->id if $group && not defined $new;
+
+	if ($page) { 
+
+		$m->redirect("edit.mhtml?group_id=".$group->id) if $page eq "edit";
+		$m->redirect("hires.mhtml?group_id=".$group->id) if $page eq "hires";
+		$m->redirect("tabbing.mhtml?group_id=".$group->id) if $page eq "tabbing";
+		$m->redirect("ratings.mhtml?group_id=".$group->id) if $page eq "ratings";
+		$m->redirect("tiers.mhtml?group_id=".$group->id) if $page eq "tiers";
+		$m->redirect("coach_tiers.mhtml?group_id=".$group->id) if $page eq "coach_tiers";
+		$m->redirect("partials.mhtml?group_id=".$group->id) if $page eq "partials";
+		$m->redirect("pools.mhtml?group_id=".$group->id) if $page eq "pools";
+		
+	}
+
+	my $judge_per++ if $group && $group->setting("judge_per");
+
+	$page = "edit";
+	$page = "new" if $new;
+
+</%perl>
+
+	<& menubar.mas, group_id => $group_id, tourn => $tourn, page => $page &>
+
+	<div class="left huge">
+
+%	if ($group || $new) { 
+
+		<h2>
+			<% ($group) ? $group->name : "Add New Judging Group" %> 
+		</h2> 
+	
+%		if ($group) { 
+			<& "tabbar.mas", whoami => "edit", group => $group &>
+%		}
+
+		<h4>Registration settings</h4>
+		
+		<form action="edit_save.mhtml" method="post">
+		<input type="hidden" value="<% $group_id %>" name="group_id">
+		
+
+		<div class="half inline">
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="quarter">
+					Name:
+				</span>
+
+				<span class="threequarter rightalign" style="margin-right: 10px;">
+					<input type="text" name="name" value="<% ($group) ? $group->name : "" %>" size="25">
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="no_codes">
+						Suppress judge codes (names only)
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" name="no_codes" id="no_codes" value="1" <% ($group) ? ($group->setting("no_codes")) ? "checked" : "" : "" %>>
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="threequarter">
+					<label for="code_start">
+						Start judge codes with
+					</label>
+				</span>
+				<span class="quarter rightalign">
+					<input type="number" class="smaller" name="code_start" size="5" min="1" max="999" value="<% ($group) ? $group->setting("code_start") : "" %>">
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="field_report">
+						Publish the list of judges online
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" name="field_report" id="field_report" value="1" <% ($group) ? ($group->setting("field_report")) ? "checked" : "" : "" %>>
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="judge_cells">
+						Ask for judge phone #s at registration
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" name="judge_cells" id="judge_cells" value="1" <% ($group) ? ($group->setting("judge_cells")) ? "checked" : "" : "" %>>
+				</span>
+			</div>
+
+		</div>
+
+		<div class="half inline rightfloat">
+
+%			undef $switch;
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="twothird">
+					Abbreviation, max 3 letters:
+				</span>
+				<span class="third centeralign">
+					<input type="text" maxlength="3" name="abbr" value="<% ($group) ? $group->abbr : "" %>" size="7">
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="first_year_outs">
+						Registrants can mark first year outs
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" name="first_year_outs" id="first_year_outs" value="1" <% ($group) ? ($group->setting("first_year_outs")) ? "checked" : "" : "" %>>
+				</span>
+			</div>
+
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="neutrals">
+						Registrants can mark neutral judges 
+					</label>
+					<br />
+					<span class="smallish">
+						Allowed to judge their own school's entries
+					</span>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" id="neutrals" name="neutrals" value="1" <% $group && $group->setting("neutrals") ? "checked" : "" %>>
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="double_entry">
+						Allow judge double-entry
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" name="double_entry" id="double_entry" value="1" <% ($group && $group->setting("double_entry")) ? "checked" : "" %>>
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="ask_alts">
+						Ask to specify an alternate group
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" id="ask_alts" name="ask_alts" value="1" <%  ($group && $group->setting("ask_alts")) ? "checked" : "" %>>
+				</span>
+			</div>
+
+		</div>
+
+		<div class="half inline">
+%			undef $switch;
+
+			<h4>
+				Burden method, pick one
+			</h4>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="threequarter">
+					Entries per judge owed
+				</span>
+				<span class="quarter rightalign">
+					<input type="number" class="smaller" step=".01" min=0 max=99 name="judge_per" value="<% ($group) ? $group->setting("judge_per") : "" %>" size="4">
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="threequarter">
+					Rounds owed per entry 
+				</span>
+				<span class="quarter rightalign">
+					<input type="number" class="smaller" min=0 max=99 step=".01" name="rounds_per" value="<% ($group) ? $group->setting("rounds_per") : "" %>" size="4">
+				</span>
+			</div>
+
+% 			if ($tourn->setting("ncfl")) { 
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="fivesixth">
+						<label for="ask_parli">
+							Ask for parliamentarians
+						</label>
+					</span>
+					<span class="sixth centeralign">
+						<input type="checkbox" id="ask_parli" name="ask_parli" class="largecheck" value="1" <% ($group) ? ($group->setting("ask_parli")) ? "checked" : "" : "" %>>
+					</span>
+				</div>
+
+	
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="fivesixth">
+						<label for="tab_room">
+							Flat obligation (tab room)
+						</label>
+					</span>
+					<span class="sixth centeralign">
+						<input type="checkbox" id="tab_room" name="tab_room" class="largecheck" value="1" <% ($group) ? ($group->setting("tab_room")) ? "checked" : "" : "" %>>
+					</span>
+				</div>
+
+	
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter">
+						Minimum per diocese 
+					</span>
+					<span class="quarter rightalign">
+						<input type="number" class="smaller" min=0 max=999 name="dio_min" value="<% ($group) ? $group->setting("dio_min") : "" %>" size="4">
+					</span>
+				</div>
+
+% 			} 
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="threequarter">
+					Penalty per missing <% $judge_per ? "judge" : "round" %>:
+					<br />
+					<span class="smallish">
+						(Not hires; will print a warning)
+					</span>
+				</span>
+				<span class="quarter rightalign">
+					$<input type="number" class="smaller" size="4" min="0" max="999" name="missing_judge_fee" value="<% $group ? $group->setting("missing_judge_fee") : "" %>">
+				</span>
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="threequarter">
+					Fee for a judge to attend:
+					<br />
+					<span class="smallish">
+						(Not hires; per-head fee)
+					</span>
+				</span>
+				<span class="quarter rightalign">
+					$<input type="number" class="smaller" size="4" min="0" max="999" name="attending_judge_fee" value="<% $group ? $group->setting("attending_judge_fee") : "" %>">
+				</span>
+			</div>
+
+
+		</div>
+
+		<div class="half inline rightfloat">
+%			undef $switch;
+
+			<h4>
+				Alter burden
+			</h4>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			    <span class="fivesixth">
+					<label for="drops_no_burden">
+						Forgive judge burden for drops
+					</label>
+				</span>
+				<span class="sixth centeralign">
+					<input type="checkbox" id="drops_no_burden" name="drops_no_burden" value="1" <%  ($group && $group->setting("drops_no_burden")) ? "checked" : "" %>>
+				</span>
+			</div>
+
+%			if ($group && $group->setting("rounds_per")) { 
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="fivesixth">
+						Maximum rounds for one judge:
+					</span>
+					<span class="sixth centeralign">
+						<input type="number" class="smaller" min=0 max=99 name="max_rounds" value="<% ($group) ? $group->setting("max_rounds") : "" %>" size="4">
+					</span>
+				</div>
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="fivesixth">
+						Free rounds: reduce total burden by
+					</span>
+					<span class="sixth centeralign">
+						<input type="number" class="smaller" min=-99 max=99 name="free" value="<% ($group) ? $group->setting("free") : "" %>" size="4">
+					</span>
+				</div>
+
+%			} elsif ($group && $group->setting("judge_per")) { 
+			
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter">
+						Minimum judges owed 
+						<br />
+						<span class="smallish">
+							(if a school has entries)
+						</span>
+					</span>
+					<span class="quarter centeralign">
+						<input type="number" class="smaller" min=0 max=999 name="min_burden" value="<% ($group) ? $group->setting("min_burden") : "" %>" size="4">
+					</span>
+				</div>
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter">
+						Maximum judges a school can owe
+					</span>
+					<span class="quarter centeralign">
+						<input type="number" class="smaller" min=0 max=999 name="max_burden" value="<% ($group) ? $group->setting("max_burden") : "" %>" size="4">
+					</span>
+				</div>
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter smallish">
+						Free judges: reduce judge burden by
+					</span>
+					<span class="quarter centeralign">
+						<input type="number" class="smaller" min=-99 max=99 name="free" value="<% ($group) ? $group->setting("free") : "" %>" size="4">
+					</span>
+				</div>
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter smallish">
+						Maximum number of judges that can <br />count for their alternate group
+					</span>
+					<span class="quarter centeralign">
+						<input type="number" class="smaller" min=0 max=999 name="alt_max" value="<% ($group) ? $group->setting("alt_max") : "" %>" size="4">
+					</span>
+				</div>
+
+%			} else { 
+
+				<p class="padmore">You must specify a burden method at left before you can alter it</p>
+%			} 
+
+		</div>
+
+		<br class="clear" />
+
+		<& "/funclib/editor.mas" &>
+
+		<h4>Message/policy for judge registrations</h4>
+
+		<span class="block leftalign">
+			<textarea name="judge_policy" rows=5 cols="58" wrap="virtual"><% ($group) ? $group->setting("judge_policy") : "" %></textarea>
+		</span>
+
+        <div class="liblrow rightalign">
+            <input type="submit" value=" Save Registration Settings">
+            </form>
+        </div>
+
+
+%	} else { 
+
+		<h2>Judge Groups</h2>
+
+		<p>
+			Add judge groups or edit judge group information.
+		</p>
+
+%	}
+
+	</div>

@@ -1,0 +1,148 @@
+<%args>
+	$tourn
+	$account
+	$session
+	$judge_id
+	$certain    => undef
+	$autoassign => undef
+	$school_id  => undef
+</%args>
+<%init>
+
+	my $msg;
+
+	my $judge = Tab::Judge->retrieve($judge_id);
+
+	unless ($judge) { 
+		$m->print("That judge does not exist.  Perhaps you tried to drop the same judge twice?");
+		$m->abort;
+	}
+
+	if ($autoassign == 1) {
+
+		my @panels = $m->comp('/funclib/judge_panels.mas', judge => $judge);
+
+		foreach my $panel (@panels) { 
+
+			my @clean_judges = $m->comp("/funclib/clean_judges.mas", 
+									panel_id => $panel->id,
+									session => $session );
+
+			$m->comp("/panel/judges_trade.mas", 
+						panel_id => $panel->id, 
+						old_judge_id => $judge_id,
+						new_judge_id => $clean_judges[0]->id) if @clean_judges;
+
+			unless (@clean_judges) { 
+
+				my @ballots = Tab::Ballot->search( panel => $panel->id, judge => $judge_id);
+				foreach my $ballot (@ballots) { $ballot->judge(0); 
+												$ballot->update; }
+				$msg = $msg. " Panel ".$panel->letter." of ". $panel->round->event->name ." in round ". $panel->round->name ." had no replacement judge "; 
+
+			}
+		}
+	}
+	
+	my $group_id = $judge->judge_group->id;
+
+	if ($certain eq "I am certain") { 
+
+		my @panels = $m->comp("/funclib/judge_panels.mas", judge => $judge);
+
+		foreach my $panel (@panels) { 
+			my @judges = $m->comp("/funclib/panel_judges.mas", panel => $panel);
+			my $num_judges = scalar @judges;
+			next if ($num_judges > 1);  #No need to preserve ballots to save room assignments
+
+			my @ballots = Tab::Ballot->search( panel => $panel->id, judge => $judge_id);
+
+			foreach my $ballot (@ballots) { 
+				$ballot->judge(0); 
+				$ballot->update; 
+			}
+		}
+
+		my $text = $account->first." ".$account->last." dropped judge ".$judge->code." ".$judge->last." in ".$judge->judge_group->abbr;
+
+        my $change = Tab::TournChange->create({
+            tourn   => $tourn->id,
+            school  => $judge->school->id,
+            type    => "registration",
+            text    => $text,
+			account => $account->id
+        }); 
+
+
+		$judge->delete;
+
+		$m->redirect("$Tab::url_prefix/register/school/judges.mhtml?school_id=$school_id&msg=$msg") if $school_id;
+		$m->redirect("$Tab::url_prefix/register/judge/roster.mhtml?group_id=$group_id");
+	}
+
+</%init>
+
+	<div class="padno blankfull centeralign" style="text-align: center !important; min-height: 650px; padding-top: 20px;">
+
+		<div style="margin: auto; width: 700px; padding: none;">
+
+		<&  "/funclib/warning.mas", account => $account &>
+
+		<p class="warning centeralign">
+			You are about to drop Judge <% $judge->first." ".$judge->last %>'s entry.
+		</p>
+
+
+		<p class="centeralign">
+			This process will delete any ballots or assignments the judge may
+			be connected to in this tournament.  It will also reduce the
+			school's judge coverage, possibly putting the school under
+			obligation.
+		</p>
+
+		<p class="centeralign">
+			If you want instead to stop using a judge, but not erase
+			assignments or incur additional judge obligatins, go back and mark
+			the judge as Not Active instead.
+		</p>
+
+		<p class="centeralign">
+			This cannot be undone.  Don't say I didn't warn you.
+		</p>
+
+% 		if ($certain) {
+
+			<p class="warning centeralign">
+				You did not type "I am certain", exactly like that.  Try again
+			</p>
+% 		}
+
+		<br />
+		<br />
+		
+		<p class="centeralign">
+			To proceed, type "I am certain" in the box
+		</p>
+		
+		<form action="drop.mhtml" method="post">
+		<input type="hidden" value="<% $judge_id %>" name="judge_id"> 
+		<input type="hidden" value="<% $school_id %>" name="school_id">
+		
+		<p class="centeralign">
+			<input type="text" name="certain" size="20">
+		</p>
+		
+		<p class="centeralign"> 
+			Auto re-assign rounds? 
+			<input type="checkbox" name="autoassign" value="1">
+		</p>
+		
+		<p class="centeralign">
+			<input  type="submit" value="Drop Judge">
+			</form>
+		</p>
+	
+		</div>
+
+	</div>
+		

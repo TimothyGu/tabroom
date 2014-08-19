@@ -1,0 +1,64 @@
+<%args>
+	$from
+	$body
+	$subject
+	$to     => undef
+	$raw    => undef
+	$source => undef;
+</%args>
+<%init>
+
+	return unless $from;
+
+	my $from_string = $from->first." ".$from->last." <info\@tabroom.com>";
+
+	my $to_string;
+
+	if ($raw) { 
+		$to_string = $raw;
+	} elsif ($to) { 
+		return unless $to->email;
+		return if $to->no_email == 1;
+		$to_string = $to->first." ".$to->last." <".$to->email.">";
+	} else { 
+		return;
+	}
+
+	my $reply_to_string = $from->first." ".$from->last." <".$from->email.">";
+
+	my $hostname = $Tab::hostname;
+
+	$body = $body."\n\n-----------------------------\n\n";
+	$body = $body."You signed up for this email by registering on https://www.tabroom.com.\n\n";
+	$body = $body."If you don't want to get emails from Tabroom.com, login to your account, and either remove yourself from access to your school's chapter, or check off \"No Emails\" under the Account menu on the top right\n\n";
+
+	Tab::log("send_email.mas: Sending tabroom email from ".$from->email." to ".$to_string);
+
+	use HTML::FromText;
+	my $html = text2html($body, paras => 1, metachars => 0);
+
+	my $type = "text/html";
+
+	$subject = "[TAB] ".$subject;
+
+    # creating new "base"-object for an email
+    my $msg = MIME::Lite->new(
+        From => $from_string,
+        To   => $to_string,
+        Subject => $subject,
+		"Reply-To" => $reply_to_string,
+        Type    => $type,
+        Data    => $html."\n\n"
+    );
+
+	if ($hostname eq "www.tabroom.com" || $to_string eq 'Chris Palmer <palmer@tabroom.com>') { 
+	    MIME::Lite->send('smtp', $Tab::smtp_server, Timeout=>60);
+   		my $result = eval { $msg->send; };
+		Tab::log("Email send response was: $result ") unless $result == 1;
+	} else { 
+		Tab::debuglog("Tab hostname is $hostname.  Not sending email to $to_string");
+	}
+
+	return;
+
+</%init>

@@ -1,0 +1,41 @@
+<%args>
+	$round
+	$type => undef
+	$entry => undef
+</%args>
+<%init>
+
+	if ($type) { 
+
+		Tab::Ballot->set_sql( other_ballots => "
+			select distinct ballot.*, ballot.entry as entryid
+			from ballot, panel, round, round as other
+			where other.id = ? 
+			and other.event = round.event
+			and other.id != round.id
+			and round.id = panel.round
+			and round.type = ? 
+			and panel.id = ballot.panel
+		");
+
+		return Tab::Ballot->search_other_ballots($round->id, $type);
+
+	} else { 
+
+		Tab::Ballot->set_sql( other_ballots => "
+			select distinct ballot.*, ballot.entry as entryid
+			from ballot, panel, round, round as other
+			where other.id = ? 
+			and other.event = round.event
+			and other.id != round.id
+			and round.id = panel.round
+			and round.type != \"elim\"
+			and round.type != \"final\"
+			and panel.id = ballot.panel
+		");
+
+		return Tab::Ballot->search_other_ballots($round->id);
+
+	}
+</%init>
+

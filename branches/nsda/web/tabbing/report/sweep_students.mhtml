@@ -1,0 +1,160 @@
+<%args>
+	$tourn
+	$what         => undef
+	$sweep_set_id => undef
+</%args>
+<%init>
+
+	if ($what eq "Print") { 	
+		$m->redirect("sweep_students_print.mhtml?sweep_set_id=$sweep_set_id");
+	}   
+
+	my @sweep_sets;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+	
+	my $master_set = Tab::SweepSet->retrieve($sweep_set_id);
+
+	unless ($master_set) { 
+		my $err = "You must select a set of sweepstakes rules to run this report";
+		$m->redirect("index.mhtml?err=$err");
+	}
+
+	my ($points_ref, $count_ref, $countstring_ref, $entries_ref) = $m->comp("/tabbing/results/sweep_students.mas", sweep_set => $master_set);
+
+</%init>
+
+	<& menu.mas, whoami => 'students' &>
+
+	<div class="left huge">
+
+		<div>   
+			<span class="biggerspan">
+				<h2><% $master_set->name %></h2>
+			</span>
+			<span class="medbiggerspan wrap padno rightalign">
+		 		<p class="exwhite">*Hover over to see breakdown</p>
+			</span>
+		</div>
+
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<table cellpadding="4" cellspacing="1" id="sortme">
+
+			<thead>
+				<tr class="yellowrow">
+
+					<th class="smallish">
+					</th>
+
+					<th class="smallish">
+						Student
+					</th>
+
+					<th class="smallish">
+						School
+					</th>
+
+					<th class="smallish">
+						State
+					</th>
+
+					<th class="smallish">
+						Entries
+					</th>
+
+					<th style="line-height: 12px;" class="smallish">
+						Counted* 
+					</th>
+
+					<th class="smallish">
+						Points
+					</th>
+
+				</tr>
+
+			</thead>
+
+			<tbody>
+
+<%perl>
+
+				my $count = 1;
+
+				my $switch;
+				my $place;
+				my $last_points;
+				my $add_to_place;
+				my %done;
+
+				my @students = $m->comp("/funclib/tourn_students.mas", tourn => $tourn);
+
+				@students = sort {${$count_ref}{$a->id} <=> ${$count_ref}{$b->id}} @students;
+				@students = sort {${$points_ref}{$b->id} <=> ${$points_ref}{$a->id}} @students;
+
+				foreach my $student (@students) { 
+
+					next unless ${$points_ref}{$student->id};
+
+					my $tie;
+
+					if ($last_points == ${$points_ref}{$student->id}) { 
+						$add_to_place++;
+						$tie++;
+					} elsif ($add_to_place) { 
+						$place++;
+						$place += $add_to_place;
+						undef $add_to_place;
+					}  else { 
+						$place++;
+					}
+
+					$last_points = ${$points_ref}{$student->id};
+
+</%perl>
+			
+					<tr>
+
+						<td class="smallish">
+							<% $tie ? "T-" : "" %><% $place %>
+						</td>
+
+						<td class="smallish">
+							<% $student->first." ".$student->last %>
+						</td>
+
+						<td class="smallish">
+							<% $student->chapter ? $student->chapter->short_name : "" %> 
+						</td>
+
+						<td class="smallish">
+							<% $student->chapter ? $student->chapter->state : ""  %>
+						</td>
+
+						<td class="smallish rightalign">
+							<span title="<% ${$countstring_ref}{$student->id} %>">
+								<% ${$entries_ref}{$student->id} %>
+							</span>
+						</td>
+
+						<td class="smallish rightalign">
+							<span title="<% ${$countstring_ref}{$student->id} %>">
+								<% ${$count_ref}{$student->id} %>
+							</span>
+						</td>
+
+						<td class="smallish rightalign">
+							<% ${$points_ref}{$student->id} %>
+						</td>
+
+					</tr>
+
+%				}
+
+			</tbody>
+
+		</table>
+
+
+	</div>
+

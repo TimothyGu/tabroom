@@ -1,0 +1,257 @@
+<%args>
+	$tourn
+	$group_id
+	$sort_by => "code"
+	$hires => undef
+	$drops => undef
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id); 
+	$m->abort unless $group;
+
+	my @judges = Tab::Judge->search( judge_group => $group_id, school => 0 ) if $hires;
+	@judges = Tab::Judge->search( judge_group => $group_id, dropped => 1 ) if $drops;
+	@judges = Tab::Judge->search( judge_group => $group_id) unless $hires || $drops;
+
+	my @events = $group->events;
+
+	@judges = sort {uc($a->last) cmp uc($b->last)} @judges;
+	@judges = sort {$a->code cmp $b->code} @judges unless $sort_by eq "last" || $group->setting("no_codes");
+	@judges = sort {$a->first cmp $b->first} @judges if $sort_by eq "first";
+	@judges = sort {$a->school->name cmp $b->school->name} @judges if $sort_by eq "schname"; 
+	@judges = sort {$a->region->name cmp $b->region->name} @judges if $sort_by eq "regname"; 
+	@judges = sort {$a->region->code cmp $b->region->code} @judges if $sort_by eq "regcode"; 
+	@judges = sort {$a->prelim_pool->name cmp $b->prelim_pool->name} @judges if $sort_by eq "prelim_pool"; 
+
+	my $regions++ if $tourn->setting("ncfl");
+	$regions++ if $tourn->setting("regions");
+
+	Tab::Judge->set_sql( check_rounds => " select coalesce(sum(obligation),0) + coalesce(sum(hired),0) from judge where judge.judge_group = ? ");
+
+	my $rounds = Tab::Judge->sql_check_rounds->select_val($group->id) if $group->setting("rounds_per");
+
+	my %rating_name = ();
+
+	foreach my $tier ($group->rating_tiers) { 
+		$rating_name{$tier->id} = $tier->name;
+	}
+
+	my %rating_by_judge = ();
+
+	foreach my $rating ($m->comp("/funclib/group_ratings.mas", group => $group, type => "coach")) { 
+		$rating_by_judge{$rating->judge->id} = $rating_name{$rating->rating_tier->id} if $rating->rating_tier && $rating->judge;
+	}
+
+	my $tab_rating = $group->setting("tab_ratings");
+
+	my $total_obligation;
+	my $total_hired;
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "roster", group => $group, hires => $hires, drops => $drops &>
+
+	<div class="left huge">
+
+		<div>
+
+			<span class="half nospace">
+				<h2>
+					<% ($hires) ? "Hired" : "" %> <% ($drops) ? "Dropped" : "" %> <% $group->name %> Judges 
+				</h2>
+			</span>
+
+			<span class="half rightalign nospace">
+				<h4>
+					<% ($rounds) ? $rounds." rounds/" : "" %><% scalar @judges." judges" %>
+				</h4>
+			</span>
+
+		</div>
+
+	</span>
+
+	<& /funclib/tablesorter.mas, table => "judges" &>
+
+	<table cellpadding="3" cellspacing="1"  border="0" width="100%" id="judges">
+
+		<thead>
+
+		<tr class="yellowrow">
+
+%			unless ($group->setting("no_codes")) { 
+				<th class="smaller">
+					Code
+				</th>
+%			}
+
+			<th class="smaller">
+				First
+			</th>
+
+			<th class="smaller">
+				Last
+			</th>
+
+			<th class="smaller">
+				School
+			</th>
+
+%			if ($tab_rating) { 
+				<th class="centeralign smaller">
+					Rating
+				</th>
+%			}
+
+
+%			if ($group->setting("rounds_per") || $rounds) { 
+				<th class="centeralign smaller">
+					Rds
+				</th>
+
+				<th class="centeralign smaller">
+					Hire
+				</th>
+%			}
+
+%			if ($group->setting("coach_ratings")) { 
+				<th class="centeralign smaller">
+					Rtng	
+				</th>
+%			}
+
+%			if ($group->setting("ask_parli")) { 
+				<th class="centeralign smaller">
+					Parli
+				</th>
+%			}
+
+%			$m->print("<th class=\"smaller\">Dio</th>") if $tourn->setting("ncfl");
+
+			<th class="centeralign smaller">
+				Coach Notes
+			</th>
+
+
+		</tr>
+		</thead>
+		<tbody>
+
+% 		my $switch;
+
+%		foreach my $judge (@judges) { 
+
+%			my $region = $judge->school->region if $judge->school && $regions;
+
+			<tr <% $judge->active ? "" : 'class="lirdrow"' %>>
+
+%				unless ($group->setting("no_codes")) { 
+					<td class="centeralign smallish">
+						<a class="white" href="/register/judge/edit.mhtml?from=list&judge_id=<% $judge->id %>">
+							<% ($judge->code) ? $judge->code : "Edit"%>
+						</a>
+					</td>
+%				}
+
+				<td >
+					<a class="white" href="/register/judge/edit.mhtml?from=list&judge_id=<% $judge->id %>">
+						<% $judge->first %>
+					</a>
+				</td>
+
+				<td >
+					<a class="white" href="/register/judge/edit.mhtml?from=list&judge_id=<% $judge->id %>">
+						<% $judge->last %>
+					</a>
+				</td>
+
+				<td  style="padding-left: 2px;">
+					<a class="white" href="/register/school/judges.mhtml?from=list&group_id=<% $group_id %>&school_id=<% ($judge->school) ? $judge->school->id : "" %>">
+						<% ($judge->setting("neutral")) ? "Neutral (" : "" %><% ($judge->school && $judge->school->short_name) ? substr($judge->school->short_name,0,25) : "Hired" %><% ($judge->setting("neutral")) ? ")" : "" %>
+					</a>
+				</td>
+
+%				if ($tab_rating) { 
+					<td class="smallish centeralign">
+						<% $judge->tab_rating %>
+					</td>
+%				}
+
+%				if ($group->setting("rounds_per") || $rounds) { 
+
+%					if ($judge->dropped) { 
+						<td colspan="2" class="smallish centeralign">
+							DROP
+						</td>
+%					} else { 
+
+%						$total_obligation += $judge->obligation;
+%						$total_hired += $judge->hired;
+						<td class="smallish centeralign">
+							<% $judge->obligation %>
+						</td>
+						<td class="smallish centeralign">
+							<% $judge->hired %>
+						</td>
+%					}
+%				}
+
+%				if ($group->setting("coach_ratings")) { 
+					<td class="centeralign">
+						<% $rating_by_judge{$judge->id} %>
+					</td>
+%				}	
+%				if ($group->setting("ask_parli")) { 
+					<td class="centeralign">
+						<% $judge->setting("parli") %>
+					</td>
+%				}	
+
+%				if ($tourn->setting("ncfl")) { 
+
+					<td class="centeralign padno">
+						<% $region ? $region->code : "" %>
+					</td>
+
+%				}	
+
+				<td>
+					<span class="smallish" style="display: inline-block; width: 185px !important; word-wrap: break-word;">
+						<% $judge->notes %>
+					</span>
+				</td>
+
+			</tr>
+
+% 		} 
+
+		<tbody>
+
+%		if ($group->setting("rounds_per") || $rounds) { 
+
+			<tr class="liblrow">
+
+				<th colspan="3" class="rightalign smallish">
+					Totals:
+				</th>
+
+				<th class="smallish centeralign">
+					<% $total_obligation %>
+				</th>
+
+				<th class="smallish centeralign">
+					<% $total_hired %>
+				</th>
+
+				<th class="smallish centeralign">
+					<% $total_obligation + $total_hired %>
+				</th>
+
+			</tr>
+% 		} 
+
+	</table>
+
+</div>
+

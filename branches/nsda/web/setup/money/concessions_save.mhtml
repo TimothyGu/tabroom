@@ -1,0 +1,64 @@
+<%args>
+	$tourn
+	$session
+	$account
+	$new_name => undef
+	$new_date => undef
+	$new_time => undef
+	$new_price => undef
+	$new_cap => undef
+	$new_deadline => undef
+	$new_description => undef
+</%args>
+<%perl>
+
+	my @concessions = sort {$a->name cmp $b->name} $tourn->concessions;
+	my $switch;
+	my $msg;
+
+	foreach my $concession (@concessions) { 
+		
+		my $time = $ARGS{$concession->id."_time"};
+
+	    my $deadline = Tab::dtme($ARGS{$concession->id."_date"}, $ARGS{$concession->id."_time"}, $tourn->tz) if $ARGS{$concession->id."_date"} && $ARGS{$concession->id."_time"};
+
+		$concession->deadline($deadline) if $deadline;
+		$concession->name( $ARGS{$concession->id."_name"} );
+		$concession->price( $ARGS{$concession->id."_price"} );
+		$concession->cap( $ARGS{$concession->id."_cap"} );
+		$concession->description( $ARGS{$concession->id."_description"} );
+		$concession->update;
+	
+	}
+
+	$msg = "Updates saved";
+
+	if ($new_name) { 
+   
+		my $deadline; 
+		eval {  $deadline = Tab::dtme($new_date,$new_time);  }; 
+		
+		unless ($deadline) {
+	  		$m->print("You have entered a badly formatted date for the deadline.  Go back and try again");
+			$m->abort;
+		}
+	
+ 		my $new_concession = Tab::Concession->create({
+			tourn => $tourn->id,
+			name => $new_name,
+			price => $new_price,
+			cap => $new_cap,
+			description => $new_description,
+		});
+
+		$new_concession->deadline($deadline) if $deadline;
+		$new_concession->update;
+
+		$msg .= " and new concession $new_name created";
+
+	}
+
+	$m->redirect("concessions.mhtml?msg=$msg");
+
+</%perl>
+

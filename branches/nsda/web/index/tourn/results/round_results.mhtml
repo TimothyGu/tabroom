@@ -1,0 +1,58 @@
+<%args>
+	$tourn
+	$account => undef
+	$event_id => undef
+	$round_id => undef
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+	my $round = Tab::Round->retrieve($round_id) if $round_id;
+
+	unless ($round) { 
+		$m->print("Round does not exist");
+		$m->abort;
+	}
+
+	$event = $round->event unless $event;
+	$tourn = $event->tourn;
+
+	unless ($round->post_results) { 
+		$m->print("Stop messing around");
+		$m->abort;
+	}
+
+</%init>
+
+	<& menu.mas, tourn_id => $tourn->id, event_id => $event->id, round_id => $round->id &> 
+
+	<div class="left huge">
+
+        <h2>
+            <% $tourn->name %>: <% $tourn->location %>  
+        </h2>
+
+        <& ../tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		if ($round) { 
+
+% 			if ( $event->type eq "speech" ) { 
+				<& results_speech.mas, round => $round &>
+%			}
+
+% 			if ( $event->type eq "wudc" ) { 
+				<& results_wudc.mas, round => $round &>
+%			}
+
+% 			if ( $event->type eq "congress" ) { 
+%#				<& results_congress.mas, round => $round &>
+%			}
+	
+% 			if ( $event->type eq "debate" || $event->type eq "policy" || $event->type eq "parli" || $event->type eq "pf" || $event->type eq "ld" ) { 
+				<& results_debate.mas, round => $round &>
+%			}
+
+%		}
+
+	</div>
+

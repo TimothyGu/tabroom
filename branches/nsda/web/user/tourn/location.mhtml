@@ -1,0 +1,332 @@
+<%args>
+	$account
+	$name           => undef
+	$webname        => undef
+	$start          => undef
+	$end            => undef
+	$reg_start      => undef
+	$reg_end        => undef
+	$drops          => undef
+	$judge          => undef
+	$frozen         => undef
+	$fines          => undef
+	$circuit_string => undef
+	$state          => undef
+	$country        => undef
+	$tz             => undef
+	$test           => undef
+	$error          => undef
+</%args>
+<%init>
+
+	$tz = "UTC" unless $tz;
+
+	my @sites;
+	my @circuits;
+
+	foreach my $circuit (Tab::Circuit->search( active => 1) ) { 
+
+		if ($ARGS{$circuit->id}) { 
+			$circuit_string .= "-" if $circuit_string;
+			$circuit_string .= $circuit->id;
+			push (@circuits, $circuit);
+			push (@sites, $circuit->sites);
+		}
+	}
+
+	foreach my $circuit_id (split(/-/, $circuit_string)) { 
+		my $circuit = Tab::Circuit->retrieve($circuit_id);
+		push (@circuits, $circuit);
+		push (@sites, $circuit->sites);
+	}
+
+	#uniq
+    my %seen = (); 
+    @sites = grep { ! $seen{$_->id} ++ } @sites;
+	@sites = sort {$a->name cmp $b->name} @sites;
+
+    %seen = (); 
+    @circuits = grep { ! $seen{$_->id} ++ } @circuits;
+	@circuits = sort {$a->name cmp $b->name} @circuits;
+
+	my $switch;
+
+  	my $startdt = DateTime::Format::MySQL->parse_datetime($start);
+    my $enddt = DateTime::Format::MySQL->parse_datetime($end);
+    my $reg_startdt = DateTime::Format::MySQL->parse_datetime($reg_start);
+    my $reg_enddt = DateTime::Format::MySQL->parse_datetime($reg_end);
+    my $frozendt = DateTime::Format::MySQL->parse_datetime($frozen);
+    my $finesdt = DateTime::Format::MySQL->parse_datetime($fines);
+    my $judgedt = DateTime::Format::MySQL->parse_datetime($judge);
+    my $dropsdt = DateTime::Format::MySQL->parse_datetime($drops);
+
+    $startdt->set_time_zone($tz);
+    $enddt->set_time_zone($tz);
+    $reg_startdt->set_time_zone($tz);
+    $reg_enddt->set_time_zone($tz);
+    $frozendt->set_time_zone($tz);
+    $finesdt->set_time_zone($tz);
+    $judgedt->set_time_zone($tz);
+    $dropsdt->set_time_zone($tz);
+
+</%init>
+
+	<div class="left huge">
+
+		<form action="save.mhtml" method="post">
+		<input type="hidden" name="name" value="<% $name %>">
+		<input type="hidden" name="webname" value="<% $webname %>">
+		<input type="hidden" name="circuit_string" value="<% $circuit_string %>">
+		<input type="hidden" name="start" value="<% $start %>">
+		<input type="hidden" name="end" value="<% $end %>">
+		<input type="hidden" name="reg_start" value="<% $reg_start %>">
+		<input type="hidden" name="reg_end" value="<% $reg_end %>">
+		<input type="hidden" name="frozen" value="<% $frozen %>">
+		<input type="hidden" name="fines" value="<% $fines %>">
+		<input type="hidden" name="judge" value="<% $judge %>">
+		<input type="hidden" name="drops" value="<% $drops %>">
+		<input type="hidden" name="tz" value="<% $tz %>">
+		<input type="hidden" name="test" value="<% $test %>">
+
+		<h2>Tournament Location </h2>
+
+%       if ($error) { 
+            <p class="warning">
+                <% $error %>
+            </p>
+%       }
+	
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<tr class="<% ($error) ? "lirdrow" : ($switch++ % 2) ? "oddrow" : "evenrow" %>" >
+
+				<th>
+					Choose an existing location.  This will auto-import existing rooms:
+				</th>
+
+			</tr>
+
+			<tr class="<% ($error) ? "lirdrow" : ($switch++ % 2) ? "oddrow" : "evenrow" %>" >
+
+				<td class="rightalign">
+					<select name="site_id" class="fixed chosen">
+
+						<option value=""></option>
+						
+
+%						foreach my $site (sort {$a->name cmp $b->name} (@sites)) { 
+							<option value="<% $site->id %>">
+								<% $site->name %>
+							</option>
+%						}
+
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($error) ? "lirdrow" : ($switch++ % 2) ? "oddrow" : "evenrow" %>" >
+				<th>
+					Or, enter a new name (e.g. "Lexington High School" or "Yale University"):
+				</th>
+			</tr>
+
+			<tr class="<% ($error) ? "lirdrow" : ($switch++ % 2) ? "oddrow" : "evenrow" %>" >
+				<td class="rightalign">
+					<input type="text" name="site_name" size="45" value="" placeholder='e.g. "Lexington HS" or "Yale University"'>
+				</td>
+			</tr>
+
+			<tr>
+				<td>
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<th>
+					Country:
+				</th>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<td class="rightalign">
+					<select name="country" class="fixed chosen">
+					<& "/funclib/country_select.mas", account => $account, country => $country &>
+					</select>
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<th>
+					State/Province (if applicable)
+				</th>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<td class="rightalign">
+					<select name="state" class="fixed chosen">
+					<& "/funclib/state_select.mas", account => $account, state => $state &>
+					</select>
+				</td>
+			</tr>
+
+
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input  type="submit" value="  Create Tournament ">
+					</form>
+				</td>
+
+			</tr>
+		
+		</table>
+
+	</div>
+
+	<% undef($switch) %>
+
+	<div class="right small">
+
+	<div class="sidenote">
+
+		<h4>Tournament Setup</h4>
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td colspan="2" class="smaller"> 
+					<% $name %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Webname
+				</td>
+
+				<td class="smaller">
+					<% $webname %>
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Start
+				</td>
+
+				<td class="smaller">
+					<% Tab::niceshortdt($startdt) %>
+				</td>
+
+			</tr>
+			
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					End
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($enddt) %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Circuit<% (scalar @circuits > 1) ? "s" : "" %>
+				</td>
+
+				<td class="smaller">
+%					my $notfirst;
+%					foreach my $circuit (@circuits) { 
+						<% $notfirst++ ? "," : "" %> <% $circuit->abbr %>
+%					}
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Entry Opens
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($reg_startdt) %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Entries Due
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($reg_enddt) %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Judges Due
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($judgedt) %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Entry Freeze
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($frozendt) %>
+				</td>
+
+			</tr>
+
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Drops Online
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($dropsdt) %>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smaller"> 
+					Drop fines 
+				</td>
+				
+				<td class="smaller">
+					<% Tab::niceshortdt($finesdt) %>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>
+
+

@@ -1,0 +1,22 @@
+<%args>
+	$rating_subset_id
+</%args>
+<%init> 
+
+	my $subset = Tab::RatingSubset->retrieve($rating_subset_id);
+
+	my $group = $subset->judge_group;
+
+	foreach my $event ($subset->events) { 
+		$event->rating_subset("");
+		$event->update;
+	}
+
+	my $msg = "Rating group ".$subset->name." has been deleted";
+
+	$subset->delete;
+
+	$m->redirect("/setup/judges/coach_tiers.mhtml?group_id=".$group->id."&msg=$msg");
+
+
+</%init>

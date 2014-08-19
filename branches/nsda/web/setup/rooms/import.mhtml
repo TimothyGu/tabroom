@@ -1,0 +1,74 @@
+<%args>
+	$tourn
+	$site_id
+</%args>
+
+%	my $site = Tab::Site->retrieve($site_id);
+
+    <& menu.mas, site_id => $site_id, tourn => $tourn, mysite => $site &>
+
+	<div class="left huge">
+
+		<h2>Import Rooms from a text file</h2>
+
+		<& tabbar.mas, site_id => $site_id, import => "yO" &>
+
+
+		<div class="block padno marno">
+			<span class="twothird">
+				<h4>Site: <% $site->name %></h4>
+			</span>
+
+			<span class="third rightalign">
+				<h5><% scalar $site->rooms %> rooms</h5>
+			</span>
+		</div>
+
+		<p>
+			I'm going to level with you: computers are really stupid.  It takes
+			a lot of effort to make them smart.  Therefore, the file you upload
+			must be formatted precisely.  All files must be in raw ASCII text.
+			If you save in Excel into CSV format, that will be acceptable as
+			long as the fields are in the proper order.  Do not put single or
+			double quotes or commas into the text fields; all kinds of bad will
+			happen if you do.  Do not upload a Word doc or a PDF or anything
+			other than a text file or a CSV file.
+		</p>
+
+		<p>
+			The rooms file must be in the format Name,Quality,Capacity,Notes.
+			One room per line.  Only the room name is required; you do not have
+			to specify a quality, capacity or notes.  Leave fields blank but mark
+			them with commas if you want to use later ones; so if you want to set
+			capacity but not quality, put an extra comma in to leave the Quality
+			field "blank" like this:
+			
+			<code>Room 214,,100,</code>
+			
+			Ratings for quality and capacity must be numerical; there's no
+			upper bound.  Lower numbers for "quality" will be used first.  The
+			other fields will be left blank if missing.
+		</p>
+
+		<form enctype="multipart/form-data" onsubmit="return uploadThis()" name="rooms" action="import_save.mhtml" method="post">
+		<input type="hidden" name="site_id" value="<% $site_id %>">
+
+		<div class="evenrow block">
+
+			<span class="half">
+				Upload Rooms File:
+			</span>
+
+			<span class="half centeralign">
+				<input name="rooms" type="file" class="button"> 
+			</span>
+
+		</div>
+
+		<div class="liblrow rightalign">
+			<input  type="submit" value="Upload"> 
+			</form>
+		</div>
+
+	</div>
+

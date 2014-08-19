@@ -1,0 +1,183 @@
+<%args>
+	$round_id
+	$filename
+	$schools => undef
+</%args>
+<%init>
+	
+	my $round = Tab::Round->retrieve($round_id);
+	my $tourn = $round->event->tourn;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $start = $round->start_time;
+	$start = $round->timeslot->start unless $start;
+	$start->set_time_zone($tz);
+
+	my $flighted++ if $round->flighted > 1;
+
+	my $filepath = $Tab::file_root."tmp/".$filename;
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	my $tabular = "\\begin{tabular}{p{1in}p{1.25in}p{1in}p{1in}p{1in}p{1in}}\n" ;
+	$tabular = "\\begin{tabular}{p{.25in}p{1in}p{1.25in}p{1in}p{1in}p{1in}p{1in}}\n" if $flighted;
+
+	print TEXOUT "\\Large\n";
+	print TEXOUT "{\\bf ".Tab::texify($round->event->name)." \\hfill ";
+	print TEXOUT Tab::texify($round->realname)." \\hfill ";
+	print TEXOUT Tab::texify(Tab::nicetime($start))." } \n";
+	print TEXOUT "\\newline\n";
+
+	print TEXOUT "\\renewcommand{\\arraystretch}{1.5} \n";
+
+	print TEXOUT "\\large\n";
+	print TEXOUT $tabular;
+	print TEXOUT "\\rowcolor[rgb]{1,.95,.66}\[5.5pt\]\[5.5pt\]\n";
+	print TEXOUT " Flt &  Judge(s) &  Room &  1 OG &  2 OO &  3 CG & 4 CO \\\\ \n" if $flighted; 
+	print TEXOUT " Judge(s) &  Room & 1 OG & 2 OO & 3 CG & 4 CO \\\\ \n" unless $flighted; 
+	print TEXOUT "\\end{tabular}\n";
+	print TEXOUT "\\newline\n";
+
+	print TEXOUT "\\renewcommand{\\arraystretch}{1.3} \n";
+
+	print TEXOUT "\\small\n";
+
+	my $event = $round->event;
+	my $codes = $tourn->setting("schemat_display");
+
+	Tab::Panel->columns(TEMP => "roomname");
+
+	Tab::Panel->set_sql( schemat => "
+		select panel.*, room.name as roomname
+		from panel, room
+		where panel.round = ? 
+		and panel.room = room.id
+		order by panel.letter");
+
+	Tab::Panel->set_sql( schemat_roomless => "
+		select panel.*, \"None\" as roomname
+		from panel
+		where panel.round = ? 
+		and panel.room = 0
+		order by panel.letter");
+
+	my @panels = Tab::Panel->search_schemat($round->id);
+	push (@panels, Tab::Panel->search_schemat_roomless($round->id));
+
+	my @entries = $m->comp("/funclib/round_entries.mas", round => $round);
+	my @judges = $m->comp("/funclib/round_judges.mas", round => $round);
+	my @ballots = $m->comp("/funclib/round_ballots.mas", round => $round);
+
+	my %entries_by_panel = ();
+
+	foreach my $entry (@entries) { 
+		next if $entry->dropped;
+		next if $entry->dq;
+		push (@{$entries_by_panel{$entry->panelid}}, $entry);
+	}
+
+	my %ballots_by_entry = ();
+	my %panel_undone = ();
+
+	foreach my $ballot (@ballots) { 
+		push (@{$ballots_by_entry{$ballot->entry->id}}, $ballot) if $ballot->entry;
+		$panel_undone{$ballot->panel->id}++ unless $ballot->audit;
+	}
+
+	my %judges_by_panel = ();
+
+	foreach my $judge (@judges) { 
+		push (@{$judges_by_panel{$judge->panelid}}, $judge);
+	}
+
+	@panels = sort {$a->letter cmp $b->letter} @panels;
+	@panels = sort {$a->roomname cmp $b->roomname} @panels;
+
+	my $switch;
+
+	foreach my $panel (@panels) { 
+
+		next if $panel->bye && not defined $entries_by_panel{$panel->id};
+	
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{.85,.85,.85}\[5.5pt\]\[5.5pt\]\n" if $switch++ %2;
+
+		print TEXOUT $panel->flight." & " if $flighted;
+
+		print TEXOUT "\\parbox[t]{1in}{";
+
+		my $notfirst;
+		if ($judges_by_panel{$panel->id}) { 
+			foreach my $judge (sort {$b->chair <=> $a->chair} @{$judges_by_panel{$panel->id}}) {
+				print TEXOUT "\\\\ \n" if $notfirst++; 
+				print TEXOUT "{\\bf " if $judge->chair;
+				print TEXOUT $judge->last," ",substr($judge->first, 0, 1);
+				print TEXOUT " } " if $judge->chair;
+			} 
+		}
+
+		print TEXOUT "} & BYE & " if $panel->bye;
+		print TEXOUT "} & ".Tab::texify($panel->roomname)." & " unless $panel->bye;
+
+		my $og;
+		my $oo;
+		my $cg;
+		my $co;
+		my $bye;
+
+		foreach my $pc (@{$entries_by_panel{$panel->id}}) { 
+
+			if ($ballots_by_entry{$pc->id}) { 
+				$bye = $pc if $panel->bye;
+				$og = $pc if ${$ballots_by_entry{$pc->id}}[0]->speakerorder == "1";
+				$oo = $pc if ${$ballots_by_entry{$pc->id}}[0]->speakerorder == "2";
+				$cg = $pc if ${$ballots_by_entry{$pc->id}}[0]->speakerorder == "3";
+				$co = $pc if ${$ballots_by_entry{$pc->id}}[0]->speakerorder == "4";
+			}
+
+		}
+
+		if ($panel->bye) { 
+			print TEXOUT $bye->code." &  &  & ";  
+		} else { 
+		
+			if ($og) { 
+				print TEXOUT Tab::texify($og->code)." & ";  
+			} else { 
+				print TEXOUT "\\cellcolor[rgb]{1,.25,.25} & ";
+			}
+
+			if ($oo) { 
+				print TEXOUT Tab::texify($oo->code)." & ";  
+			} else { 
+				print TEXOUT "\\cellcolor[rgb]{1,.25,.25} & ";
+			}
+
+			if ($cg) {
+				print TEXOUT Tab::texify($cg->code)." & ";  
+			} else { 
+				print TEXOUT "\\cellcolor[rgb]{1,.25,.25} & ";
+			}
+
+			if ($co) {
+				print TEXOUT Tab::texify($co->code);  
+			} else { 
+				print TEXOUT "\\cellcolor[rgb]{1,.25,.25} ";
+			}
+
+		}
+		
+		print TEXOUT " \\\\ ";  
+
+		print TEXOUT "[".(1.75 * $notfirst)."ex]" if $notfirst > 1;
+
+		print TEXOUT "\n\\end{tabular}\n";
+		print TEXOUT "\\newline\n";
+
+	} 
+
+</%init>
+
+

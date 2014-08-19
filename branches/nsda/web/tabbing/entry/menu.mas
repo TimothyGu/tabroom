@@ -1,0 +1,469 @@
+<%args>
+	$session
+	$tourn
+	$all         => undef
+	$panel       => undef
+	$judge       => undef
+	$flight      => 0
+	$audit_mode  => undef
+	$audit_sheet => undef
+	$timeslot    => undef
+	$entry_only  => undef
+</%args>
+<%init>
+
+	use POSIX;
+
+	my $group = $session->judge_group;
+	my $event = $session->event;
+
+	my $audit = $group->setting('audit_method') if $group;
+	$audit = "twice" unless $audit;
+
+</%init>
+
+	<div class="right small">
+
+		<div class="plainnote">
+
+%			if ($entry_only) {
+				<a href="/tabbing/status/starts.mhtml" class="blue full">Check Round Starts</a>
+				<a href="/tabbing/status/confirms.mhtml" class="blue full">Confirm Round Starts</a>
+				<a href="/tabbing/status/collect.mhtml" class="blue full">Ballot Collection</a>
+				<a href="/tabbing/status/status.mhtml" class="blue full">Entry Status</a>
+				<a href="index.mhtml" class="dkblue full">Enter Ballots</a>
+				<br />
+%			}
+
+			<div class="liblrow centeralign visible padless">
+				<form action="limit.mhtml" method="post">
+				<select name="group_id" onchange='this.form.submit()' class="fixedsmall chosen notfirst">
+					<option value="">Choose judge group:</option>
+%					foreach my $other_group ($tourn->groups) { 
+						<option value="<% $other_group->id %>" <% ($group && $other_group->id == $group->id) ? "selected" : "" %>>
+							<% $other_group->name %>
+						</option>
+%					}
+				</select>
+				</form>
+			</div>
+
+%			if ($group && $group->tourn && $group->tourn->id == $tourn->id) { 
+
+%				my @timeslots = $m->comp("/funclib/group_timeslots.mas", group => $group);
+
+				<div class="oddrow centeralign visible padless">
+					<form action="index.mhtml" method="post">
+					<input type="hidden" name="all" value="<% $all %>">
+					<select name="timeslot_id" onchange='this.form.submit()' class="fixedsmall chosen notfirst">
+						<option>Choose Timeslot</option>
+%						foreach my $ts (@timeslots) { 
+							<option value="<% $ts->id %>" <% ($timeslot && $ts->id == $timeslot->id) ? "selected" : "" %>>
+								<% $ts->name %>
+							</option>
+%						}
+					</select>
+					</form>
+				</div>
+
+				<div class="padless liblrow centeralign visible">
+					<form action="limit.mhtml" method="post">
+					<input type="hidden" name="timeslot_id" value="<% $timeslot ? $timeslot->id : "" %>">
+					<input type="hidden" name="group_id" value="<% $group ? $group->id : "" %>">
+
+					<select name="event_id" onchange='this.form.submit()' class="fixedsmall chosen notfirst">  
+
+						<option value="">See all events</option>
+%							foreach my $gevent ($group->events) { 
+								<option value="<% $gevent->id %>" <% ($event && $event->id == $gevent->id) ? "selected" : "" %>>
+									<% $gevent->name %>
+								</option>
+%							}
+					</select>
+					</form>
+				</div>
+
+%			}
+
+		</div>
+
+%		if ($group && $timeslot) { 
+
+			<script>
+				function doneSwitch(which) { 
+					
+					if (which == "done") { 
+						$('.undone').hide();
+						$('#bundone').removeClass("selected");
+
+						$('#baudit').removeClass("selected");
+						$('.audit').hide();
+
+						$('.done').show();
+						$('#bdone').addClass("selected");
+
+						$('#binfo').removeClass("selected");
+						$('.info').hide();
+					}
+
+					if (which == "undone") { 
+						$('.undone').show();
+						$('#bundone').addClass("selected");
+
+						$('#baudit').removeClass("selected");
+						$('.audit').hide();
+
+						$('.done').hide();
+						$('#bdone').removeClass("selected");
+
+						$('.info').hide();
+						$('#binfo').removeClass("selected");
+					}
+
+					if (which == "audit") { 
+						$('.undone').hide();
+						$('#bundone').removeClass("selected");
+
+						$('.audit').show();
+						$('#baudit').addClass("selected");
+
+						$('.done').hide();
+						$('#bdone').removeClass("selected");
+
+						$('.info').hide();
+						$('#binfo').removeClass("selected");
+					}
+
+					if (which == "info") { 
+						$('.done').hide();
+						$('#bdone').removeClass("selected");
+
+						$('.undone').hide();
+						$('#bundone').removeClass("selected");
+
+						$('.audit').hide();
+						$('#baudit').removeClass("selected");
+
+						$('.info').show();
+						$('#binfo').addClass("selected");
+					}
+
+				}
+			</script>
+
+			<div class="plainnote">
+
+				<ul id="tabnav">
+					<li id="bundone" class="<% $all || $audit_mode ? "" : "selected" %>">
+						<a onclick="return doneSwitch('undone')">Entry</a>
+					</li>
+
+%					if ($audit eq "visual") { 
+						<li id="baudit" class="<% (not defined $all) && $audit_mode ? "selected" : "" %>">
+							<a onclick="return doneSwitch('audit')">Audit</a>
+						</li>
+%					}
+
+					<li id="bdone" class="<% $all ? "selected" : "" %>">
+						<a onclick="return doneSwitch('done')">Done</a>
+					</li>
+
+					<li id="binfo" class="<% $all ? "selected" : "" %>">
+						<a onclick="return doneSwitch('info')">Info</a>
+					</li>
+				</ul>
+
+<%perl>
+				my $style = "codes";
+				$style = "names" if $group->setting("no_codes");
+
+				Tab::Panel->set_sql( flights => " select max(panel.flight) 
+									from panel, round, event
+									where panel.round = round.id 
+									and round.timeslot = ? 
+									and round.event = event.id 
+									and event.judge_group = ? ");
+
+				my $max_flight = Tab::Panel->sql_flights->select_val($timeslot->id, $group->id);
+				$max_flight = 1 unless $max_flight;
+
+				foreach my $flight (1 .. $max_flight) { 
+
+					my $limit;
+					$limit = "and event.judge_group = ".$group->id if $group;
+					$limit = "and event.id = ".$event->id if $event > 0;
+
+					my @all_judges = $m->comp('/funclib/timeslot_judges.mas', 
+						timeslot => $timeslot, 
+						limit => $limit, 
+						flight => $flight, 
+						status => "done");
+
+					my @unentered = $m->comp("/funclib/timeslot_judges.mas", 
+						timeslot => $timeslot, 
+						status => "full", 
+						limit => $limit, 
+						flight => $flight);
+
+					my @half_entered = $m->comp("/funclib/timeslot_judges.mas", 
+						timeslot => $timeslot, 
+						status => "half", 
+						limit => $limit, 
+						flight => $flight);
+
+					my @done_closeouts = $m->comp('/funclib/timeslot_panels.mas', 
+						closeout => 1, 
+						timeslot => $timeslot, 
+						group => $group, 
+						event => $event, 
+						status => "done");
+
+					my @undone_closeouts = $m->comp('/funclib/timeslot_panels.mas', 
+						closeout => 1, 
+						timeslot => $timeslot, 
+						group => $group, 
+						event => $event, 
+						status => "undone");
+
+					my %judges_none = map {$_->id => 1} @unentered;
+					my %judges_half = map {$_->id => 1} @half_entered;
+
+					my @all_undone = (@unentered, @half_entered) unless $audit eq "visual";
+					@all_undone = @unentered if $audit eq "visual";
+
+					my %seen = (); 
+					@all_judges = grep { ! $seen{$_->id} ++ } @all_judges;
+					@all_judges = sort {$a->last cmp $b->last} @all_judges;
+					@all_judges = sort {$a->code <=> $b->code} @all_judges unless $style eq "names";
+
+					my %h_seen = (); 
+					@half_entered = grep { ! $h_seen{$_->id} ++ } @half_entered;
+					@half_entered = sort {$a->last cmp $b->last} @half_entered;
+					@half_entered = sort {$a->code <=> $b->code} @half_entered unless $style eq "names";
+
+					my %u_seen = (); 
+					@all_undone = grep { ! $u_seen{$_->id} ++ } @all_undone;
+					@all_undone = sort {$a->last cmp $b->last} @all_undone;
+					@all_undone = sort {$a->code <=> $b->code} @all_undone unless $style eq "names";
+
+					my $class;
+					my $all_column;
+					my $undone_column;
+					my $half_column;
+					my $closeout_column;
+
+					if ($style eq "names") { 
+						$closeout_column = ceil(scalar (@undone_closeouts) / 3);
+						$all_column = ceil(scalar (@all_judges) / 3);
+						$undone_column = ceil(scalar (@all_undone) / 3);
+						$half_column = ceil(scalar (@half_entered) / 3);
+						$class = "third nospace";
+					} else { 
+						$closeout_column = ceil(scalar (@undone_closeouts) / 4);
+						$all_column = ceil(scalar (@all_judges) / 4);
+						$undone_column = ceil(scalar (@all_undone) / 4);
+						$half_column = ceil(scalar (@half_entered) / 4);
+						$class = "quarter"
+					}
+
+					my $count = 1;
+
+</%perl>
+					<div class="done" style="display: <% $all ? "full" : "none" %>">
+
+%						if (@done_closeouts) { 
+
+							<div class="full padless">
+
+%								foreach my $closeout (@done_closeouts) { 
+
+%									my @entries = $m->comp("/funclib/panel_entries.mas", panel => $closeout);
+%									next if scalar @entries == 1;
+%									my $entry_string;
+%									foreach my $entry (@entries) { $entry_string .= $entry->code." "; }
+
+									<a title="<% $entry_string %>" class="<% $panel && $closeout->id == $panel->id ? "dk" : "" %>red smallish full nowrap" href="closeout.mhtml?panel_id=<% $closeout->id %>&all=1">
+										Coachover: <% $entry_string %>
+									</a>
+%								}
+
+							</div>
+
+%						}
+
+%						if ( @all_judges && $max_flight > 1) {
+							<div class="full nospace rightalign">
+								<h5>Flight <% $flight %></h5>
+							</div>
+%						}
+					
+						<div class="<% $class %>">
+
+%							foreach my $bjudge (@all_judges) { 
+		
+%								if ($count++ > $all_column) { 
+									</div>
+									<div class="<% $class %>">
+%									$count = 2;
+%								}
+
+								<a class="full smallish nowrap 
+									<% $judge && $bjudge->id == $judge->id && $panel && $flight == $panel->flight ? "dk" : "" %>red"
+									title="<% $bjudge->last.", ".$bjudge->first %>"
+									href="index.mhtml?all=1&timeslot_id=<% $timeslot->id %>&judge_id=<% $bjudge->id %>&flight=<% $flight %>">
+					
+									<% $style eq "names" ? $bjudge->last.", ".substr($bjudge->first,0,2) : $bjudge->code ? $bjudge->code : $bjudge->last %>
+								</a>
+%							}
+
+						</div>
+
+					</div>
+
+%					$count = 1;	
+
+%					if ($audit eq "visual") { 
+
+						<div class="audit" style="display: <% $audit_mode ? "full" : "none" %>">
+
+%							if ( @half_entered && $max_flight > 1) {
+								<div class="full padno marno rightalign">
+									<h5>Flight <% $flight %></h5>
+								</div>
+%							}
+						
+							<div class="<% $class %>">
+
+%								foreach my $bjudge (@half_entered) { 
+			
+%									if ($count++ > $half_column) { 
+										</div>
+										<div class="<% $class %>">
+%										$count = 2;
+%									}
+
+									<a class="full smallish nowrap 
+										<% $judge && $bjudge->id == $judge->id && $panel && $flight == $panel->flight ? "dk" : "" %>yellow"
+										title="<% $bjudge->last.", ".$bjudge->first %>"
+										href="audit.mhtml?audit_mode=1&timeslot_id=<% $timeslot->id %>&judge_id=<% $bjudge->id %>&flight=<% $flight %>">
+						
+										<% $style eq "names" ? $bjudge->last.", ".substr($bjudge->first,0,2) : $bjudge->code ? $bjudge->code : $bjudge->last %>
+									</a>
+%								}
+
+							</div>
+
+						</div>
+
+%					}
+
+%					$count = 1;	
+
+					<div class="undone" style="display: <% $all ? "none" : "full" %>">
+
+%							if (@undone_closeouts) { 
+								<div class="full padless">
+
+%								foreach my $closeout (@undone_closeouts) { 
+%									my @entries = $m->comp("/funclib/panel_entries.mas", panel => $closeout);
+%									next if scalar @entries == 1;
+%									my $entry_string;
+%									foreach my $entry (@entries) { $entry_string .= " & " if $entry_string; $entry_string .= $entry->code; }
+									<a title="<% $entry_string %>" class="<% $panel && $closeout->id == $panel->id ? "dk" : "" %>green smallish full nowrap" href="closeout.mhtml?panel_id=<% $closeout->id %>">
+										Coachover: <% $entry_string %>
+									</a>
+%								}
+								</div>
+%							}
+
+
+%						if ( @all_undone && $max_flight > 1) {
+							<div class="full padno marno rightalign">
+								<h5>Flight <% $flight %></h5>
+							</div>
+%						}
+					
+						<div class="<% $class %>">
+
+%							foreach my $bjudge (@all_undone) { 
+		
+%								if ($count++ > $undone_column) { 
+									</div>
+									<div class="<% $class %>">
+%									$count = 2;
+%								}
+
+								<a class="full smallish nowrap
+									<% $judge && $bjudge->id == $judge->id && $panel && $flight == $panel->flight ? "dk" : "" %><% $judges_none{$bjudge->id} ? "green" : "yellow" %>"
+									title="<% $bjudge->last.", ".$bjudge->first %>"
+									href="index.mhtml?all=<% $all %>&timeslot_id=<% $timeslot->id %>&judge_id=<% $bjudge->id %>&flight=<% $flight %>">
+					
+									<% $style eq "names" ? $bjudge->last.", ".substr($bjudge->first,0,2) : $bjudge->code ? $bjudge->code : $bjudge->last %>
+								</a>
+%							}
+
+						</div>
+
+					</div>
+
+%				}
+
+%				my @ready_events = $m->comp('/funclib/event_breakable.mas', tourn => $tourn);
+
+%				if ($panel || $timeslot) { 
+
+					<div class="info" style="display: <% $audit_mode ? "full" : "none" %>">
+
+						<h5>Round Info:</h5>
+
+%						if ($audit eq "visual") { 
+							<a class="<% $audit_sheet ? "dk" : "" %>yellow full nowrap" href="screen_audit.mhtml?timeslot_id=<% $timeslot->id %>">On-screen Audit for <% $timeslot->name %></a>
+%						}
+
+						<a class="blue full nowrap" href="/tabbing/report/print_audit.mhtml?timeslot_id=<% $timeslot->id %>">Print Audit Sheet for <% $timeslot->name %></a>
+						<a class="blue full nowrap" href="/tabbing/report/print_pending.mhtml?timeslot_id=<% $timeslot->id %>">Print Ballots Still Out</a>
+
+%						if ($panel) { 
+
+							<a class="martop blue full" href="/tabbing/status/starts.mhtml?timeslot_id=<% $timeslot->id %>"><span class="threequarter nowrap">Round Starts </span><span class="quarter rightalign"><% $timeslot->name %></span></a>
+							<a class="blue full" href="/tabbing/status/confirms.mhtml?timeslot_id=<% $timeslot->id %>"><span class="threequarter nowrap">Confirm Starts </span><span class="quarter rightalign"><% $timeslot->name %></span></a>
+							<a class="blue full" href="/tabbing/status/collect.mhtml?timeslot_id=<% $timeslot->id %>"><span class="threequarter nowrap">Ballot Collection </span><span class="quarter rightalign"><% $timeslot->name %></span></a>
+							<a class="blue full" href="/tabbing/status/status.mhtml?timeslot_id=<% $timeslot->id %>"><span class="threequarter nowrap">Data Entry Status</span><span class="quarter rightalign"><% $timeslot->name %></span></a>
+
+							<a class="martop blue full" href="/panel/schemat/show?round_id=<% $panel->round->id %>"><% $panel->round->event->abbr %> <% $panel->round->realname %> schematic</a>
+
+%						}
+
+						<hr />
+					</div>
+				
+%				}
+
+%				if ($panel) { 
+					<a class="blue full martop" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">View Panel/Change Judge</a>
+					<a class="blue full" href="/tabbing/entry/panel.mhtml?panel_id=<% $panel->id %>">Force Edit Results</a>
+%				}
+
+				</div>
+
+				<div class="sidenote">
+
+%			 		if (@ready_events && $entry_only) {
+						<h4>Events all entered</h4>
+%			  			foreach my $re (@ready_events) {
+							<span class="green full smallish"><% " ".$re->name."" %></span>
+%						}
+%		   			} elsif (@ready_events) { 
+						<h4>Events all entered</h4>
+%			  			foreach my $re (@ready_events) {
+							<a class="green full" href="/tabbing/break/index.mhtml?event_id=<% $re->id %>"><% " ".$re->name."" %></a>
+%						}
+%		   			} 
+
+				</div>
+
+%		}
+
+
+	</div>
+

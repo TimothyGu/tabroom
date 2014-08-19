@@ -1,0 +1,59 @@
+<%args>
+	$tourn
+	$student => undef
+	$name => undef
+	$event => undef
+</%args>
+<%perl>
+
+	if ($event) { 
+
+		Tab::Event->set_sql( student_tourn => "
+			select distinct event.* 
+			from event, entry, entry_student
+			where entry_student.student = ? 
+			and entry_student.entry = entry.id
+			and entry.event = event.id
+			and event.tourn = ? 
+			order by event.name");
+
+		return Tab::Event->search_student_tourn( $student->id, $tourn->id );
+	}
+
+	if ($student) { 
+
+		Tab::Entry->set_sql( by_student_tourn => "
+			select distinct entry.* 
+			from entry, entry_student, event
+			where entry.id = entry_student.entry
+			and entry_student.student = ? 
+			and entry.event = event.id
+			and event.tourn = ? 
+			group by event
+			order by event.name
+		");
+
+		return Tab::Entry->search_by_student_tourn( $student, $tourn);
+
+	} 
+
+	if ($name) { 
+
+		Tab::Entry->set_sql( by_student_name_tourn => "
+			select distinct entry.* 
+			from entry, entry_student, event, student
+			where entry.id = entry_student.entry
+			and entry_student.student = student.id
+			and student.last like ? 
+			and entry.event = event.id
+			and event.tourn = ? 
+			group by entry
+			order by event.name
+		");
+
+		return Tab::Entry->search_by_student_name_tourn($name, $tourn);
+
+	} 
+
+
+</%perl>

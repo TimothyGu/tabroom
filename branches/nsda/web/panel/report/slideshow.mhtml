@@ -1,0 +1,350 @@
+<%args>
+	$tourn
+	$event_id
+	$timeslot_id
+</%args>
+<%init>
+
+	use POSIX;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	
+	my $tourn_id = $tourn->id;
+
+	my @events;
+
+	if ($event_id eq "all") { 
+		@events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+	} else {
+		push (@events, Tab::Event->retrieve($event_id));
+	}
+
+ 	my $timeslot = Tab::Timeslot->retrieve($timeslot_id);
+		
+</%init>
+
+	<script type="text/javascript">
+
+		$(document).ready(function() {
+
+			$('body').css('background-image', 'none');
+			$('body').css('background-color', '#dadada');
+
+			$('#slideshow').cycle({
+				fx      : 'scrollDown',
+				sync    : false,
+				timeout : 12000,
+				pause   : 1
+			});
+
+			$('#navbar').hide();
+			$('#topbar').hide();
+			$('#header').hide();
+			$('#footer').hide();
+
+			$("#slideshow_begin").click(function() {
+				$("#slideshow_begin").hide();
+				$('#pause').show();
+				$('#slideshow').css('display', 'block');
+				$('#slideshow').css('width', '660px');
+				$('#slideshow').css('height', '525px');
+				$('#slideshow').css('margin', 'auto');
+				$('#slideshow').cycle('resume');
+			});
+
+			$("#pause").click(function() {
+				$('#pause').hide();
+				$('#resume').show();
+				$('#slideshow').cycle('pause');
+			});
+
+			$("#resume").click(function() {
+				$('#pause').show();
+				$('#resume').hide();
+				$('#slideshow').cycle('resume');
+			});
+
+		});
+
+	</script>
+
+%	my $round;
+
+	<div class="blankfull roundback">
+
+%		if ($tourn->setting("logo")) { 
+			<div class="centeralign nospace">
+				<img src="<% $Tab::s3_url %>/<% $tourn->id %>/<% $tourn->setting("logo") %>" class="slideshow_tournlogo"> 
+			</div>
+%		}
+
+		<div id="slideshow_begin" class="slideshow_begin">
+			BEGIN SLIDESHOW
+		</div>
+
+		<div id="slideshow" class="slideshow_round" style="display: none;">
+
+%			foreach my $event (@events) { 
+
+%				my @rounds = Tab::Round->search( timeslot => $timeslot->id, event => $event->id);
+
+%				$round = $rounds[0] if scalar @rounds == 1;
+
+%				foreach my $round (@rounds) { 
+
+<%perl>
+
+					my $start = $round->start_time;
+					$start = $round->timeslot->start unless $start;
+					$start->set_time_zone($tz);
+					my $start_string = Tab::nicetime($start);
+
+					my @panels;
+					my @raw_panels = $round->panels;
+					my %room_name;
+
+					foreach my $panel (@raw_panels) { 
+						$room_name{$panel->id} = $panel->room->name if $panel->room;
+						$room_name{$panel->id} = "BYE" if $panel->bye;
+						$room_name{$panel->id} = "Ask Tab Room" unless $room_name{$panel->id};
+						push @panels, $panel;
+					}
+
+					@panels = sort {$a->letter cmp $b->letter} @panels;
+					@panels = sort {$a->flight <=> $b->flight} @panels;
+
+				    @panels = map  { $_->[0] } sort { $a->[1] <=> $b->[1] } map  { [$_, $room_name{$_->id} =~/(\d+)/] } @panels;
+				    @panels = map  { $_->[0] } sort { $a->[1] cmp $b->[1] } map  { [$_, $room_name{$_->id}=~/(\D+)/] } @panels;
+
+
+</%perl>
+
+%					if ($round->type eq "final" || $round->type eq "elim") { 
+
+%						foreach my $panel (@panels) { 
+
+%							my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+							<span class="slideshow_oneround">
+
+								<h2><% scalar @events > 1 ? $event->abbr : "" %> <% $round->realname %></h2>
+
+								<% scalar @entries < 7 ? "<br />" : "" %>
+								<% scalar @entries < 5 ? "<br />" : "" %>
+
+								<span class="slideshow_half <% scalar @entries < 7 ? "slideshow_extrapad" : "" %>"> 
+									<% $panel->room ? "<h5>Room</h5>" : "" %>
+									<% $panel->room ? "<h4>". $panel->room->name : "" %>
+%									if ($round->flighted > 1) { 
+										Flt <% $panel->flight ? $panel->flight : "1" %>
+%									}
+									</h4>
+								</span>
+								<span class="slideshow_half <% scalar @entries < 7 ? "slideshow_extrapad" : "" %>"> 
+									<h5>Start</h5>
+									<h4><% $start_string %></h4>
+								</span>
+
+								<% scalar @entries < 7 ? "<br />" : "" %>
+
+%								foreach my $entry (@entries) { 
+									<span class="<% scalar @entries < 7 ? "slideshow_extrapad" : "" %> slideshow_elim">
+										<% $entry->code %>
+									</span>
+%								}
+								<br />
+								<% scalar @entries < 5 ? "<br />" : "" %>
+
+								<span class="slideshow_panel <% scalar @entries < 7 ? "slideshow_extrapad" : "" %>">
+%									foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) { 
+										<span class="slideshow_judge <% $judge->chair ? "bold" : "" %> ">
+											<% $judge->chair ? "*" : "" %><% $judge->last %>, <% $judge->first %> 
+										</span>
+%									}
+								</span>
+
+							</span>
+
+%						}
+
+
+%					} else { 
+
+%						while (@panels) { 
+
+%							my $switch;
+
+							<span class="slideshow_fiverounds">
+
+								<% scalar @events > 1 ? "<h4>".$event->name."</h4>" : "" %>
+								
+								<span class="slideshow_half"> 
+									<h4><% $round->realname %></h4>
+								</span>
+
+								<span class="slideshow_half"> 
+									<h4>Start: <% $start_string %></h4>
+								</span>
+
+								<br />
+
+								<table cellpadding="6" cellspacing="1">
+
+%									if ($event->type eq "wudc") { 
+										<tr class="yellowrow">
+											<th class="smallish">
+												Room
+											</th>
+											<th class="smallish">
+												1G
+											</th>
+											<th class="smallish">
+												1O
+											</th>
+											<th class="smallish">
+												2G
+											</th>
+											<th class="smallish">
+												2O
+											</th>
+											<th class="smallish">
+												Panel
+											</th>
+										</tr>
+
+%									} elsif ($event->type eq "pf") { 
+
+										<tr class="yellowrow">
+
+%											if ($round->flighted > 1) { 
+												<th class="smallish">
+													Flight
+												</th>
+%											}
+											<th class="smallish">
+												Room
+											</th>
+											<th class="smallish" colspan="2"> 
+												Flip for Sides
+											</th>
+											<th class="smallish">
+												Judging
+											</th>
+										</tr>
+
+%									} elsif ($event->type ne "speech" && $event->type ne "congress") { 
+
+										<tr class="yellowrow">
+
+%											if ($round->flighted > 1) { 
+												<th class="smallish">
+													Flight
+												</th>
+%											}
+
+											<th class="smallish">
+												Room
+											</th>
+											<th class="smallish">
+												Aff
+											</th>
+											<th class="smallish">
+												Neg
+											</th>
+											<th class="smallish">
+												Judging
+											</th>
+										</tr>
+
+%									} 
+
+
+%									foreach (1 .. 5) { 
+
+%										next unless @panels;
+%										my $panel = shift @panels;
+%										my @entries = $m->comp('/funclib/panel_entries.mas', panel => $panel);
+%										@entries = sort {$a->speaks <=> $b->speaks} @entries;
+%										@entries = sort {$a->side <=> $b->side} @entries if $event->type ne "wudc";
+
+										<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+%											if ($round->flighted > 1) { 
+												<th class="smallish centeralign">
+													<% $panel->flight ? $panel->flight : "1" %>
+												</th>
+%											}
+
+											<td>
+												<span class="padno marno" style="min-height: 45px; vertical-align: middle; display: inline-block;">
+												</span>
+												<% $panel->room ? $panel->room->name : "" %>
+												<% $panel->bye ? "BYE" : "" %>
+											</td>
+
+%											foreach my $entry ($m->comp('/funclib/panel_entries.mas', panel => $panel)) { 
+												<td>
+													<div class="<% $event->type eq "wudc" ? "eighty" : "huntwofive" %> wrap">
+													<% $entry->code %>
+													</div>
+												</td>
+%											}
+
+											<td>
+%												foreach my $judge (sort {$b->chair <=> $a->chair} $m->comp('/funclib/panel_judges.mas', panel => $panel)) { 
+													<div class="block <% $event->type eq "wudc" ? "huntwofive" : "onesixty" %> nowrap padless <% $judge->chair ? "bold" : "" %> ">
+														<% $judge->chair ? "*" : ""%><% $judge->last %>, <% $judge->first %>
+													</div>
+%												}
+											</td>
+
+%											if ($panel->bye) { 
+												<td></td>
+%											}
+
+										</tr>
+
+%									}
+
+								</table>
+
+
+							</span>
+%						}
+
+%					}
+%				}
+%			}
+
+		</div>
+
+		<div class="block centeralign padmore" style="vertical-align: top;">
+
+			<span class="slideshow_logo">
+%				if ($round && $round->motion) { 
+					<a href="slideshow_motion.mhtml?round_id=<% $round->id %>">&gt;&gt;Motion</a>
+%				}
+			</span>
+
+			<span id="pause" class="slideshow_command" style="display: none;">
+				&lt;Pause&gt;
+			</span>
+
+			<span id="resume" style="display:none;" class="slideshow_command redtext">
+				&gt;Resume&lt;
+			</span>
+
+			<span class="slideshow_motto">
+				<a href="/panel/report/index.mhtml">
+					>> Return to Tabroom
+				</a>
+			</span>
+
+		</div>
+
+
+	</div>
+
+
+	

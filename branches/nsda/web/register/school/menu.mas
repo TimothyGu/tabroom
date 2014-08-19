@@ -1,0 +1,56 @@
+<%args> 
+	$tourn
+	$school
+	$event_id => undef
+</%args>
+<%init>
+
+	$m->abort unless $school && $school->id;
+
+</%init>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>
+			</h4>
+
+			<a class="yellow block" href="entries.mhtml?all=yep&school_id=<% $school->id %>">
+				Return to full entry
+			</a>
+
+%			if ($event_id) { 
+%				my $event = Tab::Event->retrieve($event_id);
+				<a class="yellow block" href="/register/event/roster.mhtml?event_id=<% $event_id %>&school_id=<% $school->id %>">
+					<% $event->abbr %> full list
+				</a>
+%			}
+
+
+			<br />
+
+			<h4>
+				Divisions
+			</h4>
+
+%			foreach my $event (sort {$a->name cmp $b->name} $m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+
+%				my @hybrids = $m->comp("/funclib/school_hybrids.mas", school => $school, event => $event, others_only => "yes");
+%				my @entries = Tab::Entry->search( school => $school, event => $event, dropped => 0, unconfirmed => 0 );
+
+				<a href="entries.mhtml?school_id=<% $school->id %>&event_id=<% $event->id %>" class="<% ($event->id == $event_id) ? "dkblue" : "blue" %> block">
+					<span class="sixth nowrap padno" style="padding-left: 3px;">
+						<% scalar Tab::Entry->search( school => $school, event => $event, dropped => 0, unconfirmed => 0 ) + scalar @hybrids %>
+					</span>
+					<span class="fivesixth nowrap padno">
+					<% $event->name %>
+					</span>
+				</a>
+
+%			}
+	
+		</div>
+
+	</div>
+%

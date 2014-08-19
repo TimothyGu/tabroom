@@ -1,0 +1,38 @@
+<%args>
+	$account
+	$tourn
+	$fine_amount => undef
+	$fine_reason => undef
+</%args>
+<%perl>
+
+	my $err;
+
+	$err =  "Fine amount was blank" unless $fine_amount;
+	$err .= " Fine Reason was blank" unless $fine_reason;
+
+    $m->redirect("edit.mhtml?err=$err") if $err;
+	
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $now = DateTime->now(time_zone => $tz);
+	
+	foreach my $school ($tourn->schools) { 
+	    my $fine = Tab::SchoolFine->create({
+	        school => $school->id,
+			tourn => $tourn->id,
+	        amount => $fine_amount,
+	        reason => $fine_reason,
+			levied_on => $now,
+			levied_by => $account->id
+	    });
+
+	}
+
+	$err = "Fine of $fine_amount applied to every school";
+
+    $m->redirect("edit.mhtml?err=$err");
+
+
+</%perl>

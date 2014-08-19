@@ -1,0 +1,367 @@
+<%args>
+	$account
+	$other_id => undef
+	$chapter_id => undef
+	$search_email => undef
+	$search_chapter => undef
+	$search_last => undef
+	$judge_id => undef
+</%args>
+<%init>
+
+	if ($other_id) { 
+
+		my $other = Tab::Account->retrieve($other_id);
+
+		if ($other) { 
+
+			my @already = Tab::AccountConflict->search( account => $account->id, conflict => $other_id );
+
+			unless (@already) { 
+
+				Tab::AccountConflict->create({
+					account => $account->id,
+					conflict => $other_id,
+					added_by => $account->id,
+				});
+
+			}
+			
+		} 
+
+	} 
+
+	if ($chapter_id) { 
+
+		my $chapter = Tab::Chapter->retrieve($chapter_id);
+
+		if ($chapter) { 
+
+			my @already = Tab::AccountConflict->search( account => $account->id, chapter => $chapter_id );
+
+			unless (@already) { 
+
+				Tab::AccountConflict->create({
+					account => $account->id,
+					chapter => $chapter_id,
+					added_by => $account->id,
+				});
+
+			}
+			
+		} 
+
+	}
+	
+	my @chapters;
+	my @accounts;
+
+	if ($search_email && $search_last) { 
+
+		@accounts = Tab::Account->search_where( last => { "like", $search_last."%" }, email => { "like", $search_email."%" } );
+
+	} elsif ($search_email) { 
+
+		@accounts = Tab::Account->search_where( email => { "like", $search_email."%" } );
+
+	} elsif ($search_last) { 
+
+		@accounts = Tab::Account->search_where( last => { "like", $search_last."%" } );
+
+	}
+
+	if ($search_chapter) { 
+
+		@chapters = Tab::Chapter->search_where( name => { "like", $search_chapter."%" } );
+
+	}
+
+	my @existings = Tab::AccountConflict->search( account => $account->id );
+
+</%init>
+
+	<& menu.mas, account => $account, whoami => "conflicts" &>
+
+	<div class="left huge">
+
+		<h2>Standing Conflicts</h2>
+
+		<p>These conflicts are meant to reflect a personal or professional
+		relationship which means it is unfair for you to judge the other
+		person; such as a relative, or a former student.  Do NOT use conflicts
+		against debaters you simply do not like, or the tournament directors of
+		tournaments you attend will likely get very angry.</p>
+
+		<p>The conflict must have a Tabroom.com account linked to their
+		entries for a standing conflict to work automatically.</p>
+
+		<div class="left half">
+
+			<h4>Add Personal Conflict</h4>
+
+			<form action="conflicts.mhtml" method="post">
+
+			<div class="block">
+
+				<span class="full centeralign evenrow">
+					<input type="text" name="search_last" size="25" placeholder="Search by last name">
+				</span>
+
+				<span class="full centeralign">
+					<input type="text" name="search_email" size="25" placeholder="Search by email">
+				</span>
+
+				<span class="full rightalign liblrow">
+					<input type="submit" value="Search for Conflicts">
+					</form>
+				</span>
+					
+			</div>
+
+			<h4>Add School Conflict</h4>
+
+			<form action="conflicts.mhtml" method="post">
+
+			<div>
+
+				<span class="full evenrow centeralign">
+					<input type="text" name="search_chapter" size="25" placeholder="Search by school name">
+				</span>
+
+				<span class="full rightalign liblrow">
+					<input type="submit" value="Search for Schools">
+					</form>
+				</span>
+					
+			</div>
+
+
+		</div>
+
+		<div class="half top">
+
+%			if (@accounts || @chapters) { 
+
+				<h4>Search Results:</h4>
+
+%				my $switch;
+
+%				foreach my $other (@accounts) { 
+
+%					my @chapters;
+%					my @students = Tab::Student->search( account => $other->id );
+%					my @chapter_judges = Tab::ChapterJudge->search( account => $other->id );
+
+%					foreach my $person (@chapter_judges, @students) { 
+%						push @chapters, $person->chapter if $person->chapter;
+%					}
+
+					<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> smallish">
+
+						<span class="quarter ">
+							<% $other->first %>
+						</span>
+
+						<span class="quarter ">
+							<% $other->last %>
+						</span>
+
+						<span class="quarter ">
+%							foreach my $chapter (@chapters) { 
+								<div class="full nospace">
+									<% $chapter->name %> 
+								</div>
+%							}
+						</span>
+
+						<span class="quarter centeralign smallish">
+							<a class="dkgreen" href="conflicts.mhtml?other_id=<% $other->id %>">
+								Conflict
+							</a>
+						</span>
+
+					</div>
+
+%				}
+
+%				foreach my $chapter (@chapters) { 
+
+					<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> smallish">
+
+						<span class="half">
+							<% $chapter->name %>
+						</span>
+
+						<span class="quarter">
+							<% $chapter->state %>
+						</span>
+
+						<span class="quarter smallish centeralign">
+							<a class="dkgreen" href="conflicts.mhtml?chapter_id=<% $chapter->id %>">
+								Conflict
+							</a>
+						</span>
+
+					</div>
+
+%				}
+
+%			}
+
+			<h4>Existing Conflicts</h4>
+
+%				my $switch;
+
+%				foreach my $existing (@existings) { 
+
+					<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> smallish">
+						
+						<span class="twothird">
+							<% $existing->conflict->id ? "Personal: ".$existing->conflict->first." ".$existing->conflict->last : "" %>
+							<% $existing->chapter->id ? "Team: ".$existing->chapter->name : "" %>
+						</span>
+
+						<span class="third smallish centeralign">
+							<a class="dkred" href="conflict_rm.mhtml?conflict_id=<% $existing->id %>">
+								Remove
+							</a>
+						</span>
+
+					</div>
+
+%				}
+
+		</div>
+
+%		my @nowjudges = $m->comp("/funclib/account_judges.mas", account => $account, future => 1);
+
+%		if (@nowjudges) { 
+
+			<h2>Tournament Specific Conflicts</h2>
+
+			<div class="half">
+
+%				foreach my $judge (@nowjudges) { 
+					<a class="<% $judge->id == $judge_id ? "dk" : "" %>blue block" href="conflicts.mhtml?judge_id=<% $judge->id %>">
+						<% $judge->judge_group->abbr." at ".$judge->judge_group->tourn->name %>
+					</a>
+%				}
+
+			</div>
+
+			<div class="half">
+
+%				if ($judge_id) { 
+
+%					my $judge = Tab::Judge->retrieve($judge_id);
+
+%					unless ($judge->judge_group->setting("conflicts")) { 
+						
+						<p>This tournament is not set to permit online entry of conflicts</p>
+						<p>Please contact the tournament staff if you believe this is an error</p>
+
+%					} elsif ($judge && $judge->account->id == $account->id) { 
+
+%						foreach my $conflict (Tab::Strike->search( judge => $judge_id, registrant => 1 )) { 
+
+							<div>
+
+								<span class="smallish threequarter">
+									<% $conflict->type eq "conflict" && $conflict->entry ? "Entry: ".$conflict->entry->name : "" %>
+									<% $conflict->type eq "entry" && $conflict->entry ? "Entry: ".$conflict->entry->name : "" %>
+									<% $conflict->type eq "school" && $conflict->school ? "School: ".$conflict->school->short_name : ""%>
+								</span>
+
+							<span class="quarter centeralign smallish">
+								<a class="dkred block" href="conflict_tourn_rm.mhtml?conflict_id=<% $conflict->id %>">
+									Remove
+								</a>
+							</span>
+
+%						}
+
+						<div class="oddrow">
+							&nbsp;
+						</div>
+
+%						foreach my $event ($judge->judge_group->events) { 
+
+							<h5>
+								Add <% $event->name %> Conflict:
+							</h5>
+
+							<form action="conflict_entry.mhtml">
+							<input type="hidden" name="judge_id" value="<% $judge->id %>">
+
+							<div>
+								<span class="threequarter">
+
+									<select name="entry_id" class="fixedmed">
+
+%										foreach my $entry (sort {$a->school->name cmp $b->school->name} $event->entries) {
+		
+%											my $schname = substr($entry->school->short_name,0,8);
+%											foreach ( length($schname) .. 8) {
+%												$schname .= "&nbsp;";
+%											}
+
+		
+											<option value="<% $entry->id %>">	
+												<code>
+													<% $schname."- ".$entry->name %>
+												</code>
+											</option>
+%										}
+									</select>
+
+								</span>
+
+								<span class="quarter rightalign">
+									<input class="thin" type="submit" value="Conflict">
+									</form>
+								</span>
+
+							</div>
+
+%						}
+
+						<h5>
+							Add School Conflict:
+						</h5>
+
+						<form action="conflict_school.mhtml">
+						<input type="hidden" name="judge_id" value="<% $judge->id %>">
+
+						<div>
+
+							<span class="threequarter">
+								<select name="school_id" class="fixedmed">
+%									foreach my $school (sort {$a->name cmp $b->name} $judge->judge_group->tourn->schools) { 
+										<option value="<% $school->id %>">	
+											<code>
+												<% $school->name %>
+											</code>
+										</option>
+%									}
+								</select>
+							</span>
+
+							<span class="rightalign quarter">
+								<input class="thin" type="submit" value="Conflict">
+								</form>
+							</span>
+
+						</div>
+
+%					}
+
+%				}
+
+			</div>
+
+%		}
+
+	</div>
+
+
+

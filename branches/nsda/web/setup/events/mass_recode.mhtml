@@ -1,0 +1,56 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my $switch;
+
+</%init>
+
+	<div class="right small">
+		<& menu.mas, tourn => $tourn, whoami => "recode" &>
+	</div>
+
+	<div class="left huge">
+	
+		<h2>
+			Change Starting Speaker Codes
+		</h2>
+	
+		<div class="bold block yellowrow marno">
+
+			<span class="twothird">
+				Event Full Name
+			</span>
+
+			<span class="third">
+				Starting Code
+			</span>
+
+		</div>
+
+		<form action="mass_recode_save.mhtml" method="post">
+	
+%		foreach my $event (sort {$a->name cmp $b->name} $m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+	
+			<div class="block <% ($switch++ % 2) ? "oddrow" : "evenrow" %> marno">
+	
+				<span class="twothird divider">
+					<% $event->name %>
+				</span>
+
+				<span class="third">
+					<input size="5" type="text" name="<% $event->id %>" value="<% $event->setting("code_start") %>">
+				</span>
+
+			</div>
+	
+%		}
+		
+		<div class="block liblrow rightalign">
+			<input type="submit" value=" Save Changes ">
+			</form>
+		</div>
+
+	</div>
+	

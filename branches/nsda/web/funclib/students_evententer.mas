@@ -1,0 +1,142 @@
+<%args>
+	$event
+	$school  => undef
+	$chapter => undef
+	$debug   => undef
+	$drops   => undef
+</%args>
+<%init>
+
+	my $tourn = $event->tourn;
+
+	$m->redirect('/user/home.mhtml') unless $tourn;
+
+	my $double_entry = $tourn->setting("double_entry");
+	my $double_max = $tourn->setting("double_max");
+	my $alumni = $event->setting("alumni");
+	my $supp = $event->setting("supp");
+	my $event_double = $event->event_double;
+	my $ed_exclude = $event->event_double->exclude if $event->event_double;
+	
+	my @clean_students;
+
+	$chapter = $school->chapter if $school;
+
+	my @students = sort {ucfirst $a->last cmp ucfirst $b->last} $chapter->students;
+
+	#Check the students to be sure that they're not entered in an event restricted against this one.
+
+	my $now = DateTime->now;
+	my $year = $now->year;
+	$year++ if $now->month > 6;
+
+	my %entry_by_id = ();
+	my @entries = $school->entries if $school;
+	foreach my $entry (@entries) { 
+		$entry_by_id{$entry->id} = $entry;
+	}
+
+	Tab::EntryStudent->set_sql(by_chapter => "
+		select distinct entry_student.*
+		from entry_student, entry, student, event
+		where entry.id = entry_student.entry
+		and entry_student.student = student.id
+		and student.chapter = ?
+		and entry.event = event.id
+		and event.tourn = ? 
+		");
+
+	my %entries_by_student = ();
+
+	foreach my $entry_student (Tab::EntryStudent->search_by_chapter($chapter->id, $tourn->id)) { 
+		push (@{$entries_by_student{$entry_student->student->id}}, $entry_by_id{$entry_student->entry->id});
+	}
+
+	my %double_by_event = ();
+
+	foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+		$double_by_event{$event->id} = $event->event_double;
+	}
+
+
+	STUDENT:
+	foreach my $student (@students) { 
+
+		#Students who aren't students anymore.
+		next STUDENT if $student->retired;
+		next STUDENT unless $student->first && $student->last;
+		next STUDENT if $student->grad_year && $student->grad_year < $year && not defined $alumni;
+
+		#Class specific double entry restrictions 
+		my @entries = @{$entries_by_student{$student->id}} if $entries_by_student{$student->id};
+
+		#Supplementals are only open to students entered in the tournament
+		next STUDENT if $supp &! @entries;
+
+		my %event_double_scoreboard = ();
+
+		foreach my $entry (@entries) { 
+			next unless $entry && $entry->id;
+			$event_double_scoreboard{$double_by_event{$entry->event->id}}++;
+		}
+
+		my $entered;
+
+		foreach my $entry (@entries) { 
+
+			next unless $entry && $entry->id;
+			my $event_id = $entry->event->id;
+
+			unless ($entry->dropped || $entry->waitlist || $entry->unconfirmed) { 
+
+				# Am I already entered in this event?
+				next STUDENT if $event_id == $event->id && not defined $event->setting("enter_me_twice");
+
+				# Am I already entered in the tournament and in off the waitlist? 
+				$entered++;
+
+				# No double entry permitted if you're entered in this event_double and that's not ok
+				next STUDENT if $event_double && $event_double->setting == 2 && $entered;  
+
+
+				#No double entry with a mutually-excluded group
+				next STUDENT if $ed_exclude &&  $entry->event->event_double && $entry->event->event_double->id == $ed_exclude->id;
+
+
+				if ($double_by_event{$event_id}) { 
+
+					# No double entry permitted if you're already entered and the new event_double forbids double entry
+					next STUDENT if $double_by_event{$event_id}->setting == 2;
+
+					#No double entry within the event_double
+					next STUDENT if $double_by_event{$event_id}->setting == 1 && 
+							($event_double && $double_by_event{$event_id}->id == $event_double->id);  
+
+					#No double entry beyond a limit within the event_double
+					next STUDENT if ($double_by_event{$event_id}->setting == 3) && 
+						($event_double && $double_by_event{$event_id}->id == $event_double->id 
+							&& $event_double_scoreboard{$event_double->id} >= $event_double->max); 
+
+					#No double entry if the other event_double excludes mine
+					next STUDENT if ( $double_by_event{$event_id}->exclude && $event_double && ($double_by_event{$event_id}->exclude->id == $event_double->id)   );
+
+				}
+			}
+		}
+
+		#Unlimited double entry
+		push (@clean_students, $student) if $double_entry eq "unlimited";
+		next STUDENT if $double_entry eq "unlimited";
+
+		#No double entry
+		next STUDENT if ($entered > 0 && $double_entry eq "none"); 
+
+		#One event double entry
+		next STUDENT if ($double_entry eq "max_events" && $entered >= $double_max);
+	
+		push (@clean_students, $student);
+	}	
+
+	return @clean_students;
+	
+</%init>

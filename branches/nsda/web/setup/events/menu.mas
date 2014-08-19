@@ -1,0 +1,102 @@
+<%args>
+	$tourn
+	$event_id => undef
+	$whoami   => undef
+	$add      => undef
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+
+	my $base_url = $whoami;
+	$base_url = "edit" if $whoami eq "double";
+
+</%init>
+
+	<div class="sidenote">
+	
+		<h4>
+			Batch Changes
+		</h4>
+
+		<a class="<% $add ? "dk" : "" %>yellow block" href="edit.mhtml?add=yes">
+			Add New Event
+		</a>
+
+		<a class="<% ($whoami eq "recode") ? "dkblue block" : "blue block" %>" href="mass_recode.mhtml">
+			Speaker Codes
+		</a>
+
+		<a class="<% ($whoami eq "double") ? "dkblue block" : "blue block" %>" href="double_entry.mhtml">
+			Double Entry Limits
+		</a>
+
+		<br />
+
+%		if ($tourn->events) { 
+
+%			$base_url = "edit.mhtml" if $base_url eq "recode" || $base_url eq "double";
+
+			<h4>
+				Events
+			</h4>
+
+%			foreach my $event (sort {$a->name cmp $b->name} $tourn->events) { 
+				<a class="<% ($event->id == $event_id) ? "dk" : "" %>blue nowrap block" href="<% $base_url %>.mhtml?event_id=<% $event->id %>">
+					<% $event->name %>
+				</a>
+%			}
+	
+			<br />
+
+%	 		if ($event) { 
+
+%	 			if ($event->judge_group) { 
+					<a class="blue block" href="/setup/judges/edit.mhtml?group_id=<% ($event && $event->judge_group) ? $event->judge_group->id : "" %>">
+						Go to Judge Group: <% $event->judge_group->abbr %>
+					</a>
+%				}
+
+				<h4>
+					Delete <% $event->abbr %>
+				</h4>
+
+				<form action="merge_event.mhtml" method="post">
+				<input type="hidden" name="event_id" value="<% ($event) ? $event->id : "" %>" class="notfirst">
+
+				<div class="liblrow">
+
+					<span class="third smaller">
+						Merge into
+					</span>
+
+					<span class="third">
+						<select name="merge_into" class="notfirst">
+%							foreach my $event ($tourn->events) { 
+%								next if $event->id == $event_id;
+								<option value="<% $event->id %>">
+									<% $event->abbr %>
+								</option>
+%							}
+						</select>
+					</span>
+
+					<span class="third">
+						<input class="notfirst skinny" type="submit" value="Go">
+					</span>
+
+				</div>
+
+%				my $warn = "You are about to delete the event ".$event->name.". No going back. Click OK to continue:";
+
+				<a class="dkred block" <& "/funclib/confirm.mas", warn => $warn &>  href="event_rm.mhtml?event_id=<% ($event) ? $event->id : "" %>" >
+					Delete Event w/o Merging
+				</a>
+
+%			}
+
+%		} 
+
+	</div>
+
+

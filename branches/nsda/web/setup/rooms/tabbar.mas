@@ -1,0 +1,28 @@
+<%args>
+	$add    => undef
+	$import => undef
+	$site_id 
+</%args>
+
+	<ul id="tabnav">
+
+		<li <% ($add || $import) ? "" : "class=\"selected\""%>>
+			<a href="/setup/rooms/list.mhtml?site_id=<% $site_id %>">
+				Edit Rooms
+			</a>
+		</li>
+
+		<li <% ($add) ? "class=\"selected\"" : "" %>>
+			<a href="/setup/rooms/list.mhtml?site_id=<% $site_id %>&add=yes">
+				Add New
+			</a>
+		</li>
+
+		<li <% ($import) ? "class=\"selected\"" : "" %>>
+			<a href="/setup/rooms/import.mhtml?site_id=<% $site_id %>&add=yes">
+				Import from File
+			</a>
+		</li>
+
+	</ul>
+

@@ -1,0 +1,128 @@
+<%args>
+	$account
+	$school
+</%args>
+<%init>
+
+	my $tourn = $school->tourn;
+
+	my @results = $m->comp('/funclib/school_results.mas', school => $school);
+
+	my @result_values = $m->comp('/funclib/school_result_values.mas', school => $school);
+
+	my %values_by_result = ();
+
+	foreach my $value (@result_values) { 
+		push @{$values_by_result{$value->result->id}}, $value;
+	}
+
+</%init>
+
+	<& "menu.mas", school => $school, whoami => "report" &>
+
+	<div class="left huge">
+	
+		<h2><% $school->chapter->name %>: Results</h2>
+
+		<& /user/chapter/tabbar.mas, chapter => $school->chapter, whoami => "results" &>
+	
+		<h4>Results at <% $tourn->name %></h4>
+
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<table cellpadding="2" cellspacing="1" id="sortme">
+
+		<thead>
+
+			<tr class="yellowrow">
+
+				<th class="smallish centeralign">
+					#
+				</th>
+
+				<th class="smallish centeralign">
+					Entry
+				</th>
+
+				<th class="smallish centeralign">
+				</th>
+
+				<th class="smallish centeralign">
+					Set
+				</th>
+
+				<th class="smallish centeralign">
+					Scores
+				</th>
+				<th class="smallish centeralign">
+					Ballots
+				</th>
+
+			</tr>
+
+		</thead>
+
+		<tbody>
+
+%		foreach my $result (@results) { 
+
+%			my @values = @{$values_by_result{$result->id}} if $values_by_result{$result->id};
+%			next unless @values;
+%			my $seed;
+
+%			my $label = $result->result_set->label;
+%			$label =~ s/Places//g;
+
+%			foreach my $value (@values) {
+%				next if $value->value eq "Prelim";
+%				$seed = $value if $value->tag eq "seed";
+%				$seed = $value if $value->tag eq "Place";
+%			}
+
+			<tr>
+				<td class="smallish centeralign">
+					<% $seed  ? $seed->value : "" %>
+				</td>
+
+				<td class="smaller">
+					<% $result->entry->name %>
+					<% $result->student ? "<div>".$result->student->first." ".$result->student->last."</div>" : "" %>
+				</td>
+
+				<td class="smaller nowrap">
+					<% $result->entry->event->abbr %>
+				</td>
+
+				<td class="smaller centeralign">
+					<% $label %>
+				</td>
+
+				<td class="smaller">
+%					foreach my $value (@values) { 
+%						next if $value->tag eq "Ballots";
+%						next if $value->tag eq "Place";
+						<span class="third nowrap">
+							<div class="bold" title="<% $value->long_tag%>"><% $value->tag %></div>
+							<div><% $value->value %></div>
+						</span>
+%					}
+				</td>
+
+				<td class="smallish mono">
+%					foreach my $value (@values) { 
+%						next unless $value->tag eq "Ballots";
+%						my $ballots = $value->value;
+						<% $ballots %>
+%					}
+				</td>
+
+			</tr>
+
+%		}
+
+		</tbody>
+
+		</table>
+
+
+	</div>

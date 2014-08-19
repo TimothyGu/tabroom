@@ -1,0 +1,113 @@
+<%args>
+	$tourn
+	$event_id
+	$code
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id);
+
+	Tab::Entry->set_sql( by_code_and_tourn => "
+		select distinct entry.*
+		from entry, school
+		where entry.code = ?
+		and entry.school = school.id
+		and school.tourn = ?
+		order by entry.code
+	");
+
+	my @entries = Tab::Entry->search_by_code_and_tourn($code, $tourn->id);
+
+	my %codes_taken = map {$_->code => 1} $event->entries;
+
+	my @students;
+	
+	my %schools_by_student;
+	my %letterme;
+
+	foreach my $entry (@entries)  {
+
+		next if $entry->event->id == $event_id;
+
+		STUDENT:
+		foreach my $student ($entry->students) { 
+
+			$letterme{$student->id}++ if scalar $entry->students > 1;
+
+			my @entries = $m->comp("/funclib/student_entries.mas", student => $student, tourn => $tourn);
+
+			foreach my $entry (@entries) { 
+				next STUDENT if $entry->event->id == $event_id;
+			}
+
+			push (@students, $student);
+			$schools_by_student{$student->id} = $entry->school->id;
+		}
+	}
+
+	if (scalar @students == 1) { 
+
+		my $student = shift @students;
+
+		if ($letterme{$student->id}) { 
+
+			my $letter = "A";
+			while ($codes_taken{$code.$letter}) { 
+				$letter++;
+			}
+
+			$code = $code.$letter;
+		}
+
+		$m->redirect("/register/school/entry_save.mhtml?1=".$student->id."&from=roster&code=$code&event_id=$event_id&school_id=".$schools_by_student{$student->id});
+
+	}
+	my $switch; 
+
+	unless (@students) { 
+	 	my $err = "No eligible students with code $code found";
+	    $m->redirect("roster.mhtml?event_id=$event_id&err=$err");
+	}
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, event => $event, supp => "yo" &> 
+
+	<div class="left huge"> 
+
+		<h3>Choose student to enter into <% $event->name %></h3>
+
+%		my $letter = "A";
+
+%		foreach my $student (@students) { 
+
+%			while ($codes_taken{$code.$letter}) { 
+%				$letter++;
+%			}
+%			$codes_taken{$code.$letter}++;
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>"> 
+
+				<span class="smallishspan">
+					<% $code.$letter %>
+				</span>
+
+			   	<span class="medbigspan">
+					<% $student->first %> <% $student->last %>
+				</span>
+
+				<span class="medbigspan">
+					<% $student->chapter->name %>
+				</span>
+
+				<span class="medspan">
+					<a class="centeralign dkgreen block" href="/register/school/entry_save.mhtml?1=<% $student->id %>&code=<% $code.$letter %>&event_id=<% $event_id %>&school_id=<% $schools_by_student{$student->id} %>&from=roster">
+						ENTER
+					</a>
+				</span>
+
+			</div>
+
+%		}
+
+	</div>

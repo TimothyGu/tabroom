@@ -1,0 +1,56 @@
+<%args>
+	$tourn
+	$account
+	$school_id
+</%args>
+<%init>
+
+	my $school = Tab::School->retrieve($school_id);
+
+</%init>
+
+	<& /register/menubar.mas, school => $school, whoami => "follower", tourn => $tourn &>
+
+	<div class="left huge">
+
+		<h4>Live updates</h4>
+
+		<p class="exwhite">
+			The following accounts get all emailed pairings and results in one message.  Tap to remove.
+		</p>
+
+%		my $switch;
+
+%		foreach my $follower ($school->followers) { 
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<a class="white" href="unfollow.mhtml?school_id=<% $school->id %>&account_id=<% $follower->id %>">
+					<span class="half inline"><% $follower->first." ".$follower->last %></span>
+					<span class="quarter"><% $follower->email %></span>
+					<span class="quarter"><% $follower->phone %></span>
+				</a>
+			</div>
+					
+%		}
+
+		<h5>Add follower</h5>
+
+			<form action="follow.mhtml" method="post">
+			<input type="hidden" name="school_id" value="<% $school->id %>">
+		
+			<div class="liblrow">
+					
+				<span class="threequarter">
+					<input type="text"  name="email" size="49" placeholder="Email of Tabroom account">
+				</span>
+
+				<span class="quarter centeralign">
+					<input type="submit" class="thin" value="Add Follower">
+				</span>
+
+			</div>
+
+			</form>
+
+	</div>
+

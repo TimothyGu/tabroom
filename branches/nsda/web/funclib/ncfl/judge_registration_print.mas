@@ -1,0 +1,149 @@
+<%args>
+	$diocese
+	$tourn
+	$filename
+	$filepath
+	$group => undef
+	$school => undef
+	$newpage => undef
+</%args>
+<%init>
+
+	use POSIX;
+
+	my $tab_room++ if $group && $group->setting("tab_room");
+
+	my @judges = sort { $a->code <=> $b->code } $m->comp("/funclib/region_judges.mas", region => $diocese, tourn => $tourn);
+	@judges = sort { $a->code <=> $b->code } $m->comp("/funclib/region_judges.mas", region => $diocese, tourn => $tourn, group => $group) if $group;
+	@judges = sort { $a->code <=> $b->code } $school->judges if $school;
+
+    open (TEXOUT, ">>$filepath"."$filename.tex");
+
+	unless (@judges) {
+		if ($newpage) { 
+			print TEXOUT "\\newpage\n" 
+		} 
+
+		close TEXOUT;
+		return;
+	}
+
+
+	print TEXOUT "\\bigskip\n" unless $tab_room;
+	print TEXOUT "\\newline\n" unless $tab_room;
+
+	if ($tab_room) {
+
+	} elsif ($group) { 
+		print TEXOUT "\\Large Judges in ".$group->name."\n";
+	} elsif ($school) { 
+		print TEXOUT "\\Large Judges\n";
+	} else { 
+		print TEXOUT "\\Large Judges in ".$tourn->name."\n";
+	} 
+
+	print TEXOUT "\\normalsize\n" unless $tab_room;
+	print TEXOUT "\\medskip\n" unless $tab_room;
+	print TEXOUT "\\newline\n" unless $tab_room;
+
+	my $hide_codes = $tourn->setting("hide_codes");
+
+ 	my $tabular = "\\begin{tabular}{p{.35in}p{1.5in}p{1.5in}p{2.75in}}\n";
+ 	$tabular = "\\begin{tabular}{p{1.5in}p{1.5in}p{3.25in}}\n" if $hide_codes;
+
+	my $count;
+	my @tabbers;
+	my $switch = 1;
+
+	JUDGE:
+	foreach my $judge (@judges) {
+
+		my $group = $judge->judge_group;
+
+		if ($group->setting("tab_room")) { 
+			push @tabbers, $judge;
+			next JUDGE;
+		}
+
+		my $prelim_pool = $judge->setting("prelim_pool_name");
+		my @elim_pools =  $m->comp("/funclib/judge_pools.mas", judge => $judge, limit => "not_event_based");
+
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n"  if ($switch % 2);
+
+		print TEXOUT &Tab::texify($judge->code)." & " unless $hide_codes;
+		print TEXOUT &Tab::texify($judge->first." ".$judge->last)." & ";
+		print TEXOUT &Tab::texify(substr($judge->school->short_name,0,30))." & ";
+
+		print TEXOUT "{\\bf Prelims:} ";
+		print TEXOUT  &Tab::texify($prelim_pool) if $prelim_pool;
+		print TEXOUT  &Tab::texify($judge->judge_group->abbr) unless $prelim_pool;
+
+		if (@elim_pools) { 
+
+			print TEXOUT "\\\\ \n";
+			print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n"  if ($switch % 2);
+			print TEXOUT " & " unless $hide_codes;
+			print TEXOUT "  & & {\\bf Elims:} ";
+
+			foreach my $elim (@elim_pools) { 
+				print TEXOUT &Tab::texify($elim->name)." ";
+			}
+
+		}
+
+		$switch++;
+
+		print TEXOUT "\n\\end{tabular}\n";
+		print TEXOUT "\\newline\n";
+
+	}
+
+	if (@tabbers) { 
+
+		print TEXOUT "\\medskip\n";
+		print TEXOUT "\\newline\n";
+
+		if ($school) { 
+			print TEXOUT "\\Large Tab Staff from ".$school->name."\n";
+		} else { 
+			print TEXOUT "\\Large Tab Staff\n";
+		} 
+
+		print TEXOUT "\\bigskip\n";
+		print TEXOUT "\\newline\n";
+		print TEXOUT "\\normalsize\n";
+
+   		my $tabular = "\\begin{tabular}{p{1.25in}p{1.65in}p{1.65in}p{1.65in}}\n";
+
+		JUDGE:
+
+		foreach my $judge (@tabbers) {
+
+			print TEXOUT $tabular;
+			print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n"  if ($switch++ % 2);
+
+			print TEXOUT &Tab::texify($judge->first." ".$judge->last)." & ";
+			print TEXOUT &Tab::texify($judge->setting("cfl_tab_first"))." & ";
+			print TEXOUT &Tab::texify($judge->setting("cfl_tab_second"))." & ";
+			print TEXOUT &Tab::texify($judge->setting("cfl_tab_third"));
+			print TEXOUT "\n\\end{tabular}\n";
+			print TEXOUT "\\newline\n";
+			print TEXOUT "\\bigskip\n";
+			print TEXOUT "\\newline\n";
+
+		}
+
+	}
+
+	if ($newpage) { 
+		print TEXOUT "\\newpage\n" 
+	} else { 
+		print TEXOUT "\\bigskip\n" if $newpage;
+		print TEXOUT "\\newline\n";
+	}
+
+	close TEXOUT;
+	return;
+
+</%init>

@@ -1,0 +1,55 @@
+<%args> 
+</%args> 
+
+<div id="navbar">
+
+	<span class="preload1"></span>
+	<span class="preload2"></span>
+
+	<ul id="nav">
+
+		<li class="top">
+
+			<a class="centeralign top_link top_left" href="/">
+				Tournaments
+			</a>
+
+		</li>
+
+		<li class="top">
+		
+			<a class="centeralign top_link" href="/index/circuits.mhtml">
+				<span >Circuits</span>
+			</a>
+
+		</li>
+
+		<li class="top">
+		
+			<a class="centeralign top_link" href="/index/results">
+				<span >Results</span>
+			</a>
+
+		</li>
+
+		<li class="top">
+			<a class="centeralign top_link" href="/index/paradigm.mhtml">
+				<span>Paradigms</span>
+			</a>
+		</li>
+
+		<li class="top">
+			<a class="centeralign top_link" href="/index/cat.mhtml">
+				<span>The CAT</span>
+			</a>
+		</li>
+
+		<li class="top">
+			<a class="centeralign top_link" href="/index/about.mhtml">
+				<span >Help/About</span>
+			</a>
+		</li>
+
+	</ul>
+
+</div>

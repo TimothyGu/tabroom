@@ -1,0 +1,121 @@
+<%args>
+	$tourn
+	$account
+	$session
+</%args>
+
+%	my $switch;
+%	my %fields = ();
+
+	<div class="left huge">
+
+		<h4>Events with Field Reports</h4>
+		
+		<table cellpadding="6" cellspacing="1" width="100%">
+
+			<tr class="yellowrow">
+				
+				<th>
+					Event
+				</th>
+
+				<th>
+					Type
+				</th>
+
+				<th>
+					Entries
+				</th>
+
+				<th>
+				</th>
+
+			</tr>
+			
+%			foreach my $event ($m->comp("/funclib/tourn_fields.mas", tourn => $tourn)) {
+
+%				$fields{$event->id}++;
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+					<td>
+						<% $event->name %>
+					</td>
+
+					<td>
+						<% ucfirst($event->type) %>
+					</td>
+
+					<td>
+						<% scalar $event->entries %>
+					</td>
+
+					<td class="centeralign" width="18%">
+						<a class="dkred block" href="field_flip.mhtml?event_id=<% $event->id %>">Unpublish</a>
+					</td>
+
+				</tr>
+
+%			}
+
+		</table>
+
+		<h4>Events without Field Reports</h4>
+
+		<table cellpadding="6" cellspacing="1" width="100%">
+
+			<tr class="yellowrow">
+				
+				<th>
+					Event
+				</th>
+
+				<th>
+					Type
+				</th>
+
+				<th>
+					Entries
+				</th>
+
+				<th>
+				</th>
+
+			</tr>
+			
+
+%			foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) {
+
+%				next if $fields{$event->id};
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+					<td>
+						<% $event->name %>
+					</td>
+
+					<td>
+						<% ucfirst($event->type) %>
+					</td>
+
+					<td>
+						<% scalar $event->entries %>
+					</td>
+
+					<td class="centeralign" width="18%">
+						<a class="dkgreen block" href="field_flip.mhtml?event_id=<% $event->id %>">Publish</a>
+					</td>
+
+				</tr>
+
+%			}
+
+
+		</table>
+
+	</div>
+
+	<& sidebar.mas, tourn => $tourn, webpage_type => "fieldcontrol" &>
+
+	<br style="clear: both;">
+

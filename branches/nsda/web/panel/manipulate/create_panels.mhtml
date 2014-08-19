@@ -1,0 +1,60 @@
+<%args>
+	$round_id
+	$entry_id => undef
+	$number   => undef
+	$from     => undef
+</%args>
+<%init>
+
+	my $round = Tab::Round->retrieve($round_id);
+	my $event = $round->event;
+
+	my @existing = $round->panels;
+
+	@existing = sort {$b->letter <=> $a->letter} @existing;
+	@existing = sort {$b->letter cmp $a->letter} @existing if $event->setting("panel_labels") eq "letters";
+
+	my $last = shift @existing;
+	my $letter = $last->letter if $last;
+	unless ($letter) { 
+		$letter = 1;
+		$letter = "A" if $event->setting("panel_labels") eq "letters";
+	}
+
+	foreach (1 .. $number) { 
+
+		if ($letter eq "Z") { 
+			$letter = "AA";
+		} elsif ($letter eq "AZ") { 
+			$letter = "BA";
+		} elsif ($letter eq "BZ") {
+			$letter = "CA";
+		} elsif ($letter eq "CZ") {
+			$letter = "DA";
+		} elsif ($letter eq "DZ") {
+			$letter = "EA";
+		} elsif ($letter eq "EZ") {
+			$letter = "FA";
+		}
+
+        my $panel = Tab::Panel->create({
+			flight => 1,
+            round  => $round->id,
+            letter => $letter
+        }); 
+
+		$letter++;
+
+	}
+
+	my $msg = "Created $number sections";
+
+	$m->redirect("manual_speech.mhtml?round_id=$round_id&msg=$msg") if $from eq "manual_speech";
+
+	my $type = $event->type;
+	$m->redirect("wudc_round_edit.mhtml?round_id=$round_id&entry_id=$entry_id") if $type eq "wudc";
+	$m->redirect("debate_round_edit.mhtml?round_id=$round_id&entry_id=$entry_id");
+
+</%init>
+
+

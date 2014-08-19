@@ -1,0 +1,34 @@
+<%args>
+	$account
+	$tourn
+	$bills => undef
+</%args>
+<%init>
+
+	my $msg;
+
+    if ($bills) {
+        my $req = Apache2::Request->new($r);
+        my $upload = $req->upload("bills");
+        my $filename  = $upload->filename;
+        $filename =~ s/.*[\/\\](.*)/$1/;
+        $filename =~ s/\ //g;
+        $filename =~ s/\'//g;  # '  stupid vim
+        my $filepath = "$Tab::file_root/files/tourns/".$tourn->id."/bills/";
+
+        my $garbage = `rm -f $filepath`;
+        $garbage = `mkdir -p $filepath`;
+        my $filetemp = $upload->tempname;
+
+        $garbage = `cp $filetemp $filepath/$filename`;
+		system $Tab::s3_cmd." put $filepath/$filename ".$Tab::s3_bucket."/tourns/".$tourn->id."/bills/";
+
+        $tourn->setting("bills", $filename);
+	
+		$msg = "Bill packet uploaded to $filepath/$filename";
+	}
+
+	$m->redirect("main.mhtml?msg=$msg");
+
+</%init>
+

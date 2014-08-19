@@ -1,0 +1,172 @@
+<%args>
+	$tourn
+	$account
+	$email_id => undef;
+</%args>
+<%init>
+
+	my $email = Tab::Email->retrieve($email_id) if $email_id;
+	my $ncfl++ if $tourn->setting("ncfl");
+
+</%init>
+
+	<& "/funclib/editor.mas" &>
+
+	<form action="send.mhtml" method="post"> 
+	<input type="hidden" name="email_id" value="<% $email_id %>">
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+		<h4>Send email to:</h4>
+
+		<table cellspacing="1" cellpadding="0">
+
+%			my $switch;
+
+			<tr class="liblrow">
+
+				<td class="smaller" colspan="2">
+					<label for="everybody">
+					All coaches
+					</label>
+				</td>
+
+				<td class="centeralign nospace nospace">
+					<input type="checkbox" id="everybody" name="everybody" value="1">
+				</td>
+
+			</tr>
+
+%			if ($ncfl) { 
+
+				<tr class="evenrow">
+
+					<td class="smaller" colspan="2">
+						<label for="diodirs">
+							Diocese Administrators
+						</label>
+					</td>
+
+					<td class="centeralign nospace nospace">
+						<input type="checkbox" id="diodirs" name="diodirs" value="1">
+					</td>
+
+				</tr>
+
+%			}
+
+			<tr class="oddrow">
+				<td colspan="2" class="smaller">
+					<label for="short">
+					Coaches short on judges
+					</label>
+				</td>
+
+				<td class="centeralign nospace">
+					<input type="checkbox" id="short" name="judge_short" value="1">
+				</td>
+			</tr>
+
+			<tr class="evenrow">
+				<td colspan="2" class="smaller">
+					<label for="tba">
+						Coaches with TBA names
+					</label>
+				</td>
+
+				<td class="centeralign nospace">
+					<input type="checkbox" id="tba" name="tba" value="1">
+				</td>
+			</tr>
+
+			<tr>
+				<td colspan="3" class="smaller">
+					<h5>Or, coaches with entries in:</h5>
+				</td>
+			</tr>
+
+%			foreach my $event (sort {$a->name cmp $b->name} $tourn->events) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td style="width: 7px; background-color: #fefefe;"></td>
+
+					<td class="smaller">
+						<label for="<% $event->id %>">
+						<% $event->name %>
+						</label>
+					</td>
+
+					<td class="centeralign nospace">
+						<input type="checkbox" id="<% $event->id %>" name="event_<% $event->id %>" value="1">
+					</td>
+
+				</tr>
+
+% 			}
+
+			<tr>
+				<td colspan="3" class="smaller">
+					<h5>Or, judges in group:</h5>
+				</td>
+			</tr>
+
+%			foreach my $group (sort {$a->name cmp $b->name} $tourn->groups) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td style="width: 7px; background-color: #fefefe;"></td>
+
+					<td class="smaller">
+						<label for="<% $group->id %>">
+						<% $group->name %>
+						</label>
+					</td>
+
+					<td class="centeralign nospace">
+						<input type="checkbox" id="<% $group->id %>" name="group_<% $group->id %>" value="1">
+					</td>
+
+				</tr>
+
+% 			}
+
+		</table>
+
+		<p class="smaller exwhite">*All tournament administrators will also receive all emails</p>
+		
+		</div>
+	
+	</div>
+
+	<div class="left huge">
+	
+		<h2>Email registered coaches</h2>
+
+			<h5>
+				Subject Line:
+			</h5>
+
+			<div class="evenrow block">
+				<input type="text" id="subject" name="subject" size="75" value="<% ($email) ? $email->subject : "" %>" >
+				<script> document.getElementById('subject').focus() </script>
+			</div>
+
+			<h5>
+				Text:
+			</h5>
+
+
+			<div class="evenrow block">
+				<textarea name="content" cols="45" rows="20"><% ($email) ? $email->content : "" %></textarea>
+			</div>
+
+			<div class="liblrow rightalign">
+				<input type="submit" value="  Send Email ">
+				</form>
+			</div>
+
+	</div>
+

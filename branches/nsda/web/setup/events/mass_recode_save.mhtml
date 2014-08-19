@@ -1,0 +1,17 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+
+		$event->setting("code_start", $ARGS{$event->id});
+		$event->update;
+	}
+
+	my $msg = "Re-Coding complete.";
+
+	$m->redirect("/setup/events/mass_recode.mhtml?msg=$msg");
+
+</%init>
+

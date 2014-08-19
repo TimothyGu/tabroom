@@ -1,0 +1,300 @@
+<%args>
+	$account
+	$country => undef
+	$state   => undef
+	$month   => undef
+	$year    => undef
+</%args>
+<%init>
+
+	my $tz = $account->tz if $account;
+	$tz = "UTC" unless $tz;
+
+	my $now = DateTime->now;
+	my $end = $now->clone;
+	my $start = $now->clone;
+
+	my $limit;
+
+	my %search_hash = ( hidden => {'!=', 1 });
+
+	if ($month && $year) { 
+
+		$start = $now->clone;
+		$start->set(day => 1, year => $year, month => $month);
+		$end->set(day => 1, year => $year, month => $month);
+
+		$end->set_day(1)->add( months => 1 )->subtract( days => 1 ); #last day of month
+
+		$search_hash{"start"} = { '>',  DateTime::Format::MySQL->format_datetime($start) };
+		$search_hash{"end"} = { '<',  DateTime::Format::MySQL->format_datetime($end) };
+
+	} elsif ($month) { 
+
+		$year = $now->year;
+
+		$start = $now->clone;
+		$start->set(day => 1, month => $month);
+		$end->set(day => 1, month => $month);
+		$end->set_day(1)->add( months => 1 )->subtract( days => 1 ); #last day of month
+
+		$search_hash{"start"} = { '>',  DateTime::Format::MySQL->format_datetime($start) };
+		$search_hash{"end"} = { '<',  DateTime::Format::MySQL->format_datetime($end) };
+
+	} elsif ($year) { 
+
+		$limit++;
+		$start = $now->clone;
+		$month = 1; 
+
+		$start->set(day => 1, year => $year);
+		$end->set(month => 12, year => $year);
+		$end->set_day(1)->add( months => 1 )->subtract( days => 1 ); #last day of month
+
+		$search_hash{"start"} = { '>',  DateTime::Format::MySQL->format_datetime($start) };
+		$search_hash{"end"} = { '<',  DateTime::Format::MySQL->format_datetime($end) };
+
+	} else { 
+
+		$limit++;
+		$end->subtract(days => 1);
+		$search_hash{"end"} = { '>',  DateTime::Format::MySQL->format_datetime($end) };
+
+	}
+
+	if ($state) { 
+		$search_hash{"state"} = $state;
+	}
+
+	if ($country) { 
+		$search_hash{"country"} = $country;
+	}
+
+	my %search_attrs = (  order_by => "name" );
+	$search_attrs{"limit"} = "40" if $limit;
+
+	my @tourns  = Tab::Tourn->search_where(\%search_hash);
+
+</%init>
+
+
+	<div class="huge left">
+
+		<h2> 
+
+%		if ($year) { 
+			<% scalar @tourns %> Tournaments in <% $month %>/<% $year %>
+%		} else {
+			Upcoming Tournaments
+%		}
+
+%		if ($state || $country) { 
+			in <% $state %><% $country %>
+%		}
+
+		</h2>
+
+		<& /funclib/tablesorter.mas, table => "tournlist" &> 
+
+		<table cellpadding="3" width="100%" id="tournlist" class="tablesorter">
+
+			<thead>
+
+			<tr class="yellow">
+			
+				<th class="smaller">
+					Dates
+				</th>
+
+				<th class="smaller">
+					Circuits
+				</th>
+
+				<th class="smaller">
+					Tournament
+				</th>
+
+				<th class="smaller">
+					Loc
+				</th>
+
+				<th class="smaller">
+					Reg 
+				</th>
+
+			</tr>
+
+			</thead>
+
+			<tbody style="font-size: 90%">
+
+%			foreach my $tourn (sort {$a->start->epoch <=> $b->start->epoch} @tourns) { 
+
+%				my $tz;
+%				$tz = $account->tz if $account;
+%				$tz = $tourn->tz if $tourn->tz && not defined $tz;
+%				$tz = "UTC" unless $tz;
+
+%				my $end = $tourn->end->set_time_zone($tz);
+%				my $start = $tourn->start->set_time_zone($tz) if $tourn->reg_start;
+%				my $reg_end = $tourn->reg_end->set_time_zone($tz) if $tourn->reg_end;
+%				my $reg_start = $tourn->reg_start;
+
+%				$reg_start->set_time_zone($tz) if $reg_start;
+%				$reg_end->set_time_zone($tz) if $reg_end;
+
+%       	    my $open++ if ($tourn->reg_start && $tourn->reg_end && $tourn->reg_start->epoch < $now->epoch && 
+%								$tourn->reg_end->epoch > $now->epoch);
+	
+				<tr class="<% ($open) ? "" : "evenrow" %>">
+
+					<td class="centeralign smallish">
+						<span class="hidden"><% $start ? $start->epoch : "" %></span>
+						<% Tab::niceshortdate($start) %> <% ($start && $end && $start->day != $end->day) ? "-".Tab::niceshortdate($end) : "" %>
+					</td>
+
+					<td class="centeralign smallish">
+%						my $three;
+%						my %used;
+%						foreach my $circuit ($tourn->circuits) { 
+%							next if $used{$circuit}++;
+%							last if $three++ > 2;
+							<a class="white full block padless" href="/index/circuit/calendar.mhtml?circuit_id=<% $circuit->id %>">
+								<% $circuit->abbr %>
+							</a>
+%						}
+					</td>
+
+					<td>
+						<a class="white limit2 smallish" href="tourn/index.mhtml?tourn_id=<% $tourn->id %>">
+							<% $tourn->name %>
+						</a>
+					</td>
+
+					<td class="centeralign smallish">
+						<% $tourn->location %> 
+					</td>
+
+					<td class="centeralign smaller nowrap">
+						<span class="hidden">
+							<% ($open && $reg_end) ? $reg_end->epoch : "" %>
+							<% $reg_start && $reg_start > $now ? $reg_start->epoch : ""%>
+							<% $reg_end && $reg_end < $now ? $reg_end->epoch : "" %>
+						</span>
+						<% ($open) ? "Due ".Tab::niceshortdate($reg_end)." <br />@".Tab::nicetime($reg_end)  : "" %>
+						<% $reg_start > $now ? "Opens ".Tab::niceshortdate($reg_start)." <br />@".Tab::nicetime($reg_start) : ""%>
+						<% $reg_end < $now ? "Closed ".Tab::niceshortdate($reg_end)." <br />@".Tab::nicetime($reg_end) : ""%>
+						<% Tab::tzname($tz) %>
+					</td>
+			
+				</tr>
+
+%			}
+
+			</tbody>
+
+			</table>
+
+	</div>
+
+	<div class="small right">
+
+		<div class="sidenote">
+
+			<h4>Search by Dates</h4>
+
+			<form action="index.mhtml#default" method="post">
+			<input type="hidden" name="state" value="<% $state%>">
+			<input type="hidden" name="country" value="<% $country%>">
+
+			<div class="even visible">
+
+				<span class="half nospace">
+					<span class="nospace quarter rightalign">
+						M: 
+					</span>
+					
+					<span class="threequarter nospace">
+					<select name="month" onchange='this.form.submit()' class="chosen fixedmicro">
+						<option value="">All</option>
+%						foreach my $amonth (1 .. 12) { 
+							<option value="<%$amonth %>" <% $month == $amonth ? 'selected' : "" %>>
+								<% $amonth %>
+							</option>
+%						}
+					</select>
+					</span>
+				</span>
+				
+				<span class="half nospace">
+					<span class="quarter rightalign nospace">
+						Y: 
+					</span>
+					
+					<span class="threequarter nospace">
+						<select name="year" onchange='this.form.submit()' class="chosen fixedmicro">
+						<option value="">All</option>
+%						my $ayear;
+%						for ($ayear = $now->year + 1, $ayear >= 1995, $ayear--) { 
+							<option value="<% $ayear %>" <% $month == $ayear ? 'selected' : "" %>>
+								<% $ayear %>
+							</option>
+%							$ayear--;
+%						}
+						</select>
+					</span>
+				</span>
+
+			</div>
+
+<%perl>
+
+	my $dbh = Tab::DBI->db_Main();
+
+	my $sth = $dbh->prepare('select distinct state from tourn where state is not null and state != "" order by state');
+	$sth->execute();
+
+	my $cth = $dbh->prepare('select distinct country from tourn where country is not null and country != "" order by country');
+	$cth->execute();
+
+</%perl>
+
+			<h4>Locations</h4>
+
+			<a class="yellow block" href="index.mhtml?year=<% $year %>&month=<% $month %>#default">
+				All Locations
+			</a>
+
+			<h4>States/Provinces</h4>
+
+			<div class="centeralign padno marno">
+
+%			while( my $astate = $sth->fetchrow_array() ) { 
+%				next unless $astate;
+				<a class="<% $state eq $astate ? "dk" : "" %>blue third" href="index.mhtml?state=<% $astate %>&year=<% $year %>&month=<% $month %>#default">
+					<% $astate %>
+				</a>
+%			}
+			</div>
+
+			<h4>Countries</h4>
+
+			<div class="centeralign nospace">
+
+%			while( my $acountry = $cth->fetchrow_array() ) { 
+				<a class="<% $country eq $acountry ? "dk" : "" %>blue third" href="index.mhtml?country=<% $acountry %>&year=<% $year %>&month=<% $month %>#default">
+					<% $acountry %>
+				</a>
+%			}
+			</div>
+
+
+%			$sth->finish;
+%			$cth->finish;
+
+		</div>
+
+	</div>
+
+	<br style="clear: both;">
+

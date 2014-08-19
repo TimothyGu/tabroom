@@ -1,0 +1,55 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my $switch;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "fines" &>
+
+	<div class="left huge">
+
+		<h2>Fines</h2>
+
+%		foreach my $school (sort {$a->name cmp $b->name} $tourn->schools) { 
+
+%			my @fines = Tab::SchoolFine->search( school => $school->id );
+%			next unless @fines;
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="third marno">
+					<% $school->short_name %>
+				</span>
+
+				<span class="twothirds marno">
+
+%					foreach my $fine (@fines) { 
+						<span class="third nospace rightalign">
+							<span class="twothird nospace">
+								<% sprintf "%.2f", $fine->amount %>
+							</span>
+							<span class="third nospace">
+							</span>
+						</span>
+
+						<span class="twothird nospace">
+							<a href="/register/invoice.mhtml?school_id=<% $school->id %>" class="white">
+								<% $fine->reason %>
+							</a>
+						</span>
+%					}
+
+				</span>
+
+			</div>
+
+%		}
+
+	</div>
+
+
+
+

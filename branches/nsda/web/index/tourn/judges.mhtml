@@ -1,0 +1,175 @@
+<%args>
+	$tourn_id
+	$judge_group_id => undef
+	$account => undef
+</%args>
+<%init>
+
+	my $tourn =  Tab::Tourn->retrieve($tourn_id);
+	my $judge_group =  Tab::JudgeGroup->retrieve($judge_group_id);
+
+	Tab::JudgeGroup->set_sql( field_reports => "
+		select judge_group.* from judge_group, judge_group_setting
+		where judge_group.tourn = ?
+		and judge_group.id = judge_group_setting.judge_group
+		and judge_group_setting.tag = \"field_report\"
+		and judge_group_setting.value = 1
+		order by judge_group.name
+	");
+
+	my @judge_groups = Tab::JudgeGroup->search_field_reports($tourn->id);
+
+	$judge_group = $judge_groups[0] unless $judge_group;
+
+    my $webpage = Tab::Webpage->search( tourn => $tourn_id, special => "fields")->first;
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter" style="vertical-align: top;">
+			<h4 style="text-align: right;">
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<br style="clear: both;">
+
+        <& tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		if ($judge_group) { 
+
+%			my @judges = sort {$a->school->name cmp $b->school->name} $judge_group->judges(active => 1);
+
+			<h4>Judges in <% $judge_group->name %> (<% scalar @judges %> judges) </h4>
+
+			<& /funclib/tablesorter.mas, table => "sortme" &>
+
+			<table cellpadding="2" cellspacing="1" id="sortme" class="smallish">
+
+				<thead>
+
+				<tr class="yellowrow">
+					<th>
+						School
+					</th>
+
+					<th>
+						State
+					</th>
+
+					<th>
+						First
+					</th>
+
+					<th>
+						Last
+					</th>
+
+%					if ($judge_group->setting("rounds_per")) { 
+						<th>
+							Rounds
+						</th>
+%					}
+
+				</tr>
+				</thead>
+				<tbody>
+
+%				foreach my $judge (@judges) { 
+
+%					my $paradigm = $judge->account->setting("paradigm") if $judge->account;
+
+					<tr>
+			
+						<td>
+							<% $judge->school && $judge->school->id ? $judge->school->short_name : "Hired" %>
+						</td>
+
+						<td>
+							<% $judge->school ? $judge->school->chapter ? $judge->school->chapter->state : "" : "" %>
+						</td>
+
+						<td>
+							<a class="white padless" 
+%							if ($paradigm) { 
+								href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>"
+%							}
+							>
+							<% $judge->first %>
+						</td>
+
+						<td>
+							<a class="white padless" 
+%							if ($paradigm) { 
+								href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>"
+%							} 
+							>
+								<% $judge->last %>
+							</a>
+						</td>
+
+						<td>
+%							if ( ($judge->obligation + $judge->hired) > 0) { 
+								<% $judge->obligation + $judge->hired %>
+%							}
+						</td>
+
+					</tr>
+
+%				}
+				</tbody>
+
+			</table>
+
+%		} elsif ($webpage) { 
+
+	        <p>
+				<% $webpage->content %>
+			</p>
+
+%		} else { 
+
+			<p>Choose an judge_group at right to see the reported field.  You may not see all judge_groups
+			or divisions in the field report; the system only reports fields which the tournament
+			officials have released.</p>
+
+%		}
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>Judges</h4>
+
+%			foreach my $ojudge_group (sort {$a->name cmp $b->name} @judge_groups) { 
+
+				<a class="<% ($ojudge_group->id == $judge_group_id ) ? "dk" : "" %>blue block" 
+					href="/index/tourn/judges.mhtml?tourn_id=<% $tourn_id %>&judge_group_id=<% $ojudge_group->id %>">
+					<% $ojudge_group->name %> list
+				</a>
+
+				<a class="blue half block" href="/index/tourn/paradigms.mhtml?tourn_id=<% $tourn_id %>&judge_group_id=<% $ojudge_group->id %>">
+					<% $ojudge_group->abbr %> paradigms
+				</a><a class="blue half block" href="/index/tourn/paradigms_print.mhtml?tourn_id=<% $tourn_id %>&judge_group_id=<% $ojudge_group->id %>">
+					PDF
+				</a>
+
+%		}
+	
+		</div>
+
+	</div>
+

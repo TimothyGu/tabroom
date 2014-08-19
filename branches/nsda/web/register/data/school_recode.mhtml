@@ -1,0 +1,250 @@
+<%args>
+	$tourn
+	$session
+	$account
+	$method => undef
+	$value => "AA"
+</%args>
+
+%	use Crypt::PasswdMD5;
+%	unless ($method) { 
+
+	<& menu.mas, tourn => $tourn, whoami => "school_recode" &>
+
+	<div class="left huge">
+
+		<h2>Scramble School Codes</h2>
+
+		<p>This script will permanently scramble school codes for your
+		tournament.  Use this to anonymize your school codes or something</p>
+
+		<table cellpadding="6" cellspacing="1" width="100%"> 
+		
+			<tr class="evenrow">
+			
+				<th> 
+					<form action="school_recode.mhtml">
+					Starting value (A, AA, 100, etc):
+				</td>
+				
+				<td>
+					<input type="text" name="value" size="5" value="AA"> 
+				</td>
+				
+			</tr>
+
+			<tr class="oddrow">
+
+				<td>
+					Select a method to scramble codes:
+				</th> 
+			
+				<td>
+					<select name="method">
+						<option value="alpha">Alphabetically by School name</option>
+						<option value="registration">In order of registration</option>
+						<option value="semirandom">Semi-random (always the same)</option>
+						<option value="random">Completely Randomly (changes each time)</option>
+%						foreach my $circuit ($tourn->circuits) { 
+							<option value="circuit_<% $circuit->id %>"><% $circuit->abbr %> default school codes</option>
+%						}
+
+					</select>
+				</td>
+
+			</tr>
+			
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input type="submit" value="Reset School Codes">
+					</form> 
+				</td>
+			</tr>
+
+		</table>
+
+
+<%perl>
+
+		Tab::Event->set_sql( separates => "
+			select distinct event.id
+			from event, event_setting
+			where event.tourn = ? 
+			and event.id = event_setting.event
+			and event_setting.tag = \"separate_codes\"
+			and event_setting.value = 1 ");
+
+		my @seps = Tab::Event->search_separates( $tourn->id );
+
+		my @schools;
+		my $names;
+
+		foreach my $sep (@seps) { 
+			push @schools, $m->comp("/funclib/event_schools.mas", event => $sep);
+			$names .= ", " if $names;
+			$names .= $sep->abbr;
+		}
+
+		my %seen = (); 
+		@schools = grep { ! $seen{$_->id} ++ } @schools;
+
+		@schools = sort {$a->name cmp $b->name} @schools;
+
+</%perl>
+
+%		if (@seps) { 
+
+			<h4>Separate school codes in <% $names %></h4>
+
+			<form action="separate_codes.mhtml" method="post">
+
+			<& /funclib/tablesorter.mas, table => "sortme" &>
+
+			<table cellpadding="4" cellspacing="1" id="sortme">
+
+				<thead>
+
+					<tr class="yellowrow">
+
+						<th class="smallish">
+							School
+						</th>
+
+						<th class="smallish">
+							Code
+						</th>
+
+						<th class="smallish">
+							State
+						</th>
+
+						<th class="smallish">
+							Separate Code
+						</th>
+
+					</tr>
+
+				</thead>
+
+				<tbody>
+
+%				foreach my $school (@schools) { 
+
+					<tr>
+
+						<td class="smallish">
+							<% $school->short_name %>
+						</td>
+
+						<td class="smallish centeralign">
+							<% $school->code %>
+						</td>
+
+						<td class="smallish centeralign">
+							<% $school->chapter->state %>
+						</td>
+
+						<td class="smallish">
+							<span class="hidden"><% $school->congress_code %></span>
+							<input type="text" size="5" name="<% $school->id %>" value="<% $school->congress_code %>">
+						</td>
+
+					</tr>
+
+%				}
+
+				<tr class="liblrow">
+
+					<td colspan="4" class="rightalign">
+						<input type="submit" value=" Save Codes " class="thin">
+						</form>
+					</td>
+
+				</tr>
+
+				</tbody>
+
+			</table>
+
+%		}
+
+	</div>
+
+%	} else { 
+
+<%perl>
+
+	my @schools;
+
+	if ($method eq "alpha") { 
+		@schools  = sort {$a->name cmp $b->name}  $tourn->schools;
+	}
+
+	if ($method eq "registration") { 
+		@schools = sort {$a->id <=> $b->id} $tourn->schools;
+	}
+
+	if ($method eq "random") { 
+
+		@schools = $tourn->schools;
+
+		my $i = scalar(@schools);
+		my $j;
+       	foreach my $item (@schools) {    
+			--$i;
+           	$j = int rand ($i+1);
+           	next if $i == $j;
+           	@schools [$i,$j] = @schools[$j,$i];
+    	}
+	}
+
+	if ($method eq "semirandom") { 
+		my $salthash = $tourn->reg_start->epoch;
+		@schools = sort {unix_md5_crypt($a->name, $salthash) cmp unix_md5_crypt($b->name, $salthash)} $tourn->schools;
+	}
+
+	if ($method =~ "circuit") { 
+
+		my ($string, $circuit_id) = split (/\_/, $method); 
+
+		Tab::Entry->set_sql( recodeback => "
+			update school, chapter_circuit
+			set school.code = chapter_circuit.code
+			where school.tourn = ".$tourn->id."
+			and school.chapter = chapter_circuit.chapter
+			and chapter_circuit.circuit = ".$circuit_id);
+
+		Tab::Entry->sql_recodeback->execute;
+
+	} else { 
+		
+		$value = "AA" unless $value;
+
+		foreach my $school (@schools) {
+
+			$value++ if $value eq "DQ";
+			$value++ if $value eq "BJ";
+			$value++ if $value =~ /I$/; 
+			$value++ if $value =~ /O$/; 
+			$value++ if $value =~ /Q$/; 
+
+			$value++ if $value eq 69;
+			$value++ if $value eq 666;
+
+			$school->code($value);
+			$school->update;
+			$value++;
+
+		}
+
+	}
+
+	my $err = "Schools have been recoded.";
+
+	$m->redirect("$Tab::url_prefix/register/data/school_recode.mhtml?err=$err");
+
+}
+
+</%perl>
+

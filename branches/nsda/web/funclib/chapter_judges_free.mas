@@ -1,0 +1,44 @@
+<%args>
+	$school
+</%args>
+
+<%init>
+
+	Tab::ChapterJudge->set_sql(free_by_school => "
+		select distinct chapter_judge.* from
+		school,chapter_judge
+		where school.id = ?
+		and school.chapter = chapter_judge.chapter
+		and chapter_judge.retired != 1
+	");
+
+	my @judges = Tab::ChapterJudge->search_free_by_school($school->id);
+
+	my %taken_accounts;
+	my %taken_cjs;
+
+	foreach my $group ($school->tourn->groups) { 
+
+		next if $group->setting("double_entry");
+
+		foreach my $judge ($group->judges) { 
+
+			$taken_cjs{$judge->chapter_judge->id}++ if $judge->chapter_judge;
+			$taken_accounts{$judge->account->id}++ if $judge->account;
+
+		}
+
+	}
+
+	my @good;
+
+	foreach my $judge (@judges) {
+
+		push @good, $judge unless ($taken_cjs{$judge->id} && ($judge->account && $taken_accounts{$judge->account->id}) );
+
+	}
+
+	return sort {$a->last cmp $b->last} @good;
+
+
+</%init>

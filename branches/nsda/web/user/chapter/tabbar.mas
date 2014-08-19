@@ -1,0 +1,69 @@
+<%args>
+	$chapter
+	$whoami => undef
+</%args>
+<%init>
+
+	my $dues_owed;
+	my $dues_tracked;
+
+	my @student_requests = Tab::Student->search_where( {chapter => $chapter->id, acct_request => {'>', 0}});
+	my @judge_requests = Tab::ChapterJudge->search_where( {chapter => $chapter->id, acct_request => {'>', 0}});
+
+</%init>
+
+	<ul id="tabnav">
+
+		<li <% ($whoami eq "tourn") ? "class=\"selected\"" : "" %>>
+			<a href="/user/chapter/tournaments.mhtml?chapter_id=<% $chapter->id %>">Tournaments</a>
+		</li>
+
+
+%		if (@student_requests) { 
+
+			<li class="<% ($whoami eq "students") ? "selected" : "warning" %>">
+				<a href="/user/chapter/students.mhtml?chapter_id=<% $chapter->id %>">Students</a>
+			</li>
+
+%		} else { 
+
+			<li <% ($whoami eq "students") ? "class=\"selected\"" : "" %>>
+				<a href="/user/chapter/students.mhtml?chapter_id=<% $chapter->id %>">Students</a>
+			</li>
+%		}
+
+%		if (@judge_requests) { 
+
+			<li class="<% ($whoami eq "judges") ? "selected" : "warning" %>">
+				<a href="/user/chapter/judges.mhtml?chapter_id=<% $chapter->id %>">Judges</a>
+			</li>
+
+%		} else { 
+
+			<li <% ($whoami eq "judges") ? "class=\"selected\"" : "" %>>
+				<a href="/user/chapter/judges.mhtml?chapter_id=<% $chapter->id %>">Judges</a>
+			</li>
+
+%		} 
+
+		<li <% ($whoami eq "circuit") ? "class=\"selected\"" : "" %>>
+			<a href="/user/chapter/circuits.mhtml?chapter_id=<% $chapter->id %>">Circuits</a>
+		</li>
+
+%		if ($dues_tracked > 0) { 
+
+			<li	class="<% ($dues_owed) ? "warning" : ($whoami eq "dues") ? "selected" : "" %>">
+				<a href="/user/chapter/dues.mhtml?chapter_id=<% $chapter->id %>">Dues</a>
+			</li>
+
+%		}
+
+		<li <% ($whoami eq "settings") ? "class=\"selected\"" : "" %>>
+			<a href="/user/chapter/settings.mhtml?chapter_id=<% $chapter->id %>">Settings</a>
+		</li>
+
+		<li <% ($whoami eq "results") ? "class=\"selected\"" : "" %>>
+			<a href="/user/results/index.mhtml?chapter_id=<% $chapter->id %>">Results</a>
+		</li>
+
+	</ul>

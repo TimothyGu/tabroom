@@ -1,0 +1,132 @@
+<%args>
+	$tourn
+	$account
+	$session
+	$event_id => 0
+	$drops    => undef
+	$waitlist => undef
+	$at_large => undef
+	$sort     => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my @events;
+	my $namestring;
+
+	if ($event_id) { 
+		$events[0] = Tab::Event->retrieve($event_id);
+		$namestring = $events[0]->abbr;
+	} else {
+		@events = sort{$a->name cmp $b->name} $tourn->events;
+		$namestring = "all-events";
+	}
+
+	my $filename = "entry-".$namestring."-".$session->id;
+	my $filepath = $Tab::file_root."/tmp/$filename";
+	my $garbage = `rm -f $filepath.*`;
+
+	open (CSVOUT, ">$filepath.csv");
+	print CSVOUT "sep=,\n";
+
+	print CSVOUT "\"Code\",";
+	print CSVOUT "\"Event\",";
+	print CSVOUT "\"Status\",";
+	print CSVOUT "\"DioCode\","  if $tourn->setting("ncfl");
+	print CSVOUT "\"Diocese\"," if $tourn->setting("ncfl");
+	print CSVOUT "\"Region\"," if $tourn->setting("regions");
+	print CSVOUT "\"Schcode\","  if $tourn->setting("school_codes") && not defined $tourn->setting("ncfl");
+	print CSVOUT "\"School\",";
+	print CSVOUT "\"Name\",";
+	print CSVOUT "\"ADA\",";
+	print CSVOUT "\"Registered At\",";
+	print CSVOUT "\"Dropped At\",";
+	print CSVOUT "\"Piece Title\"";
+	print CSVOUT "\n";
+
+	foreach my $event (@events) { 
+	
+		my $titles++ if $event->setting("ask_for_titles");
+		
+		my @entries;
+
+		if ($drops) { 
+			@entries = Tab::Entry->search( event => $event->id, dropped => 1 )  if $drops;
+		} elsif ($waitlist) { 
+			@entries = Tab::Entry->search( event => $event->id, waitlist => 1 )  if $waitlist;
+		} elsif ($at_large) { 
+			@entries = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, seed => "atlarge");
+		} else { 
+			@entries = Tab::Entry->search( event => $event->id );
+		}
+
+		@entries = sort {$a->code <=> $b->code} @entries;
+	
+		foreach my $entry (@entries) { 
+
+			print CSVOUT "\"".$entry->code."\",";
+			print CSVOUT "\"".$event->abbr."\",";
+
+			print CSVOUT "\"";
+			if ($entry->dropped) { 
+				print CSVOUT "DROP";
+			} elsif ($entry->waitlist) { 
+				print CSVOUT "WL";
+			} 
+			print CSVOUT "\",";
+
+			if ($tourn->setting("ncfl")) { 
+				print CSVOUT "\"".$entry->school->region->code."\",";
+				print CSVOUT "\"".$entry->school->region->name."\",";
+			} elsif ($tourn->setting("school_codes")) { 
+				print CSVOUT "\"".$entry->school->code."\",";
+			} 
+			
+			if ($tourn->setting("regions")) { 
+				print CSVOUT "\"";
+				print $entry->school->region->name if $entry->school->region;
+				print "\",";
+			}
+
+			print CSVOUT "\"".$entry->school->name."\",";
+			print CSVOUT "\"".$entry->name."\",";
+
+			print CSVOUT "\"";
+			print CSVOUT "ADA" if $entry->ada;
+			print CSVOUT "\",";
+
+			print CSVOUT "\"";
+			print CSVOUT &Tab::csvdt($entry->reg_time->set_time_zone($tz)) if $entry->reg_time;
+			print CSVOUT "\",";
+			print CSVOUT "\"";
+			print CSVOUT &Tab::csvdt($entry->drop_time->set_time_zone($tz)) if $entry->drop_time;
+			print CSVOUT "\",";
+			print CSVOUT "\"";
+			print CSVOUT $entry->title if $titles;
+			print CSVOUT "\",";
+
+			foreach my $student ($entry->students) { 
+				print CSVOUT "\"".$student->first." ".$student->last."\",";
+			}
+
+			my %done;
+
+			foreach my $ballot (sort {$a->panel->round->name <=> $b->panel->round->name} $entry->ballots) { 
+				next if $done{$ballot->panel->id}++;
+				print CSVOUT "\"".$ballot->speakerorder."\",";
+			}
+
+			print CSVOUT "\n";
+
+		}
+
+	}
+
+	close CSVOUT;
+
+	$m->redirect("$Tab::url_prefix/tmp/$filename.csv");
+
+</%init>
+

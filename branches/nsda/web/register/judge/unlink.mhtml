@@ -1,0 +1,16 @@
+<%args>
+	$judge_id => undef
+</%args>
+<%init>
+
+	my $msg;
+	
+	if ($judge_id) { 
+		my $judge = Tab::Judge->retrieve($judge_id);
+		$judge->account("");
+		$judge->update;
+	}
+
+	$m->redirect("edit.mhtml?judge_id=".$judge_id."&msg=$msg");
+
+</%init>

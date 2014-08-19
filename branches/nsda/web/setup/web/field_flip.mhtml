@@ -1,0 +1,24 @@
+<%args>
+	$event_id
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id);
+
+	if ($event->setting("field_report")) {
+		$event->setting("field_report", "");
+	} else { 
+		$event->setting("field_report", "1");
+	}
+
+	my $msg = "Field Report Status changed for ".$event->name;
+
+	$m->redirect("/setup/web/fields.mhtml?msg=$msg");
+
+
+
+</%init>
+
+
+
+

@@ -1,0 +1,76 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my $switch;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "contact_list" &>
+
+	<div class="left huge">
+
+		<h2>School Contacts</h2>
+
+		<& "/funclib/tablesorter.mas", table => 'bully' &>
+
+		<table id="bully" cellpadding="3" cellspacing="1" width="100%">
+
+			<thead>
+
+			<tr class="yellowrow">
+				
+				<th class="smaller">
+					School	
+				</th>
+
+				<th class="smaller">
+					Contact
+				</th>
+
+				<th class="smaller">
+					Phone
+				</th>
+
+				<th class="smaller">
+					Status
+				</th>
+
+			</tr>
+			</thead>
+
+			<tbody>
+
+%			foreach my $school ($tourn->schools) { 
+
+				<tr>
+			
+					<td>
+						<a class="white" href="/register/school/edit.mhtml?school_id=<% $school->id %>">
+							<% $school->name %>
+						</a>
+					</td> 
+					
+					<td class="rightalign">
+						<% $school->contact_name %>
+					</td>
+
+					<td class="rightalign">
+						<% $school->contact_number %>
+					</td>
+
+					<td class="rightalign smallish">
+						<% ($school->registered) ? "Checked In" : "" %>
+					</td>
+
+				</tr>
+
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+

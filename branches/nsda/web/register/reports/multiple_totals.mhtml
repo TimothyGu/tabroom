@@ -1,0 +1,72 @@
+<%args>
+	$tourn
+</%args>
+
+%	my $switch;
+
+%	my @events = sort {$a->name cmp $b->name} $tourn->events;
+
+	<& "menu.mas", tourn => $tourn, whoami => "multiple_totals" &>
+
+	<div class="left huge"> 
+	
+		<h2>Double Entry report</h2>
+
+		<table cellpadding="1" cellspacing="1" width="100%">
+
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Event
+				</th>
+
+				<th class="mono countspan smaller">
+					#
+				</th>
+
+% 				foreach my $event (@events) { 
+					<th style="width: 22px;" class="smaller mono padno centeralign">
+						<span class="countspan">
+							<% $event->abbr %>
+						</span>
+					</th>
+%				}
+
+
+			</tr>
+
+% 		foreach my $event (@events) { 
+
+%			my ($multi_ref, $other_ref) = $m->comp("/funclib/event_multi_entry.mas", event => $event);
+
+%			my @multis = @$multi_ref;
+%			my %others = %$other_ref;
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>"> 
+			
+				<td class="smallish">
+					<% $event->abbr %>
+				</td>
+
+				<td class="mono centeralign countspan">
+					<% scalar @multis %>
+				</td>
+
+%				foreach my $other (@events) { 
+					<td class="centeralign mono smaller <% ($other->id == $event->id) ? "red" : "" %> padno">
+						<span class="countspan">
+						<% $others{$other->id} %>
+						</span>
+					</td>
+%				}
+
+			</tr>
+
+% 		}
+
+		</table>
+
+	</div>
+
+
+

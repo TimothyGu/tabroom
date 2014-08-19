@@ -1,0 +1,158 @@
+<%args>
+	$tourn
+	$what => undef
+	$start
+	$end
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	Tab::TournChange->set_sql( moves_by_date => "
+		select distinct tourn_change.*
+		from tourn_change
+		where tourn = ?
+		and type = \"move\"
+		and timestamp > ?
+		and timestamp < ? 
+		order by timestamp DESC");
+
+	my $search_start = $start->clone;
+	my $search_end = $end->clone;
+	$search_start->set_time_zone("UTC");
+	$search_end->set_time_zone("UTC");
+
+	my @moves = Tab::TournChange->search_moves_by_date($tourn->id, DateTime::Format::MySQL->format_datetime($search_start), DateTime::Format::MySQL->format_datetime($search_end));
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my $switch; 
+
+</%init>
+
+	<h2>Entries Moved</h2>
+
+	<& /funclib/tablesorter.mas, table => "sortme" &>
+	
+	<table cellpadding="5" cellspacing="1" width="100%" id="sortme">  
+
+		<thead>
+	
+		<tr class="yellowrow">
+			
+			<th class="smaller">
+				Rnd
+			</th>
+
+			<th class="smaller">
+				Event
+			</th>
+				
+			<th class="smaller">
+				Code
+			</th>
+				
+			<th class="smaller" colspan="1">
+				Move From
+			</th>
+				 
+			<th class="smaller">
+				Jdg
+			</th>
+				
+			<th class="smaller" colspan="1">
+				Move To
+			</th>
+				
+			<th class="smaller">
+				Jdg
+			</th>
+				
+			<th class="smaller">
+				Made
+			</th>
+				
+			<th>
+			</th>
+
+		</tr>
+		</thead>
+
+		<tbody>
+
+% 		foreach my $move (@moves) { 
+
+%			my $timestamp = $move->timestamp;
+%			$timestamp->set_time_zone($tz);
+
+%			next unless $move->new_panel;
+%   		next unless $move->new_panel->round;
+
+			<tr>
+
+				<th class="smaller">
+					<% $move->new_panel->round->name %>
+				</td>
+
+				<td align="center" class="smaller">
+					<% $move->entry->event->abbr %>
+				</td> 
+				
+				<th style="text-align: center;" class="smaller">
+					<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $move->entry->id %>"><% $ncfl ? $move->entry->school->region->code." - " : "" %><% $move->entry->code %></a>
+				</td>
+
+% 				if ($move->old_panel) { 
+				
+					<td align="center" class="smaller">
+						<a class="white" href="/panel/schemat/panel_edit.mhtml?panel_id=<% $move->old_panel->id %>">
+							<% $move->old_panel->letter %>:
+							<% ($move->old_panel->room) ? $move->old_panel->room->name : "" %>
+						</a>
+					</td> 
+					
+					<td align="center" class="smaller">
+%						foreach my $judge ($m->comp('/funclib/panel_judges.mas', panel => $move->old_panel)) {
+							<a class="white" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>"><% $ncfl ? $judge->school->region->code : "" %> <% $judge->code %></a>
+%						}
+					</td>
+
+%				} else { 
+		
+					<td colspan="2"></td>
+%				} 
+	
+				<td align="center" class="smaller">
+					<a class="white" href="/panel/schemat/panel_edit.mhtml?panel_id=<% $move->new_panel->id %>">
+						<% $move->new_panel->letter %>:
+						<% $move->new_panel->room->name %>
+					</a>
+				</td>
+				
+				<td align="center" class="smaller">
+%					foreach my $judge ($m->comp('/funclib/panel_judges.mas', panel => $move->new_panel)) {
+						<a class="white" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>"><% $ncfl ? $judge->school->region->code : "" %> <% $judge->code %></a>
+%					}
+				</td>
+
+				<td class="smaller">
+%  					if ($timestamp) {
+						<% &Tab::niceshortdt($timestamp) %> <% Tab::tzname($tz) %>
+%  					}
+%  					if ($move->account) {
+						<% $timestamp ? "<br />" : "" %> by <% $move->account->first." ".$move->account->last %>
+%  					}
+
+				</td> 
+				
+				<th style="text-align: center" class="smaller">
+					<a class="dkred block" href="change_rm.mhtml?what=<% $what %>&change_id=<% $move->id %>">Del</a>
+				</td> 
+				
+			</tr>
+
+%		}
+
+		</tbody>
+
+	</table>

@@ -1,0 +1,25 @@
+<%args>
+	$tourn
+	$partial_id
+</%args>
+<%perl>
+
+	my $bin = Tab::StrikeTime->retrieve($partial_id);
+
+	$m->abort unless $bin && $bin->judge_group;
+
+	my $group_id = $bin->judge_group->id;
+
+	my $msg = "Partial timeblock ".$bin->name." deleted";
+
+	foreach my $strike ($bin->strikes) { 
+		$strike->delete;
+	}
+
+	$bin->delete;
+
+	$m->redirect("$Tab::url_prefix/setup/judges/partials.mhtml?group_id=$group_id&msg=$msg");
+
+
+</%perl>
+

@@ -1,0 +1,89 @@
+<%args>
+	$id
+	$key
+</%args>
+<%init> 
+
+	my $now = DateTime->now();
+
+	my $login = Tab::Login->retrieve($id);
+	my $person = $login->person;
+
+	unless ($person) { 
+		$m->redirect("/");
+	}
+
+	my $err;
+
+	unless ($login->pass_change_expires && $login->pass_changekey) { 
+
+		$err = "Either something is wrong with the system, or you're pulling shenanigans.";
+
+	} elsif ($login->pass_change_expires->epoch < $now->epoch) {
+
+		$err = "That access code has expired.  Please have the system send you another reset email.";
+
+	} elsif ($login->pass_changekey != $key) { 
+
+		$err = "The access key is not valid.  Please try again.";
+	}
+
+	$m->redirect("/user/login/forgot.mhtml?err=$err") if $err;
+
+</%init>
+
+	<div class="left huge">
+
+		<h2>Change <% $login->username %>'s password</h2>
+
+		<center>
+
+		<table cellpadding="8" cellspacing="1" width="75%">
+
+			<tr class="oddrow">
+
+				<td>
+					Enter a new password:
+				</td>
+
+				<td>
+					<form action="forgot_save.mhtml" method="post">
+					<input type="hidden" name="key" value="<% $key %>">
+					<input type="hidden" name="id" value="<% $id %>">
+					<input type="password" name="pass1" value="" onfocus='value=""'>
+				</td>
+
+			</tr>
+
+			<tr class="evenrow">
+
+				<td>
+					Repeat the password
+				</td>
+
+				<td>
+					<input type="password" name="pass2" value="">
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input type="submit" value="  Save New Password  ">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+		</center>
+
+	</div>
+
+	<div class="right small">
+
+
+	</div>
+

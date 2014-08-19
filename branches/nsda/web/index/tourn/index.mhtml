@@ -1,0 +1,259 @@
+<%args> 
+	$tourn_id   => undef
+	$site_id    => undef
+	$webpage_id => undef
+	$account    => undef
+	$webname    => undef
+</%args>
+<%init> 
+
+	if ($webname && not defined $tourn_id ) { 
+		$m->redirect("/index/tourn/past.mhtml?webname=$webname");
+	}
+
+    my $tourn = Tab::Tourn->retrieve($tourn_id);
+
+	my $tz = $account->tz if $account;
+	$tz = $tourn->tz if $tourn && not defined $tz; 
+	$tz = "UTC" unless $tz;
+
+	my $tz_ob = DateTime::TimeZone->new( name => $tz );
+
+	my $webpage = Tab::Webpage->retrieve($webpage_id);
+
+	unless ($webpage) { 
+		my @webpages = Tab::Webpage->search(tourn => $tourn->id, special => "main");
+		$webpage = shift @webpages if @webpages;
+	}
+
+	my $end = $tourn->end->set_time_zone($tz);
+	my $site = Tab::Site->retrieve($site_id) if $site_id;
+	my $start = $tourn->start->set_time_zone($tz);
+
+	my @others = Tab::Tourn->search( webname => $tourn->webname);
+
+</%init> 
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter rightalign top">
+			<h4>
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<& tourn_header.mas, tourn => $tourn, webpage_id => $webpage_id, account => $account &>
+
+%		if ($site) { 
+
+			<h3><% $site->name %></h3>
+
+			<p>Host: <% ($site->host) ? $site->host->first." ".$site->host->last : "None Listed"%></p>
+
+			<p><% $site->directions %></p>
+
+
+%		} else { 
+
+%			if ($webpage) { 
+
+				<% ($webpage && $webpage->title ne "main") ? "<h3>".$webpage->title."</h3>" : "" %>
+
+				<% ($webpage) ? $webpage->content : "" %>
+
+%			} else { 
+
+				<p>
+					The <% $tourn->name %> is hosted on Tabroom.com, an online
+					registration and tabulation website run for the community
+					for free.  The tournament officials have not yet posted
+					information in this space; but click the tabs above, and
+					see the details & contact information at right, to see more
+					information about the tournament as it comes available.  
+				</p>
+
+				<p>
+					If registration is open, there will be a tab above to
+					register.  You will need to have <a
+					href="/user/login/new_user.mhtml">created a tabroom.com
+					account</a> before you can register for this tournament.
+				</p>
+
+%			}
+
+%		}
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+%			if ($tourn->setting("logo")) { 
+				<div class="centeralign">
+					<img src="<% $Tab::s3_url %>/<% $tourn->id."/".$tourn->setting("logo") %>" alt="Logo" style="max-width: 220px;"/>
+				</div>
+%			}
+
+			<h4>Info</h4>
+
+%   		if ($tourn->setting("invite")) { 
+				<a class="green block" href="<% $Tab::s3_url %>/<% $tourn->id."/".$tourn->setting("invite") %>">
+					Tournament Invitation
+				</a>
+%   		}
+
+%   		if ($tourn->setting("bills")) { 
+    	    	<a class="green block" href="<% $Tab::s3_url %>/<% $tourn->id."/bills/".$tourn->setting("bills") %>">
+					Congress Legislation
+				</a>
+%   		}
+
+			<h6>Circuit(s)</h6> 
+
+%			foreach my $circuit ($m->comp('/funclib/tourn_circuits.mas', tourn => $tourn)) { 
+				<a class="blue nowrap  block" href="/index/circuit/index.mhtml?circuit_id=<% $circuit->id %>">
+					<% $circuit->name %>
+				</a>
+%			}
+
+			<h6>Location</h6>
+
+%			foreach my $site ($m->comp("/funclib/tourn_sites.mas", tourn => $tourn)) {
+				<a class="<% ($site_id == $site->id) ? "chosenblock" : "blue block" %>" href="index.mhtml?site_id=<% $site->id %>&tourn_id=<% $tourn_id %>">
+					<% $site->name %>
+				</a>
+%			}
+
+			<h6>Contacts</h6> 
+
+%			foreach my $contact ($m->comp("/funclib/tourn_admins.mas", tourn => $tourn, contact => 1)) { 
+				<a class="blue block" href="mailto:<% $contact->email %>">
+					<% $contact->first." ".$contact->last %>
+				</a>
+%			}
+
+			<h6>Info</h6>
+
+%			foreach my $webpage (sort {$a->page_order <=> $b->page_order} $tourn->webpages) { 
+%				next unless $webpage->active;
+%				next if $webpage->special;
+				<a class="<% $webpage_id == $webpage->id ? "dk" : ""%>yellow block" href="/index/tourn/index.mhtml?webpage_id=<% $webpage->id %>&tourn_id=<% $tourn->id %>"><% $webpage->title %></a>
+
+%			}
+		
+%			if (Tab::Email->search( tourn => $tourn->id )) { 
+				 <a class="yellow block" href="/index/tourn/index/emails.mhtml?tourn_id=<% $tourn->id %>">Email Archive</a>
+%			}
+			<a class="yellow block" href="/index/tourn/events.mhtml?tourn_id=<% $tourn->id %>">Events/Divisions</a>
+			<a class="yellow block" href="/index/tourn/schools.mhtml?tourn_id=<% $tourn->id %>">Schools Registered</a>
+
+%			if ($tourn->webname && scalar @others > 1) { 
+				<a class="martop blue block" href="/index/tourn/past.mhtml?webname=<% $tourn->webname %>">Other Years' Results</a>
+%			}
+
+%			my $switch;
+
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Dates & Deadlines</h4>
+
+			<div class="explain centeralign">
+%				my $now = DateTime->now( time_zone => $tz );
+				Times are in <% $tz_ob->short_name_for_datetime($now) %>
+			</div>
+
+			<table cellpadding="3" cellspacing="1" width="100%">
+		
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+						Tournament
+					</th>
+
+					<td class="smaller">
+						<% ($start) ? Tab::niceshortdate($start) : "" %>
+						<% ($start->mdy ne $end->mdy) ? " to ".Tab::niceshortdate($end) : "" %>
+					</td>
+				</tr>
+		
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+						Reg Opens
+					</th>
+
+					<td class="smaller">
+						<% ($tourn->reg_start) ? Tab::niceshortdt($tourn->reg_start->set_time_zone($tz)) : "Not Set" %>
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+						Reg Close
+					</th>
+
+					<td class="smaller">
+						<% ($tourn->reg_end) ? Tab::niceshortdt($tourn->reg_end->set_time_zone($tz)) : "Not Set" %>
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+						Fees Frozen
+					</th>
+
+					<td class="smaller">
+%						my $freeze = $tourn->setting("freeze_deadline");
+						<% ($freeze) ? Tab::niceshortdt($freeze->set_time_zone($tz)) : "Not Set" %>
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+						Judging Due
+					</th>
+
+					<td class="smaller">
+%						my $judge = $tourn->setting("judge_deadline");
+						<% ($judge) ? Tab::niceshortdt($judge->set_time_zone($tz)) : "Not Set" %>
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+	    	        <th class="smaller">
+						Drop online
+	    	        </th>
+
+					<td class="smaller">
+%						my $drop = $tourn->setting("drop_deadline");
+						<% ($drop) ? Tab::niceshortdt($drop->set_time_zone($tz)) : "Not Set" %>
+					</td>
+	
+	        	</tr> 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<th class="smaller">
+        	        	Penalty fines
+	    	        </th>
+
+	        	    <td class="smaller">
+%						my $fine = $tourn->setting("fine_deadline");
+						<% ($fine) ? Tab::niceshortdt($fine->set_time_zone($tz)) : "Not Set" %>
+					</td>
+
+	    	    </tr>
+
+			</table>
+
+		</div>
+
+	</div>
+

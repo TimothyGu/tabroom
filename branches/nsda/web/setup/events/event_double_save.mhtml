@@ -1,0 +1,22 @@
+<%args>
+	$tourn
+	$name
+	$setting => undef
+	$max => undef
+</%args>
+<%init>
+
+	my $event_double = Tab::EventDouble->create({
+		tourn       => $tourn->id,
+		name        => $name,
+		setting 	=> $setting,
+		max         => $max
+	}) if $setting;
+
+	my $msg = "Grouping ".$event_double->name." created" if $setting;
+	my $err = "No setting set; nothing saved" unless $setting;
+
+	$m->redirect("/setup/events/double_entry.mhtml?msg=$msg&err=$err");
+
+</%init>
+

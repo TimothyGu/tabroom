@@ -1,0 +1,313 @@
+<%args>
+	$tourn
+	$event_id => undef
+	$add      => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+ 	my @groups = sort{$a->name cmp $b->name} $tourn->judge_groups;
+
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+
+	if (scalar $tourn->events == 1 && not defined $add) {
+		$event = $tourn->events->first;
+	}
+
+	my $switch;
+
+</%init>
+	
+	<& "/funclib/editor.mas" &>
+
+	<div class="left huge">
+
+%		if ($event)	{
+
+			<h2><% $event->name %></h2>
+			<& tabbar.mas, event => $event, whoami => "edit" &>
+
+			<h4>Main Settings</h4>
+
+%		} elsif ($add) { 
+
+			<h2>Add a new event/division</h2>
+%		}
+
+%		unless (@groups) {
+		
+			<p>
+				Events, or divisions, are organized into judge groups.  Events
+				in the same group will share judges, same judge obligations,
+				and judge rating systems.
+			</p>
+
+			<p>
+				You must create judge group(s) under 
+				<a href="/setup/judges/edit.mhtml">Setup -> Judge Groups</a>
+				before creating events here.
+			</p>
+
+%		}
+
+%		if ($event || $add) { 
+
+			<form action="edit_save.mhtml" method="post">
+			<input type="hidden" value="<% ($event) ? $event->id : "" %>" name="event_id">
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Event/Division Full Name
+				</span>
+			
+				<span class="half rightalign">
+					<input type="text" name="name" value="<% ($event) ? $event->name : "" %>" size="25" tabindex="1">
+				</span>
+			</div>
+				
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Short Abbreviation (limit 5 characters)
+				</span> 
+				
+				<span class="half rightalign">
+					<input type="text" name="abbr" value="<% ($event) ? $event->abbr : "" %>" size="5" maxlength="5">
+				</span> 
+
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Per-Entry Fee
+				</span>
+
+				<span class="half rightalign">
+					<input type="text" name="fee" value="<% ($event) ? $event->fee : "" %>" size="5">
+				</span>
+
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Minimum competitors per entry
+				</span> 
+
+				<span class="half rightalign">
+					<input type="text" name="min_entry" value="<% ($event) ? $event->setting("min_entry") : "1" %>" size="5">
+				</span> 
+
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Maximum competitors per entry
+				</span> 
+
+				<span class="half rightalign">
+					<input type="text" name="max_entry" value="<% ($event) ? $event->setting("max_entry") : "1" %>" size="5">
+				</span> 
+
+			</div> 
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Judge Group
+				</span>
+				
+				<span class="half smaller rightalign">
+					<select name="judge_group_id" class="fixedmed">
+%						foreach my $group (sort {$a->name cmp $b->name} $tourn->judge_groups) { 
+							<option value="<% $group->id %>" <% ($event && $event->judge_group && $group->id == $event->judge_group->id) ? "selected" : "" %>>
+								<% $group->name %>
+							</option>
+%						}
+					</select>
+				</span>
+			</div>
+			
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+%				my $code_style = $event->setting("code_style") if $event;
+
+				<span class="half martop">
+					Designate entries on schems/ballots with
+				</span>
+
+				<span class="half smaller rightalign">
+
+					<select name="code_style" class="fixedmed">
+
+						<option value="numbers" <% ($event && $code_style eq "numbers") ? "selected" : "" %>>
+							Numeric codes
+						</option>
+
+						<option value="school_number" <% ($event && $code_style eq "school_number") ? "selected" : "" %>>
+							School code & numeric code
+						</option>
+
+						<option value="schoolname_code" <% ($event && $code_style eq "schoolname_code") ? "selected" : "" %>>
+							School name & numeric code
+						</option>
+
+						<option value="initials" <% ($event && $code_style eq "initials") ? "selected" : "" %>>
+							School code & entry initials	
+						</option>
+
+						<option value="code_name" <% ($event && $code_style eq "code_name") ? "selected" : "" %>>
+							School code & entry name
+						</option>
+
+						<option value="full_initials" <% ($event && $code_style eq "full_initials") ? "selected" : "" %>>
+							School name & entry initials	
+						</option>
+
+						<option value="school_names" <% ($event && $code_style eq "school_names") ? "selected" : "" %>>
+							School name & Full names (Do not use with TRPC)
+						</option>
+
+						<option value="school_name_only" <% ($event && $code_style eq "school_name_only") ? "selected" : "" %>>
+							School name Only
+						</option>
+
+						<option value="names" <% ($event && $code_style eq "names") ? "selected" : "" %>>
+							Full names Only
+						</option>
+
+						<option value="names_lastfirst" <% ($event && $code_style eq "names_lastfirst") ? "selected" : "" %>>
+							Full names (Last First)
+						</option>
+
+						<option value="last_names" <% ($event && $code_style eq "last_names") ? "selected" : "" %>>
+							Last names
+						</option>
+
+						<option value="register" <% ($event && $code_style eq "register") ? "selected" : "" %>>
+							Ask registrants to supply code
+						</option>
+
+					</select>
+
+				</span>
+
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Start entry codes with:
+				</span> 
+
+				<span class="half rightalign">
+					<input type="text" name="code_start" value="<% ($event) ? $event->setting("code_start") : "100" %>" size="5">
+				</span> 
+
+			</div> 
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Event Type
+				</span> 
+
+				<span class="half smaller rightalign">
+					<select name="type" class="fixedmed">
+
+						<option value="speech" <% ($event && $event->type eq "speech") ? "selected" : "" %>>
+							Speech
+						</option>
+						<option value="congress" <% ($event && $event->type eq "congress") ? "selected" : "" %>>
+							Congress
+						</option>
+						<option value="debate" <% ($event && $event->type eq "debate") ? "selected" : "" %>>
+							Debate
+						</option>
+						<option value="policy" <% ($event && $event->type eq "policy") ? "selected" : "" %>>
+							Policy
+						</option>
+						<option value="ld" <% ($event && $event->type eq "ld") ? "selected" : "" %>>
+							LD
+						</option>
+						<option value="pf" <% ($event && $event->type eq "pf") ? "selected" : "" %>>
+							PF
+						</option>
+						<option value="parli" <% ($event && $event->type eq "parli") ? "selected" : "" %>>
+							Parliamentary (2 teams/round)
+						</option>
+						<option value="wudc" <% ($event && $event->type eq "wudc") ? "selected" : "" %>>
+							WUDC-style Parliamentary (4 teams/round)
+						</option>
+					</select>
+				</span> 
+
+			</div> 
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Event Level
+				</span> 
+
+				<span class="half smaller rightalign">
+					<select name="level" class="fixedmed">
+						<option value=""></option>
+						<option value="open" <% ($event && $event->setting("level") eq "open") ? "selected" : "" %>>
+							Open/Varsity
+						</option>
+						<option value="jv" <% ($event && $event->setting("level") eq "jv") ? "selected" : "" %>>
+							JV
+						</option>
+						<option value="novice" <% ($event && $event->setting("level") eq "novice") ? "selected" : "" %>>
+							Novice
+						</option>
+						<option value="champ" <% ($event && $event->setting("level") eq "champ") ? "selected" : "" %>>
+							Championship
+						</option>
+						<option value="spanish-varsity" <% ($event && $event->setting("level") eq "spanish-varsity") ? "selected" : "" %>>
+							Spanish Varsity
+						</option>
+						<option value="spanish-novice" <% ($event && $event->setting("level") eq "spanish-novice") ? "selected" : "" %>>
+							Spanish Novice
+						</option>
+					</select>
+				</span>
+
+			</div>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Clone settings from another event
+				</span> 
+
+				<span class="half smaller rightalign">
+					<select name="clone_event" class="fixedmed">
+						<option value=""></option>
+%						foreach my $oevent ($tourn->events) { 
+%							next if $event && $oevent->id == $event->id;
+							<option value="<% $oevent->id %>"><% $oevent->name %></option>
+%						}
+					</select>
+				</span>
+
+			</div>
+
+		<div class="liblrow block rightalign">
+			<input type="submit" value="Save Event">
+			</form>
+		</div>
+
+%		}
+
+	</div>
+			
+	<div class="right small">
+		<& menu.mas, add => $add, tourn => $tourn, whoami => "edit", event_id => ($event) ? $event->id : "" &>		
+	</div>

@@ -1,0 +1,279 @@
+<%args>
+	$circuit
+	$tourn
+	$account
+	$session
+</%args>
+<%init>
+
+	use POSIX;
+
+	my @entries = $m->comp("/funclib/tourn_entries.mas", tourn => $tourn);
+	my @students = $m->comp("/funclib/tourn_students.mas", tourn => $tourn);
+	my @judges = $m->comp("/funclib/tourn_judges.mas", tourn => $tourn);
+	my @schools = $tourn->schools;
+	my @regions;
+#= $m->comp("/funclib/tourn_regions.mas", tourn => $tourn);
+
+	my @pools = $m->comp("/funclib/tourn_pools.mas", tourn => $tourn);
+	my $switch; 
+
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "stats" &>
+
+	<div class="left huge">
+
+	<h2>Tournament statistics for <% $tourn->name %></h2>
+
+	<div class="half">
+
+		<h4>Totals</h4>
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+		
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Category
+				</th>
+
+				<th class="smaller">
+					People
+				</th>
+
+			</tr>
+
+%		if ($tourn->setting("ncfl") || $tourn->setting("regions")) { 
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td>
+					<% ($tourn->setting("ncfl")) ? "Dioceses" : "Regions" %>
+				</td> 
+				
+				<td class="rightalign">
+					<% scalar @regions %>
+				</td>
+
+			</tr>
+
+%		}
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+			<td>
+				Schools
+			</td> 
+			
+			<td class="rightalign">
+				<% scalar @schools %>
+			</td>
+			
+		</tr>
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+			<td>
+				Students
+			</td>
+
+			<td class="rightalign">
+				<% scalar @students %>
+			</td>
+
+		</tr>
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+		
+			<td>
+				Judges
+			</td>
+			
+			<td class="rightalign">
+				<% scalar @judges %>
+			</td>
+
+		</tr>
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+		
+			<td>
+				Total People
+			</td>
+			
+			<td class="rightalign">
+				<% scalar @judges + scalar @students %>
+			</td>
+
+		</tr>
+
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+		
+			<td>
+				Total Entries
+			</td>
+			
+			<td class="rightalign">
+				<% scalar @entries %>
+			</td>
+
+		</tr>
+
+		<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+		
+			<td>
+				Total States
+			</td>
+
+			<td class="rightalign">
+				<% $m->comp("/funclib/tourn_states.mas", tourn => $tourn) %> 
+			</td>
+
+		</tr>
+
+	</table>
+
+	<h4>Judges by Group</h4>
+
+	<table cellpadding="5" cellspacing="1" width="100%">
+
+%		foreach my $group (sort {$a->name cmp $b->name} $tourn->groups) { 
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+	
+				<td>
+					<% $group->name %>
+				</td>
+	
+				<td class="rightalign">
+					<% scalar $group->judges %>
+				</td>
+
+			</tr>
+
+%		}
+
+	</table>
+
+%	if (@pools) { 
+
+		<h4>Judges by Pool</h4>
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+%			foreach my $pool ($m->comp("/funclib/tourn_pools.mas", tourn => $tourn)) { 
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<td>
+						<% $pool->name %>
+					</td> 
+				
+					<td class="rightalign">
+						<% scalar $pool->judges %>
+					</td> 
+				
+				</tr>
+
+%			}
+
+		</table>
+
+%	}
+
+	</div>
+
+	<div class="half">
+
+	<h4>Entries by Event</h4>
+
+	<table cellpadding="5" cellspacing="1" width="100%">
+
+		<tr class="yellowrow">
+
+			<th class="smaller">
+				Event
+			</th>
+
+			<th class="smaller">
+				Entries
+			</th>
+
+			<th class="smaller">
+				Students
+			</th>
+
+			<th class="smaller">
+				States
+			</th>
+
+			<th class="smaller" style="line-height: 12px;">
+				Min Rooms
+			</th>
+
+			<th class="smaller" style="line-height: 12px;">
+				Max Rooms
+			</th>
+
+		</tr>
+
+
+%		foreach my $event (sort {$a->name cmp $b->name} $m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+	
+%			my $minpanelsize = $event->setting("min_panel_size");
+%			$minpanelsize = 5 unless $minpanelsize;
+
+%			my $maxpanelsize = $event->setting("max_panel_size");
+%			$maxpanelsize = 8 unless $maxpanelsize;
+
+%			my $defaultpanelsize = $event->setting("default_panel_size");
+%			$defaultpanelsize = 6 unless $defaultpanelsize;
+
+% 			my @entries = Tab::Entry->search( event => $event->id, dropped => 0, waitlist => 0, unconfirmed => 0);
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td class="smallish">
+					<% $event->abbr %>
+				</td> 
+				
+				<td class="centeralign smallish">
+					<% scalar @entries %>
+				</td> 
+				
+				<td class="centeralign smallish">
+					<% scalar $m->comp("/funclib/event_students.mas", event => $event) %>
+				</td> 
+
+				<td class="centeralign smallish">
+					<% $m->comp("/funclib/event_states.mas", event => $event) %>
+				</td>
+
+				<td class="centeralign smallish">
+%					if ($event->type eq "speech" || $event->type eq "congress") { 
+						<% ceil( scalar @entries / $maxpanelsize) %>
+%					} else { 
+						<% ceil((scalar @entries - 1) / 4) %>
+%					}
+				</td>
+
+				<td class="centeralign smallish">
+%					if ($event->type eq "speech" || $event->type eq "congress") { 
+						<% ceil( scalar @entries / $minpanelsize) %>
+%					} else { 
+						<% floor( scalar @entries / 2) %>
+%					}
+				</td>
+				
+			</tr>
+
+%		}
+
+	</table>
+
+	</div>
+
+	</div>

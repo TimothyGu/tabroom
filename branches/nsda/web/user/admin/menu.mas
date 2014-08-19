@@ -1,0 +1,61 @@
+<%args>
+	$whoami => undef
+	$nodiv => undef 
+	$account => undef
+</%args>
+
+%	unless ($nodiv) { 
+		<div class="right small">
+%	}	
+	<div class="sidenote">
+	
+		<h4>God-like powers</h4>
+
+		<a class="<% $whoami eq "circuits" ? "dk" : "" %>blue full" href="/user/admin/circuits.mhtml" %>  
+			Circuits
+		</a>
+
+		<a class="<% $whoami eq "accounts" ? "dk" : "" %>blue full" href="/user/admin/accounts.mhtml" %>  
+			Accounts
+		</a>
+
+		<a class="<% $whoami eq "chapter_admin" ? "dk" : "" %>blue full" href="/user/admin/chapters.mhtml" %>  
+			Schools
+		</a>
+
+		<a class="<% $whoami eq "tourns" ? "dk" : "" %>blue full" href="/user/admin/tourns.mhtml" %>  
+			Tournaments
+		</a>
+
+		<a class="<% $whoami eq "about" ? "dk" : "" %>blue full" href="/user/admin/about.mhtml" %>  
+			Edit About Page
+		</a>
+
+%		if ($whoami) { 
+
+%			if ($whoami eq "circuits") { 
+
+				<a class="yellow martop full" href="circuit_edit.mhtml">
+					Create a new Circuit
+				</a>
+
+%			}
+
+%			if ($whoami eq "accounts" && $account) { 
+				<a class="martop yellow full" href="ldap_renew.mhtml?account_id=<% $account->id %>">
+					Trigger LDAP Update
+				</a>
+%			}
+
+			<a class="yellow full" href="/user/home.mhtml" style="margin-top: 8px;">
+				Return Home
+			</a>
+
+%		}
+
+%	unless ($nodiv) { 
+		</div>
+%	}
+
+
+	</div>

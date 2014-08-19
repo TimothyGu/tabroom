@@ -1,0 +1,649 @@
+<%args> 
+	$account
+	$school_id => undef
+	$group_id  => undef
+</%args>
+<%init>
+
+	unless ($school_id) { 
+		$m->print("School was not sent.  Go back and try again");
+		$m->abort();
+	}
+
+	my $school = Tab::School->retrieve($school_id);
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	$m->abort unless $school;
+
+	my $tourn = $school->tourn;
+
+	my @groups = $tourn->groups;
+
+	if (scalar @groups == 1 && not defined $group) {
+		$group = $groups[0];
+		$group_id = $group->id;
+	}
+	
+	my @events = $group->events if $group;
+
+	my $switch;
+
+	my @requests = Tab::JudgeHire->search( school => $school->id, judge_group => $group->id ) if $group_id;
+
+	my $judge_per = $group->setting("judge_per") if $group;
+	my $rounds_per = $group->setting("rounds_per") if $group;
+	my $exchange = $group->setting("exchange") if $group;
+
+	my $frees_no = $group->setting("free_strikes_dont_count") if $group;
+
+	my $total_rounds;
+	my $hired_rounds;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+</%init>
+
+	<& /register/menubar.mas, school => $school, whoami => "judges", tourn => $tourn &>
+
+%		if ($group) { 
+
+%			my $obligation = $m->comp("/funclib/judgemath/judges_needed_by_group.mas", school => $school, group => $group);
+
+			<div>
+				<span class="biggerspan">
+					<h4><% $group->name %> Judges</h4>
+				</span>
+				<span class="medbiggerspan rightalign">
+					<h5 class="rightalign">
+						<% $obligation %> <% $rounds_per ? " round" : " judge" %><% $obligation != 1 ? "s" : "" %> owed
+					</h5>
+				</span>
+			</div>
+
+%           my ($unc, $over) = $m->comp("/funclib/judgemath/uncovered_burden_by_group.mas", school => $school, group => $group);
+
+%			if ($unc && $judge_per) { 
+
+				<div class="dkred block smaller">
+
+%					if ($group->setting("hired_fee") > 0) { 
+					 	School still owes <% ceil ($unc / $judge_per) %> judges.
+%					} elsif ($judge_per) { 
+						School still has <% $unc %> entr<% ($unc == 1) ? "y" : "ies" %> uncovered.  
+						Each judge covers <% $judge_per %> entries.
+%					} elsif ($rounds_per) { 
+						School still owes <% $unc %> round<% ($unc == 1) ? "" : "s" %>.
+%					}
+
+				</div>
+%			}
+
+%			if ($unc && $rounds_per) { 
+				<div class="dkred block smaller marbottom">
+					School still owes <% $unc %> round<% ($unc == 1) ? "" : "s" %>.
+				</div>
+%			}
+
+%			if ($over && @requests && $judge_per) { 
+
+				<div class="yellow block smaller padmuchmore centeralign">
+%					if ($group->setting("hired_fee") > 0) { 
+					 	School is over on judging by <% ceil ($over / $judge_per) %> judges.
+%					} elsif ($judge_per) { 
+						School is over on judging coverage by <% $over %> entr<% ($over == 1) ? "y" : "ies" %>.
+%					} elsif ($rounds_per) { 
+						School is over on judging by <% $over %> round<% ($over == 1) ? "" : "s" %> 
+%					}
+					Reduce hired judging below, or the school will still be charged for it!
+				</div>
+%			} 
+
+			<table>
+
+				<tr class="yellowrow">
+
+					<% ($tourn->setting("hide_codes")|| $group->setting("no_codes")) ? "" : '<th class="smallish">Code</th>' %>
+
+					<th class="smallish">
+						Name
+					</th>
+
+%					if ($rounds_per) { 
+						<th class="smallish">
+							Rounds
+						</th>
+%					}
+
+%					if ($exchange) { 
+						<th class="smallish">
+							Hired
+						</th>
+%					}
+
+%					if ($group->strike_times) { 
+						<th class="smallish">
+							Availability 
+						</th>
+%					}
+
+%					if ($group->setting("coach_ratings")) { 
+						<th class="smallish">
+							Ratings
+						</th>
+%					}
+
+					<th class="smallish">
+					</th>
+
+				</tr>
+
+%               my $first_free = 1;
+
+%				foreach my $judge ($m->comp("/funclib/judgemath/judges_by_group.mas", school => $school, group => $group)) {
+
+%                   if ($frees_no && $first_free && $judge->setting("free_strike")) {
+
+%                   	undef $first_free;
+					
+						<tr class="liblrow">
+
+							<% ($tourn->setting("hide_codes")|| $group->setting("no_codes")) ? "" : '<td></td>' %>
+
+							<th class="padmore leftalign smallish">
+								Rounds Provided
+							</td>
+
+							<td class="leftalign">
+								<span class="block" style="padding-left: 3; padding-top: 6px; padding-bottom: 7px;">
+									<% $total_rounds %>
+								</span>
+							</td>
+
+%							if ($exchange) { 
+								<td class="centeralign">
+									<span class="block" style="padding-left: 0; padding-top: 6px; padding-bottom: 7px;">
+										<% $hired_rounds %>
+									</span>
+								</td>
+%							}
+
+							<td colspan="8">
+							</td>
+
+						</tr>
+
+                        <tr class="oddrow">
+                            <td colspan="8">
+                                <h4>Non-credited judging</h4>
+                            </td>
+                        </tr>
+
+%                       undef $switch;
+
+%					}
+
+%					my $drop++ if $judge->dropped;
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<% ($tourn->setting("hide_codes")|| $group->setting("no_codes")) ? "" : $drop ? "<td>DROP</td>" : "<td>".$judge->code."</td>" %>
+
+						<td>
+							<a class="white <% $drop ? "strike" : "" %>" 
+								href="/register/judge/edit.mhtml?school_id=<% $school->id %>&judge_id=<% $judge->id %>">
+								<% $judge->first." ".$judge->last%>
+							</a>
+						</td>
+
+%						if ($rounds_per) { 
+
+							<td class="leftalign">
+								<form action="rounds_save.mhtml" method="post">
+								<input type="hidden" name="judge_id" value="<% $judge->id%>">
+								<input type="number" name="rounds" size="5" min="1" max="<% $group->setting("max_rounds") %>" value="<% $judge->obligation %>" onchange='this.form.submit()'>
+								</form>
+%								$total_rounds += $judge->obligation;
+							</td>
+
+%							if ($exchange) { 
+								<td class="centeralign">
+									<% $judge->hired %>
+%									$hired_rounds += $judge->hired;
+								</td>
+%							}
+
+%						}
+
+%						if ($group->strike_times) { 
+
+%							my $strike_timened;
+
+							<td class="smallish leftalign">
+								<a class="white" href="judge_striketime.mhtml?school_id=<% $school->id %>&judge_id=<% $judge->id %>">
+
+%									foreach my $strike_time ($group->strike_times) { 
+%										if ($strike_time->strike($judge)) { 
+%											$strike_timened++;
+											Not available <% $strike_time->name %> 
+											<br />
+%										}
+%									}
+
+%									unless ($strike_timened) { 
+										<% $drop ? "None: Dropped" : "All rounds" %>
+%									}
+								
+								</a>
+
+							</td>
+%						}
+
+%						if ($group->setting("coach_ratings")) { 
+
+							<td class="smallish leftalign">
+								<% $m->comp("/funclib/judge_rating.mas", print => 1, judge => $judge )%>
+							</td>
+
+%						}
+
+%						my $warn = "This will delete the judge, together with any past results, ballots, or assignments. If you want to keep old records and just stop using this judge, mark the judge as inactive instead";
+
+						<td class="centeralign smallish">
+							<a class="dkred" <& "/funclib/confirm.mas", warn => $warn &> href="/register/judge/drop.mhtml?school_id=<% $school->id %>&judge_id=<% $judge->id %>">
+								DELETE
+							</a>
+						</td>
+
+					</tr>
+
+% 				} 
+
+%				if ($first_free && $rounds_per) { 
+					
+					<tr class="liblrow">
+
+						<% ($tourn->setting("hide_codes")|| $group->setting("no_codes")) ? "" : '<td></td>' %>
+
+						<th class="padmore leftalign smallish">
+							Total Rounds: 
+						</td>
+
+						<td class="leftalign">
+							<span class="white" style="padding-left: 3; padding-top: 6px; padding-bottom: 7px;">
+								<% $total_rounds %>
+							</span>
+						</td>
+
+%						if ($exchange) { 
+							<td class="centeralign">
+								<% $hired_rounds %>
+							</td>
+%						}
+
+						<td colspan="8">
+						</td>
+
+					</tr>
+
+%				}
+
+			</table>
+
+%			if ($group->setting("track_judge_hires") ) { 
+
+				<br />
+
+%				if ($group->setting("uncovered_entry_fee") > 0) { 
+
+%					undef($switch);
+
+					<h4>Hired Judging</h4>
+
+					<table cellpadding="5" cellspacing="1" width="100%"> 
+
+%						foreach my $request (@requests) { 
+		            	
+							<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+								<td class="smallish">
+%									if ($request->judge) {
+										<a href="/register/judge/edit.mhtml?judge_id=<% $request->judge->id %>" class="white padno">
+											<% $request->judge->first." ".$request->judge->last %>
+										</a>
+%									} else { 
+										Request made <% Tab::niceshortdt($request->request_made->set_time_zone($tz)) %>
+%									}
+								</td>
+							
+								<td class="centeralign smallish">
+									<span class="half">
+										<% $request->covers %> asked
+									</span>
+									<span class="half">
+										<% $request->accepted ? $request->accepted : 0 %> accepted
+									</span>
+								</td>
+
+%								my $warn = "This will accept this judging request and email the coaches of the program.  Are you sure?";
+
+								<td class="centeralign smallish">
+									<span class="third">
+										<a class="dkgreen" <& "/funclib/confirm.mas", warn => $warn &> href="hire_accept.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+											ACCEPT
+										</a>
+									</span>
+									<span class="third">
+%										$warn = "This will reduce your judging request by 1.  Are you sure?";
+										<a class="dkyellow" <& "/funclib/confirm.mas", warn => $warn &> href="hire_reduce.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+											REDUCE
+										</a>
+									</span>
+									<span class="third">
+%										$warn = "This will delete your judging request entirely. Are you sure?";
+										<a class="dkred" <& "/funclib/confirm.mas", warn => $warn &> href="hire_delete.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+											DELETE
+										</a>
+									</span>
+								</td>
+							
+							</tr>
+
+%						}
+
+
+						<tr>
+							<td colspan="10">
+							</td>
+						</tr>
+
+						
+						<tr class="liblrow">
+							
+							<td>
+								<form action="hire_save.mhtml" method="post">
+								<input type="hidden" name="school_id" value="<% $school->id %>">
+								<input type="hidden" name="group_id" value="<% $group->id %>">
+								New Request:
+							</td> 
+
+							<td class="centeralign" colspan="2">
+								Cover
+								<input type="text" name="hired_number" size="2" value="">
+								entries
+							</td>
+							
+							<td class="centeralign" colspan="2">
+								<input class="thin" type="submit" value="   Request Hires   ">
+								</form>
+							</td>
+							
+						</tr> 
+
+
+					</table>
+
+					<p class="exwhite" style="padding-left: 10px;">
+						This tournament hires judging by the entry, not the whole
+						judge.  Enter hire requests for the number of entries who
+						you do not have judging for.  Please note that a hire
+						request does not mean the tournament has judges available
+						for hire; Tabroom will email you when/if your request
+						is accepted.
+					</p>
+
+%				}
+
+%				if ($group->setting("hired_fee") > 0 && $judge_per) { 
+
+%					undef $switch;
+
+%       			my $hires_requested;
+%       			my $hires_accepted;
+
+%					foreach my $request (@requests) { 
+%	    	   			$hires_requested += $request->covers;
+%   	    			$hires_accepted += $request->accepted;
+%					}
+
+%       			$hires_requested = ceil($hires_requested / $judge_per) if $judge_per;
+%       			$hires_accepted = ceil($hires_accepted / $judge_per) if $judge_per;
+	
+					<h4>Hired judging</h4>
+
+%					foreach my $request (@requests) { 
+		            	
+						<div class="<% ($switch++ % 2) ? "odd" : "even" %>">
+
+							<span class="third smaller divider">
+%								if ($request->judge) {
+									<a href="/register/judge/edit.mhtml?judge_id=<% $request->judge->id %>" class="white padno">
+										<% $request->judge->first." ".$request->judge->last %>
+									</a>
+%								} else { 
+									Request made <% Tab::niceshortdt($request->request_made->set_time_zone($tz)) %>
+%								}
+							</span>
+
+							<span class="third smaller divider">
+								<span class="half">
+									<% ceil($request->covers / $judge_per ) %> requested
+								</span>
+								<span class="half centeralign">
+									<% $request->accepted ? ceil($request->accepted / $judge_per) : 0 %> accepted
+								</span>
+							</span>
+
+%							my $warn = "This will accept this judging request and email the coaches of the program.  Are you sure?";
+							<span class="third smaller rightalign">
+								<span class="third">
+									<a class="dkgreen block" <& "/funclib/confirm.mas", warn => $warn &> href="hire_accept.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+										ACCEPT
+									</a>
+								</span>
+								<span class="third">
+%									$warn = "This will reduce your judging request by 1.  Are you sure?";
+									<a class="dkyellow block" <& "/funclib/confirm.mas", warn => $warn &>  href="hire_reduce.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+										REDUCE
+									</a>
+								</span>
+								<span class="third">
+%									$warn = "This will delete your judging request entirely. Are you sure?";
+									<a class="dkred block" <& "/funclib/confirm.mas", warn => $warn &>  href="hire_delete.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+										DELETE
+									</a>
+								</span>
+							</span>
+						</div>
+
+%					}
+
+					<form action="hire_save.mhtml" method="post">
+					<input type="hidden" name="school_id" value="<% $school->id %>">
+					<input type="hidden" name="group_id" value="<% $group->id %>">
+
+	            	<div class="libl martop">
+
+ 						<span class="third">
+							New Request:
+						</span>
+ 						<span class="third">
+							<input type="number" min="0" max="99" name="hired_number" size="2" value=<% $hires_requested %>>
+							hired judges
+						</span>
+ 						<span class="third rightalign">
+							<input  type="submit" value="   Save   ">
+							</form>
+						</span>
+
+					</div>
+
+%				}
+
+%				if ($group->setting("round_hire_fee") > 0 && $rounds_per) { 
+
+%					undef $switch;
+%					my @requests = Tab::JudgeHire->search( school => $school->id, judge_group => $group->id );
+
+%       			my $hires_requested;
+%       			my $hires_accepted;
+
+%					foreach my $request (@requests) { 
+%	    	   			$hires_requested += $request->rounds;
+%   	    			$hires_accepted += $request->rounds_accepted;
+%						$total_rounds += $request->rounds_accepted;
+%					}
+	
+					<h4>Hired judging</h4>
+
+					<table cellpadding="4" cellspacing="1"  width="100%">
+
+%					foreach my $request (@requests) { 
+		            	
+						<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+							<td class="smallish">
+%								if ($request->judge) {
+									<a href="/register/judge/edit.mhtml?judge_id=<% $request->judge->id %>" class="white padno">
+										<% $request->judge->first." ".$request->judge->last %>
+									</a>
+%								} else { 
+									Request made <% Tab::niceshortdt($request->request_made->set_time_zone($tz)) %>
+%								}
+							</td>
+							
+							<td class="centeralign smallish">
+								<% $request->rounds %> rounds asked
+							</td>
+
+							<td class="centeralign smallish">
+								<% $request->rounds_accepted %> rounds accepted
+							</td>
+
+%							my $warn = "This will accept this judging request and email the coaches of the program.  Are you sure?";
+							<td class="centeralign smallish">
+%								unless ($request->rounds <= $request->rounds_accepted) {
+									<a class="dkgreen block" <& "/funclib/confirm.mas", warn => $warn &> href="hire_accept.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+										ACCEPT
+									</a>
+%								}
+							</td>
+
+%							$warn = "This will reduce your judging request by 1 round.  Are you sure?";
+
+							<td class="centeralign smallish">
+								<a class="yellow" <& "/funclib/confirm.mas", warn => $warn &>  href="hire_reduce.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+									REDUCE
+								</a>
+							</td>
+
+%							$warn = "This will delete your judging request entirely. Are you sure?";
+
+							<td class="centeralign smallish">
+								<a class="dkred" <& "/funclib/confirm.mas", warn => $warn &>  href="hire_delete.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>">
+									DELETE
+								</a>
+							</td>
+						
+						</tr>
+
+%					}
+
+
+						<tr>
+							<td colspan="10">
+							</td>
+						</tr>
+
+		            	<tr class="liblrow">
+
+ 							<td>
+                			    <form action="hire_save.mhtml" method="post">
+            		    	    <input type="hidden" name="school_id" value="<% $school->id %>">
+        		        	    <input type="hidden" name="group_id" value="<% $group->id %>">
+    		            	    New Request:
+            			    </td>
+
+                			<td class="centeralign" colspan="2">
+                			    <input type="text" name="rounds" size="2" value=""> rounds
+							</td>
+
+                			<td class="rightalign" colspan="3">
+                    			<input  type="submit" value="   Save   ">
+                			    </form>
+            			    </td>
+
+    		        	</tr>
+
+					</table>
+
+%				}
+
+%			}
+
+
+%           if ($group->setting("exchange") ) {
+
+                <h4 class="martop">Hired Judge Exchange</h4>
+
+%               foreach my $request (@requests) {
+
+%                   next unless $request->judge;
+
+                    <div class="<% ($switch++ % 2) ? "odd" : "even" %> block">
+                        <span class="threequarter">
+                            Hired <% $request->judge->first." ".$request->judge->last %> for <% $request->rounds %> rounds
+                        </span>
+                        <span class="quarter">
+                        <a class="dkred right" href="hire_cancel.mhtml?school_id=<% $school->id %>&hire_id=<% $request->id %>&back=roster">
+                            CANCEL
+                        </a>
+                        </span>
+                    </div>
+
+%               }
+
+%               my @judges = $m->comp("/funclib/exchange_judges.mas", group => $group);
+
+%               if (@judges) {
+                    <div class="blue block">
+                        <span class="white threequarter">
+							<% scalar @judges %> judge<% scalar @judges > 1 ? "s are" : " is" %> offering hired rounds
+                        </span>
+                        <span class="quarter">
+							<a class="dkgreen right" href="hire_exchange.mhtml?school_id=<% $school->id %>&group_id=<% $group->id %>">
+								Add Hires
+							</a>
+                        </span>
+                    </div>
+%               }
+
+%           }
+
+%		} else { 
+
+			<p>
+				Choose a judge category at right to enter judges or hire out
+				judging committments (where tournaments permit).
+			<p>
+
+			<p>
+				Divisions marked in red are divisions where you still owe
+				judging.
+			</p>
+
+%		}
+
+%		if ($group && $group->setting('judge_policy') > 0) { 
+
+			<h4>Tournament Judging notes:</h4>
+
+			<p>
+				<% $group->setting("judge_policy") %>
+			</p>
+%		}
+
+	</div>
+
+	<& judge_menu.mas, tourn => $tourn, school => $school, whoami => "judges", group => $group &>
+

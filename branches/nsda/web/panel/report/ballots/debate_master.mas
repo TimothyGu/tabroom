@@ -1,0 +1,485 @@
+<%args>
+	$panel_id => undef
+	$judge_id => undef
+	$event_id => undef
+	$chair => undef
+	$filename
+</%args>
+<%perl>
+
+	my $filepath = $Tab::file_root."/tmp/".$filename;
+
+	use List::Util 'shuffle';
+
+	my $panel = Tab::Panel->retrieve($panel_id);
+	my $judge = Tab::Judge->retrieve($judge_id) if $judge_id;
+
+	$m->abort unless $panel;
+
+	my $round = $panel->round if $panel;
+	my $event = $round->event if $round;
+	my $timeslot = $round->timeslot;
+
+	my $elim++ if $round && $round->type eq "elim";
+	$elim++ if $round && $round->type eq "final";
+	my $ld++ if $event && $event->type eq "ld";
+
+	$event = Tab::Event->retrieve($event_id) unless $event;
+	my $tourn = $event->tourn;
+	
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+    my $no_side_constraints++ if $event->setting('no_side_constraints');
+    my $sidelocks++ if ($round->type eq "elim" || $round->type eq "final") && not defined $no_side_constraints;
+	my $locked =  $m->comp("/funclib/round_elim_dueaff.mas", panel => $panel) if $sidelocks;
+
+	my @judges = $m->comp("/funclib/panel_judges.mas", panel => $panel) if $panel;
+
+	my $start;
+	undef $start;
+	
+	if ($round) { 
+		my $roundstart = $round->start_time;
+		$roundstart = $timeslot->start unless $start;
+		$roundstart->set_time_zone($tz);
+		$start = $roundstart->clone;
+	}
+
+	my $flight_offset = $event->setting("flight_offset");
+
+	if ($flight_offset && $panel && $panel->flight > 1) { 
+		my $flight = $panel->flight;
+		$flight--;
+		$start->add( minutes => $flight_offset * $flight) if $flight;
+	}
+
+	my $points;
+	my $ranks;
+
+	if ($panel && $panel->round->tb_set) { 
+		foreach my $tb ($panel->round->tb_set->tiebreaks) {
+			$points++ if $tb->name eq "points";
+			$ranks++ if $tb->name eq "ranks";
+		}
+	} else { 
+		my @round = sort {$a->name <=> $b->name} $event->rounds;
+		my $sample = shift @round;
+		if ($sample->tb_set) { 
+			foreach my $tb ($sample->tb_set->tiebreaks) {
+				$points++ if $tb->name eq "points";
+				$ranks++ if $tb->name eq "ranks";
+			}
+		} else { 
+			$points++;
+			$ranks++;
+		}
+	}
+
+	my $lpw++ unless $event->setting("no_lpw");
+	my $max_points = $event->setting("max_points");
+	my $min_points = $event->setting("min_points");
+
+	my $max_entry = $event->setting("max_entry");
+	my $min_entry = $event->setting("min_entry");
+
+	$min_points = 0 unless $min_points;
+	$max_points = 30 unless $max_points;
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	print TEXOUT "\\renewcommand{\\arraystretch}{1.8}\n";
+	print TEXOUT "\\setlength{\\parindent}{0pt}\n";
+
+	print TEXOUT "\\noindent\n";
+
+	if ($panel) { 
+		print TEXOUT "\\parbox[l][][t]{2.5in}{\n";
+		print TEXOUT "\\normalsize \n";
+		print TEXOUT "{\\bf Room: ".&Tab::texify($panel->room->name)."} \n\n " if $panel->room;
+		print TEXOUT "{\\bf Room: ASK TAB } \n\n " unless $panel->room;
+		print TEXOUT "{\\bf Flight ".$panel->flight." Start: ".Tab::nicetime($start)." } \n\n " if $round->flighted > 1;
+		print TEXOUT "{\\bf Start: ".Tab::nicetime($start)." } \n\n " if $round->flighted < 2;
+		print TEXOUT "{\\bf ".&Tab::texify($event->name)." }";
+		print TEXOUT "}";
+		print TEXOUT "\\parbox[c][][t]{2.1in}{\n";
+		print TEXOUT "\\begin{center}\n";
+		print TEXOUT "{\\huge \\bf ".$round->name."} " unless $round->label;
+		print TEXOUT "{\\LARGE \\bf ".$round->realname."}" if $round->label;
+		print TEXOUT "\\end{center}\n";
+		print TEXOUT "} ";
+		print TEXOUT "\\hfill\n";
+		print TEXOUT "\\parbox[r][.5in][t]{2.5in}{\n";
+		print TEXOUT "\\vspace{.15in}\n\n \\hfill ";
+		print TEXOUT "{\\LARGE \\bf *}" if $judge && $judge->chair;
+		print TEXOUT "{\\LARGE \\bf ".&Tab::texify(substr($judge->last.", ".$judge->first, 0, 18))."}" if $judge;
+		print TEXOUT "{\\Large \\bf Judge: \\makebox[1.75in]{\\hrulefill}}" unless $judge;
+		print TEXOUT "} \\\\ \n";
+	} else { 
+		print TEXOUT "{\\bf Room: \\makebox[1.5in]{\\hrulefill} \\hfill Round: \\makebox[.5in]{\\hrulefill} \\hfill Judge: \\makebox[1.5in]{\\hrulefill}}\n\\medskip\\newline\n";
+	}
+
+	print TEXOUT "\\begin{center}\n";
+
+	if ($tourn->setting("logo")) { 
+
+		system "cd $Tab::file_root/tmp; $Tab::latex_path_prefix/wget ".$Tab::s3_url."/".$tourn->id."/".$tourn->setting("logo");
+
+		print TEXOUT "\\vspace{-20pt}\n";
+		print TEXOUT "\\begin{figure}[h!]\n";
+		print TEXOUT "\\centerline{\\includegraphics[height=1.25in]{".$tourn->setting("logo")."}}\n";
+		print TEXOUT "\\end{figure}\n";
+		print TEXOUT "\\vspace{-20pt}\n";
+
+	} else { 
+
+		my $t_start = $tourn->start->set_time_zone($tz);
+		my $t_end = $tourn->end->set_time_zone($tz);
+		
+		my $date_string = $t_start->month_abbr." ".$t_start->day." - ".$t_end->day.", ".$t_end->year  if $t_start->month == $t_end->month;
+		$date_string = $t_start->month_abbr." ".$t_start->day." - ".$t_end->month_abbr." ".$t_end->day.", ".$t_end->year  unless $t_start->month == $t_end->month;
+
+		print TEXOUT "{\\huge \\bf ".&Tab::texify(uc($tourn->name))." } \\\\ \n";
+		print TEXOUT "\\smallskip \n ";
+		print TEXOUT "{\\large \\bf ".&Tab::texify($date_string)." } \\\\ \n";
+	}
+
+	print TEXOUT "\\end{center} \n";
+
+	if ($chair && scalar @judges > 1) { 
+		print TEXOUT "\\small {\\bf *Please chair this round.}\n";
+		print TEXOUT "\\medskip \n ";
+		print TEXOUT "\\newline\n ";
+	}
+
+	my $message = $event->setting("ballot_rules");
+
+	if ($message) { 
+		my $strip = HTML::Strip->new();
+		$message =~ s/\<li\>/*/g;
+		$message =~ s/\<\/li\>/\n/g;
+		$message =~ s/\n/\n\n/g;
+		$message = $strip->parse( $message );
+		chomp $message;
+		print TEXOUT "\\footnotesize\n ";
+		print TEXOUT "\\noindent\n ";
+		print TEXOUT &Tab::texify($message);
+		print TEXOUT "\\vspace{.2in}\n";
+		print TEXOUT "\\newline \n ";
+	}
+
+	if ($elim) { 
+
+		my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+		@entries = shuffle @entries;
+
+		my $first = shift @entries;
+		my $second = shift @entries if @entries;
+		next unless $first && $second;
+
+		print TEXOUT "\\begin{minipage}[c][][r]{7in}\n";
+		print TEXOUT "\\begin{center}\n";
+		print TEXOUT "\\large\n";
+
+		if ($no_side_constraints || not defined $locked) { 
+			print TEXOUT "\\vspace{.2in}\n";
+			print TEXOUT Tab::texify($first->code." (".$first->name.")")."  vs  ".Tab::texify($second->code." (".$second->name.")")."\n\n";
+			print TEXOUT "\\vspace{.05in}\n";
+			print TEXOUT "\\scriptsize{\\emph{Debaters should flip for sides. Please mark entry designations by side on the lines below}}\n\n";
+			print TEXOUT "\\vspace{.3in}\n";
+		} elsif ($locked) { 
+			print TEXOUT "{\\scriptsize \\emph{ Sides are locked due to a previous debate between these debaters}}\n\n";
+			print TEXOUT "\\vspace{.2in}\n";
+			print TEXOUT "\\makebox[2.75in]{".Tab::texify($first->code." (".$first->name.")")."} \\hspace{.5in} \\makebox[2.75in]{". Tab::texify($second->code." (".$second->name.")") ."}\n";
+		}
+
+		print TEXOUT "\\makebox[2.75in]{\\hrulefill} \\hspace{.5in} \\makebox[2.75in]{\\hrulefill}\n\n";
+
+		print TEXOUT "\\footnotesize\n";
+
+		if ($event->type eq "pf") { 
+			print TEXOUT "{\\bf PRO TEAM NAME \\hspace{.5in} PRO / CON } \\hspace{1.5in} {\\bf CON TEAM NAME \\hspace{.5in}  PRO / CON } " if $event->type eq "pf";
+
+		} elsif ($event->type eq "parli") { 
+			print TEXOUT "{\\bf GOVERNMENT } \\hspace{2.5in} {\\bf OPPOSITION } " 
+		} else { 
+
+			print TEXOUT "{\\bf AFFIRMATIVE } \\hspace{2.5in} {\\bf NEGATIVE } " 
+		}
+		print TEXOUT "\\end{center}\n";
+		print TEXOUT "\\end{minipage}\n";
+		print TEXOUT "\\newline\n";
+
+	} else { 
+
+		my $aff;
+		my $neg;
+
+		if ($panel) { 
+			foreach my $entry ($m->comp("/funclib/panel_entries.mas", panel => $panel)) {
+				$aff = $entry if $entry->side == 1;
+				$neg = $entry if $entry->side == 2;
+			}
+		}
+
+		my @affs = $aff->students if $aff;
+		my @negs = $neg->students if $neg;
+
+		print TEXOUT "{\\begin{minipage}[c]{3.5in}";
+		print TEXOUT "\n \\normalsize\n";
+
+		if ($event->type eq "pf") { 
+			print TEXOUT "{\\small {\\bf  PRO \\hspace{.1in} CON } \\hspace{.1in} {\\footnotesize (Circle One) } }\n\\medskip\n\\newline\n";
+			print TEXOUT "\\begin{tabular}{"
+		} else { 
+			print TEXOUT "{\\small \\bf AFFIRMATIVE}\n\\newline\n";
+			print TEXOUT "\\begin{tabular}{"
+		} 
+
+		my $first_row;
+		my $size = "1.75in" if $ranks;
+		$size = "2.25in" unless $ranks;
+
+		if ($max_entry > 1) { 
+			print TEXOUT "|p{.25in}|p{$size}";
+			$first_row = " {\\bf \\scriptsize Spkr} & {\\bf \\truncate{$size}{".Tab::texify($aff->code)."} }" if $aff;
+			$first_row = " {\\bf \\scriptsize Spkr} & {\\bf Team: } " unless $aff;
+		} else { 
+			print TEXOUT "|" unless $event->type eq "ld";
+			print TEXOUT "p{$size}";
+			$first_row = " {\\bf \\truncate{$size}{".Tab::texify($aff->code)."} }" if $aff;
+			$first_row = " {\\bf \\truncate{$size}{ Debater: } }" unless $aff;
+		}
+
+		if ($points) { 
+			print TEXOUT "|" unless $ld;
+			print TEXOUT "p{.4in}";
+			$first_row .= " & \\begin{minipage}[c]{.4in}\n";
+			$first_row .= "\\vspace{.05in}\n";
+			$first_row .= "{\\bf \\scriptsize POINTS}\n\n";
+			$first_row .= "{\\scriptsize ( $min_points - $max_points )}\n";
+			$first_row .= "\\vspace{.02in}\n";
+			$first_row .= "\\end{minipage}\n";
+		}
+
+		if ($ranks) { 
+			print TEXOUT "|" unless $ld;
+			print TEXOUT "p{.4in}";
+			$first_row .= " & \\begin{minipage}[c][][t]{.4in}\n";
+			$first_row .= "\\vspace{.05in}\n";
+			$first_row .= "{\\bf \\scriptsize RANK}\n\n";
+			$first_row .= "\\vspace{.22in}\n\n";
+			$first_row .= "\\end{minipage}\n ";
+		}
+
+		print TEXOUT "|" unless $ld;
+		print TEXOUT "}\n";
+		print TEXOUT "\\hline\n" unless $ld;
+		print TEXOUT $first_row."\\\\ \n";
+		print TEXOUT "\\hline\n" unless $ld;
+
+		my $order = 1;
+
+		if (@affs) { 
+			foreach my $speaker (@affs) { 
+				print TEXOUT " & " if scalar @affs > 1;
+				print TEXOUT Tab::texify($speaker->first." ".$speaker->last." ");
+				print TEXOUT " & " if $points;
+				print TEXOUT "\\makebox[.5in]{\\hrulefill}" if $ld;
+				print TEXOUT " & " if $ranks;
+				print TEXOUT "\\\\ \n";
+				print TEXOUT "\\hline\n" unless $ld;
+			}
+		} else { 
+
+			my $order = 1;
+			foreach (1 .. $max_entry) { 
+
+				print TEXOUT " & " if $max_entry > 1;
+				print TEXOUT "{\\footnotesize Name: }";
+				print TEXOUT " & " if $points;
+				print TEXOUT "\\makebox[.5in]{\\hrulefill}" if $ld;
+				print TEXOUT " & " if $ranks;
+				print TEXOUT "\\\\ \n";
+				print TEXOUT "\\hline\n" unless $ld;
+			}
+		}
+
+		print TEXOUT "\\end{tabular}\n";
+
+		print TEXOUT "\\end{minipage}\n";
+
+		if ($ranks) { 
+			print TEXOUT "\\hspace{.15in}\n"
+		} else { 
+			print TEXOUT "\\hspace{.25in}\n"
+		}
+
+		print TEXOUT "\\begin{minipage}[c]{3.5in}";
+		print TEXOUT "\n \\normalsize\n";
+
+		if ($event->type eq "pf") { 
+			print TEXOUT "\\hfill {\\footnotesize (Circle One) } \\hspace{.1in} {\\small {\\bf  PRO \\hspace{.1in} CON } }\n\n\\medskip\n";
+			print TEXOUT "\\begin{tabular}{"
+		} else { 
+			print TEXOUT "{\\small \\bf NEGATIVE}\n\\newline\n";
+			print TEXOUT "\\begin{tabular}{"
+		} 
+
+		undef $first_row;
+		$size = "1.75in" if $ranks;
+		$size = "2.25in" unless $ranks;
+
+		if ($max_entry > 1) { 
+			print TEXOUT "|p{.25in}|p{$size}";
+			$first_row = " {\\bf \\scriptsize Spkr} & {\\bf \\truncate{$size}{".Tab::texify($neg->code)."} }" if $neg;
+			$first_row = " {\\bf \\scriptsize Spkr} & {\\bf Team: } " unless $neg;
+		} else { 
+			print TEXOUT "|" unless $event->type eq "ld";
+			print TEXOUT "p{$size}";
+			$first_row = " {\\bf \\truncate{$size}{".Tab::texify($neg->code)."} }" if $neg;
+			$first_row = " {\\bf \\truncate{$size}{ Debater: } }" unless $neg;
+		}
+
+		if ($points) { 
+			print TEXOUT "|" unless $ld;
+			print TEXOUT "p{.4in}";
+			$first_row .= " & \\begin{minipage}[c]{.4in}\n";
+			$first_row .= "\\vspace{.05in}\n";
+			$first_row .= "{\\bf \\scriptsize POINTS}\n\n";
+			$first_row .= "{\\scriptsize ( $min_points - $max_points )}\n";
+			$first_row .= "\\vspace{.02in}\n";
+			$first_row .= "\\end{minipage}\n";
+		}
+
+		if ($ranks) { 
+			print TEXOUT "|" unless $ld;
+			print TEXOUT "p{.4in}";
+			$first_row .= " & \\begin{minipage}[c][][t]{.4in}\n";
+			$first_row .= "\\vspace{.05in}\n";
+			$first_row .= "{\\bf \\scriptsize RANK}\n\n";
+			$first_row .= "\\vspace{.22in}\n\n";
+			$first_row .= "\\end{minipage}\n ";
+		}
+
+		print TEXOUT "|" unless $ld;
+		print TEXOUT "}\n";
+		print TEXOUT "\\hline\n" unless $ld;
+		print TEXOUT $first_row."\\\\ \n";
+		print TEXOUT "\\hline\n" unless $ld;
+
+		$order = 1;
+
+		if (@negs) { 
+			foreach my $speaker (@negs) { 
+				print TEXOUT " & " if $max_entry > 1;
+				print TEXOUT Tab::texify($speaker->first." ".$speaker->last." ");
+				print TEXOUT " & " if $points;
+				print TEXOUT "\\makebox[.5in]{\\hrulefill}" if $ld;
+				print TEXOUT " & " if $ranks;
+				print TEXOUT "\\\\ \n";
+				print TEXOUT "\\hline\n" unless $ld;
+			}
+		} else { 
+
+			foreach (1 .. $max_entry) { 
+
+				print TEXOUT " & " if $max_entry > 1;
+				print TEXOUT "{\\footnotesize Name: }";
+				print TEXOUT " & " if $points;
+				print TEXOUT "\\makebox[.5in]{\\hrulefill}" if $ld;
+				print TEXOUT " & " if $ranks;
+				print TEXOUT "\\\\ \n";
+				print TEXOUT "\\hline\n" unless $ld;
+			}
+		}
+
+		print TEXOUT "\\end{tabular}\n";
+		print TEXOUT "\\end{minipage}\n";
+		print TEXOUT "\\medskip\n";
+		print TEXOUT "\\newline\n";
+	}
+
+	print TEXOUT "\\begin{minipage}[c][][r]{7in}\n";
+	print TEXOUT "\\begin{center}\n";
+	print TEXOUT "\\vspace{.3in}\n";
+	print TEXOUT "\\normalsize\n";
+	print TEXOUT "Winner: \\makebox[2.5in]{\\hrulefill} debating on the \\makebox[1in]{\\hrulefill}\n";
+	print TEXOUT "\\hspace{.15in} \\footnotesize Low point win? \\makebox[.5in]{\\hrulefill} \n" if $lpw &! $elim;
+	print TEXOUT "\n";
+
+	print TEXOUT "\\scriptsize\n";
+	if ($elim) { 
+		print TEXOUT "\\makebox[1.25in]{}School/Team\\makebox[2.3in]{} Side (Aff or Neg)" unless $event->type eq "pf";
+		print TEXOUT "\\makebox[1.25in]{}School/Team\\makebox[2in]{} Side (Pro or Con)" if $event->type eq "pf"; 
+	} else { 
+		print TEXOUT "\\makebox[.65in]{}School/Team\\makebox[2.3in]{} Side (Aff or Neg)" unless $event->type eq "pf";
+		print TEXOUT "\\makebox[.85in]{}School/Team\\makebox[2.3in]{} Side (Pro or Con)" if $event->type eq "pf"; 
+		print TEXOUT "\\makebox[1.25in]{}" if $lpw;
+	}
+	print TEXOUT "\n\n";
+	print TEXOUT "\\vspace{.25in}\n";
+	print TEXOUT "Signature:  \\makebox[3.25in]{\\hrulefill} ";
+	print TEXOUT "School: \\makebox[2in]{\\hrulefill}" if $event->type eq "pf";
+	print TEXOUT "\n\n";
+	print TEXOUT "\\end{center}\n";
+	print TEXOUT "\\end{minipage}\n\n";
+	print TEXOUT "\\vspace{.15in}\n";
+	print TEXOUT "\\noindent";
+	print TEXOUT "\\makebox[7in]{\\hrulefill}\n\n";
+	print TEXOUT "\\noindent\n";
+	print TEXOUT "Comments \\\& Reason for Decision:\n \n" unless $elim;
+	print TEXOUT "\\vspace{.5in}\n";
+
+	my $point_scale = $event->setting("point_scale");
+	if ($point_scale) { 
+		my $strip = HTML::Strip->new();
+		$point_scale =~ s/\<li\>/*/g;
+		$point_scale =~ s/\<\/p\>/\n \n/g;
+		$point_scale =~ s/\<\/li\>/\n \n/g;
+		$point_scale = $strip->parse( $point_scale );
+		$point_scale = Tab::texify($point_scale);
+		$point_scale =~ s/\.\.\./ \\dotfill /g;
+		print TEXOUT "\\scriptsize \n\n";
+		print TEXOUT "\\noindent \n ";
+		print TEXOUT "\\hfill ";
+		print TEXOUT "\\parbox[l][][c]{1.5in}{";
+		print TEXOUT "{\\bf Point Scale:} \n\n";
+		print TEXOUT "\\fbox{ \n";
+		print TEXOUT "\\parbox[l][][c]{1.5in}{";
+		print TEXOUT $point_scale;
+		print TEXOUT "}\n";
+		print TEXOUT "}\n";
+		print TEXOUT "}\n";
+		print TEXOUT "\\vspace{.5in} \\newline \n. ";
+	}
+
+	my $speech_times = $event->setting("speech_times");
+
+	if ($speech_times) { 
+		my $strip = HTML::Strip->new();
+		$speech_times =~ s/\<li\>/*/g;
+		$speech_times =~ s/\<\/p\>/\n \n/g;
+		$speech_times =~ s/\<\/li\>/\n \n/g;
+		$speech_times = $strip->parse( $speech_times );
+		$speech_times = Tab::texify($speech_times);
+		$speech_times =~ s/\.\.\./ \\dotfill /g;
+		print TEXOUT "\\scriptsize \n ";
+		print TEXOUT "\\hfill ";
+		print TEXOUT "\\parbox[l][][c]{1.5in}{";
+		print TEXOUT "{\\bf Speech Times:} \n\n";
+		print TEXOUT "\\fbox{ \n";
+		print TEXOUT "\\parbox[l][][c]{1.5in}{";
+		print TEXOUT $speech_times;
+		print TEXOUT "}\n";
+		print TEXOUT "}\n";
+		print TEXOUT "}\n";
+		print TEXOUT "\\medskip \\newline \n ";
+	}
+
+	close (TEXOUT);
+
+	return;
+
+</%perl>

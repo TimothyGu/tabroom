@@ -1,0 +1,709 @@
+<%args>
+	$tourn
+	$set_id => undef
+</%args>
+<%init>
+
+	my $switch;
+	my (%cume_settings) = $m->comp("/funclib/tourn_cume_sweeps.mas", tourn => $tourn);
+	my (%place_settings) = $m->comp("/funclib/tourn_place_sweeps.mas", tourn => $tourn);
+    my $numero = keys %cume_settings;
+
+</%init>
+
+	<div class="left huge">
+
+		<h2>Team Awards / Sweepstakes</h2>
+
+		<& tabbar.mas, tourn => $tourn, whoami => "sweeps" &>
+
+%		if ($set_id) { 
+
+%			my $set = Tab::SweepSet->retrieve($set_id);
+%			my @all_events = $set->events;
+%			my @events;
+
+<%perl>
+			foreach my $event (@all_events) { 
+
+				if ($event && $event->tourn && $event->tourn->id == $tourn->id ) { 
+					push @events, $event;
+				} elsif ($event) { 
+					foreach (Tab::SweepEvent->search( event => $event, sweep_set => $set_id)) { 
+						$_->delete;
+					}
+				}
+			}
+</%perl>
+
+			<span class="evenrow block">
+
+				<form action="sweep_set_save.mhtml" method="post">
+
+				<span class="third">
+					Name of ruleset:
+				</span>
+
+				<span class="third">
+					<input type="text" name="name" value="<% $set->name %>" size="25">
+				</span>
+
+				<span class="sixth">
+					<input type="hidden" name="set_id" value="<% $set->id %>">
+					<input type="submit" class="thin" value="Save">
+				</span>
+
+				<span class="sixth">
+					<a class="dkred block" <& "/funclib/confirm.mas", warn => "Deleting this set. Are you sure?" &> href="sweep_set_delete.mhtml?set_id=<% $set_id %>">Delete</a>
+				</span>
+
+				</form>
+
+			</span>
+
+			<div class="third">
+
+				<h4>Limits</h4>
+
+					<form action="sweep_limits.mhtml" method="post">
+					<input type="hidden" name="set_id" value="<% $set->id %>">
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<span class="twothird smallish">Entries counted across all events</span>
+						<span class="third">
+							<input type="number" min="0" max="999" size="4" name="entries" value="<% $set->rule("entries") %>" class="thin smaller">
+						</span>
+
+					</span>
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>  ">
+
+						<span class="smallish twothird">
+							Entries counted per event
+						</span>
+
+						<span class="third">
+							<input type="number" min="0" max="999" class="thin smaller" size="4" name="event_entries" value="<% $set->rule("event_entries") %>" >
+						</span>
+
+					</span>
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>  ">
+
+						<span class="smallish twothird">
+							Events to count
+						</span>
+
+						<span class="third">
+							<input type="number" min="0" max="999" size="4" class="smaller thin smaller" name="events" value="<% $set->rule("events") %>" >
+						</span>
+
+					</span>
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> ">
+
+						<span class="smallish twothird">
+							Wildcards (entries
+							counted beyond limits)
+						</span>
+
+						<span class="third">
+							<input type="number" min="0" max="999" class="thin smaller" size="4" name="wildcards" value="<% $set->rule("wildcards") %>" >
+						</span>
+
+					</span>
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> ">
+
+						<span class="smallish twothird">
+							Number of schools to print
+							on reports
+						</span>
+
+						<span class="third">
+							<input type="number" min="0" max="999" class="thin smaller" size="4" name="print_limit" value="<% $set->rule("print_limit") %>" >
+						</span>
+
+					</span>
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>  ">
+
+						<span class="smallish twothird">
+							<label for="novice_only">
+							Novices only
+							</label>
+						</span>
+
+						<span class="third">
+							<input type="checkbox" id="novice_only" class="largecheck" name="novice_only" value="1" <% $set->rule("novice_only") ? 'checked="checked"' : "" %>>
+						</span>
+
+					</span>
+
+					<div class="liblrow rightalign">
+						<input type="submit" class="thin" value=" Save Limits ">
+						</form>
+					</div>
+
+			</div>
+
+			<div class="third">
+
+				<h4>Events in ruleset</h4>
+
+%				my %used = ();
+
+%				foreach my $event (sort {$a->name cmp $b->name} @events) { 
+
+%					next unless $event && $event->id;
+%					next unless $event->tourn->id == $tourn->id;
+%					$used{$event->id} = $event;
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> block smallish">
+						<span class="threequarter">
+							<% $event->name %>
+						</span>
+						<span class="quarter centeralign">
+							<a class="dkred block" href="sweep_event_rm.mhtml?event_id=<% $event->id %>&set_id=<% $set->id %>">
+								Del
+							</a>
+						</span>
+					</span>
+%				}
+
+				<span class="liblrow smallish">
+
+					<form action="sweep_event_add.mhtml" method="post">
+					<input type="hidden" name="set_id" value="<% $set->id %>">
+
+					<span class="sixth centeralign">
+						Add:
+					</span>
+
+					<span class="fivesixth">
+						<select name="event_id" onchange='this.form.submit()' class="fixedsmall">
+							<option value="">Select to add</option>
+							<option value="all">All events</option>
+							 
+%								foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+%									next if $used{$event->id};
+								<option value="<% $event->id %>">
+									<% $event->name %>
+								</option>
+%								}
+						</select>
+
+						<noscript>
+							<input type="hidden" name="set_id" value="<% $set->id %>">
+							<input type="submit" class="thin" value="Save">
+						</noscript>
+
+					</span>
+					</form>
+
+				</span>
+				
+			</div>
+
+			<div class="third">
+
+				<h4>Rulesets included</h4>
+
+%				my %already_child;
+%				undef $switch;
+
+%				foreach my $child ($set->children) { 
+
+%					$already_child{$child->id}++;
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> block smallish">
+						<span class="threequarter">
+							<% $child->name %>
+						</span>
+						<span class="quarter centeralign">
+							<a class="dkred block" href="sweep_child_rm.mhtml?set_id=<% $set->id %>&child_id=<% $child->id %>">
+								Del
+							</a>
+						</span>
+					</span>
+%				}
+
+				<span class="liblrow smallish">
+
+					<form action="sweep_child_add.mhtml" method="post">
+					<input type="hidden" name="set_id" value="<% $set->id %>">
+
+					<span class="sixth centeralign">
+						Add:
+					</span>
+
+					<span class="fivesixth">
+
+						<select name="child_id" onchange='this.form.submit()' class="fixedsmall">
+							<option value="">Select to add:</option>
+
+<%perl>
+								SET:
+								foreach my $other_set ($tourn->sweep_sets) { 
+
+									next if $set->id == $other_set->id;
+									next if $already_child{$other_set->id}++;
+
+									my @children = $other_set->children;
+
+									my %done;
+
+									# Recursively check to make sure the child or
+									# any of its children aren't me, to avoid
+									# infinite loops.  Recursion!  See, I didn't
+									# entirely sleep through CS50.
+
+									while (@children) { 
+										my $test = shift @children;
+										next SET if $test->id == $set->id;
+										foreach my $subchild ($test->children) { 
+											push @children, $subchild unless $done{$subchild->id};
+										}
+										$done{$test->id}++;
+									}
+
+</%perl>
+										<option value="<% $other_set->id %>">
+											<% $other_set->name %>
+										</option>
+%							}
+						</select>
+
+						<noscript>
+							<input type="hidden" name="set_id" value="<% $set->id %>">
+							<input type="submit" class="thin" value="Save">
+						</noscript>
+
+					</span>
+					</form>
+
+				</span>
+
+%				my %round_used = ();
+
+				<h4 style="margin-top: 15px;">Rounds excluded</h4>
+
+%				foreach my $rule (sort {$a->tag cmp $b->tag} $set->rules( tag => "ignore_round")) { 
+
+%					my $round = Tab::Round->retrieve($rule->value);
+%					next unless $round;
+%					$round_used{$round->id}++;
+
+					<span class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> block smallish">
+						<span class="threequarter">
+							<% $round->event->abbr %> <% $round->realname %>
+						</span>
+						<span class="quarter centeralign">
+							<a class="dkred block" href="sweep_round_rm.mhtml?round_id=<% $round->id %>&set_id=<% $set->id %>">
+								Del
+							</a>
+						</span>
+					</span>
+%				}
+
+				<span class="liblrow smallish">
+
+					<form action="sweep_round_add.mhtml" method="post">
+					<input type="hidden" name="set_id" value="<% $set->id %>">
+
+					<span class="sixth centeralign">
+						Add:
+					</span>
+
+					<span class="fivesixth">
+						<select name="round_id" onchange='this.form.submit()' class="fixedsmall">
+							<option value="">Select to add:</option>
+%								foreach my $event_id (sort keys %used) { 
+%									my $event = $used{$event_id};
+									<optgroup label="<% $event->name %>">
+%									foreach my $round ($event->rounds) {
+%										next if $round_used{$round->id};
+										<option value="<% $round->id %>">
+											<% $round->realname %>
+										</option>
+%									}
+%								}
+						</select>
+
+						<noscript>
+							<input type="hidden" name="set_id" value="<% $set->id %>">
+							<input type="submit" class="thin" value="Save">
+						</noscript>
+					</span>
+					</form>
+
+				</span>
+				
+
+			</div>
+
+			<br style="clear: both;" />
+		
+%			if ($set->rules) { 
+				<h4>Rules in set</h4>
+%			}
+
+%			undef $switch;
+
+			<table cellpadding="4" cellspacing="1" width="100%">
+
+%				foreach my $rule (sort {$a->tag cmp $b->tag} $set->rules) { 
+
+%					my $tag = $rule->tag;
+
+%					next if $tag eq "novice_only";
+%					next if $tag eq "events";
+%					next if $tag eq "entries";
+%					next if $tag eq "event_entries";
+%					next if $tag eq "wildcards";
+%					next if $tag eq "print_limit";
+%					next if $tag eq "ignore_round";
+%					my $index = index($tag, 'rev_');
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							<% $switch %>.
+						</td>
+
+						<td class="smallish">
+%							if ($rule->value && $index != 0 ) { 
+								<% $rule->value %> point<% $rule->value == 1 ? "" : "s" %> for
+%							}
+						</td>
+
+						<td class="smallish">
+							<% $tag eq "points_per_prelim" ? "Prelim round appearance" : "" %>
+							<% $tag eq "points_per_elim" ? "Elim round appearance" : "" %>
+							<% $tag eq "points_per_final" ? "Final round appearance" : "" %>
+							<% $tag eq "rev_per_elim_rank" ? "6 minus each rank in elim rounds" : "" %>
+							<% $tag eq "rev_per_final_rank" ? "6 minus each rank in the final round" : "" %>
+							<% $tag eq "rev_per_prelim_rank" ? "6 minus each rank in prelim rounds" : "" %>
+							<% $tag eq "rev_per_prelim_rank_sansworst" ? "6 minus each rank in prelim rounds, dropping the worst" : "" %>
+							<% $tag eq "rev_per_elim_place" ? "6 minus placement in elim rounds" : "" %>
+							<% $tag eq "rev_per_final_place" ? "6 minus placement in the final round" : "" %>
+							<% $tag eq "rev_per_overall_place" ? "6 minus placement overall" : "" %>
+							<% $tag eq "debate_win" ? "Ballot won (debate)" : "" %>
+							<% $tag eq "debate_loss" ? "Ballot lost (debate)" : "" %>
+							<% $tag eq "debate_round_win" ? "Round won (debate)" : "" %>
+							<% $tag eq "debate_round_loss" ? "Round lost (debate)" : "" %>
+							<% $tag eq "place" ? Lingua::EN::Numbers::Ordinate::ordinate($rule->place)." place overall" : "" %>
+							<% $tag eq "points_per_prelim_rank" ? Lingua::EN::Numbers::Ordinate::ordinate($rule->place)." rank in prelim" : "" %>
+							<% $tag eq "cume" ? "Prelim cumulative ranks of ".$rule->place : "" %>
+							<% $tag eq "manual" ? "Count manually-entered sweeps points (under Tabulation)" : "" %>
+						</td>
+
+						<td class="centeralign">
+							<a class="dkred block" href="sweep_rule_rm.mhtml?rule_id=<% $rule->id %>">
+								DELETE
+							</a>
+						</td>
+
+					</tr>
+%				}
+
+			</table>
+
+			<br style="clear: both;" />
+
+			<h4>
+				Add new rule:
+			</h4>
+			
+			<table cellpadding="3" cellspacing="1" width="100%">
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						Points Per Round Participated In
+					</td>
+
+					<td class="smallish">
+						Type:
+						<select name="tag">
+							<option value="points_per_prelim">Prelim Round</option>
+							<option value="points_per_elim">Elim Round</option>
+							<option value="points_per_final">Final Round</option>
+						</select>
+					</td>
+
+					<td class="smallish">
+						Points: <input type="number" name="points" size="5" min="1" max="3">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="points" value="1">
+						Count reverse points (6-rank) for
+					</td>
+
+					<td colspan="2">
+						<select name="tag" class="fixed">
+							<option value="rev_per_prelim_rank">Each Rank in Prelim Rounds</option>
+							<option value="rev_per_prelim_rank_sansworst">Each Rank in Prelim Rounds, Dropping the Worst</option>
+							<option value="rev_per_elim_rank">Each Rank in Elim Rounds</option>
+							<option value="rev_per_final_rank">Each Rank in the Final Round</option>
+							<option value="rev_per_elim_place">Placement in each Elim Round</option>
+							<option value="rev_per_final_place">Placement in the Final Round</option>
+							<option value="rev_per_overall_place">Placement Overall</option>
+						</select>
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for each debate ballot won
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="debate_win">
+					</td>
+
+					<td>
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for each debate ballot lost
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="debate_loss">
+					</td>
+
+					<td>
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for each debate round won
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="debate_round_win">
+					</td>
+
+					<td>
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for each debate round loss
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="debate_round_loss">
+					</td>
+
+					<td>
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for prelim cumulative score
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="cume">
+					</td>
+
+					<td class="smallish">
+						Score:
+						<input type="number" name="place" max="99" min="1" size="5">
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for prelim individual rank
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="points_per_prelim_rank">
+					</td>
+
+					<td class="smallish">
+						Rank:
+						<input type="number" name="place" max="99" min="1" size="5">
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Give points for final overall placement
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="place">
+					</td>
+
+					<td class="smallish">
+						Place:
+						<input type="number" name="place" max="99" min="1" size="5">
+					</td>
+
+					<td class="smallish">
+						Points:
+						<input type="number" name="points" max="99" min="1" size="5">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td colspan="3" class="smallish">
+						Manually entered points (under Tab -> Sweeps)
+						<form action="sweep_rule_save.mhtml">
+						<input type="hidden" name="set_id" value="<% $set->id %>">
+						<input type="hidden" name="tag" value="manual">
+					</td>
+
+					<td>
+						<input type="submit" class="thin" value="Add">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+
+
+%		} else { 
+
+			<h4>Choose a set at right</h4>
+
+%		}
+
+	</div>
+
+	<div class="right small">
+
+%		my @sets = $tourn->sweep_sets;
+
+		<div class="sidenote">
+
+			<h4>Sweeps Sets </h4>
+
+%			foreach my $set (@sets) { 
+				<a class="<% $set_id == $set->id ? "dk" : "" %>blue block" href="sweeps.mhtml?set_id=<% $set->id %>">
+					<% $set->name %>
+				</a>
+%			}
+
+
+			<h5>Add New Set</h5>
+
+			<form action="sweep_set_save.mhtml" method="post">
+			<div class="evenrow">
+				<span class="threequarter">
+					<input type="text" size="18" name="name" placeholder="Enter name">
+				</span>
+				<span class="quarter centeralign">
+					<input type="submit" class="thin" value="Go" style="margin-left: 3px; margin-right: 0px;">
+				</span>
+			</div>
+			</form>
+
+		</div>
+
+	</div>
+

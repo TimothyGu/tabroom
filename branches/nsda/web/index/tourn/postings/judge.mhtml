@@ -1,0 +1,258 @@
+<%args>
+	$judge_id
+	$tourn
+	$tourn_id => undef
+	$account => undef
+</%args>
+<%init>
+
+	my $judge = Tab::Judge->retrieve($judge_id);
+	$tourn = Tab::Tourn->retrieve($tourn_id);
+
+	if (not defined $judge) { 
+		my $err = "Judge not found";
+		$m->redirect("index.mhtml?tourn_id=".$tourn->id."&err=$err") if $tourn;
+	}
+
+	my $group = $judge->judge_group;
+	$tourn = $group->tourn;
+
+	my $switch; 
+
+</%init>
+
+	<& menu.mas, tourn_id => $tourn->id, group_id => $group->id &>
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter rightalign">
+			<h4>
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<br style="clear: both;">
+
+        <& ../tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		my @panels = $m->comp('/funclib/judge_panels.mas', judge => $judge, published => 1);
+%		my %seen = (); 
+%		@panels = grep { ! $seen{$_->id} ++ } @panels;
+
+			<h4>Judge <% $judge->first." ".$judge->last %> <% $judge->school ? "from ".$judge->school->short_name : " Tournament Hire " %></h4>
+
+%		if (@panels) { 
+
+			<h4>Pairings</h4>
+
+			<table cellpadding="4" cellspacing="1">
+
+				<tr class="yellowrow smallish">
+
+					<th>
+						Round
+					</th>
+
+					<th>
+						Div
+					</th>
+
+					<th>
+						Room
+					</th>
+
+					<th>
+						Entries
+					</th>
+
+				</tr>
+
+%			}
+
+%			foreach my $panel (@panels) {
+
+%				my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+%				my $aff;
+%				my $neg;
+
+%				foreach my $entry (@entries) { 
+%					$aff = $entry if Tab::Ballot->search( panel => $panel->id, entry => $entry->id, side => 1);
+%					$neg = $entry if Tab::Ballot->search( panel => $panel->id, entry => $entry->id, side => 2);
+%				}
+
+%				my $bye++ if $panel->bye;
+
+				<tr class="smallish <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						<a class="white" href="round.mhtml?round_id=<% $panel->round->id %>&tourn_id=<% $tourn->id %>">
+							<% $panel->round->realname %>
+						</a>
+					</td>
+
+					<td>
+						<% $panel->round->event->abbr %>
+					</td>
+				
+					<td>
+						<% $bye ? "Bye" : $panel->room ? $panel->room->name : "" %>
+					</td>
+
+					<td>
+
+%						if ($panel->round->event->type eq "speech") { 
+
+%							foreach my $entry (@entries) { 
+								<span class="sixth">
+									<% $entry->code %>
+								</span>
+%							}
+
+%						} else { 
+							<span class="half">
+								<% $bye ? "" : "Aff:" %>
+								<% $aff ? $aff->code : "" %>
+							</span>
+							<span class="half">
+								<% $bye ? "" : "Neg:" %>
+								<% $neg ? $neg->code : ""  %>
+							</span>
+%						} 
+
+					</td>
+
+				</tr>
+
+%			}
+
+		</table>
+
+%		my @results = $m->comp('/funclib/judge_panels.mas', judge => $judge, post_results => 1 );
+%		my %rseen = (); 
+%		@results = grep { ! $rseen{$_->id} ++ } @results;
+
+%		if (@results) { 
+			<h4>Decisions</h4>
+%		}
+
+		<table cellpadding="2" cellspacing="1">
+
+%			foreach my $panel (@results) { 
+
+%				my $points;
+%				$points++ if $panel->round->post_results == 2;
+
+%				my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+%				my %done = ();
+
+%				foreach my $entry (@entries) { 
+
+%					next if $done{$entry->id};
+%					$done{$entry->id}++;
+
+%					my $aff++ if Tab::Ballot->search( panel => $panel->id, entry => $entry->id, side => 1);
+%					my $neg++ if Tab::Ballot->search( panel => $panel->id, entry => $entry->id, side => 2);
+
+%					my $bye++ if $panel->bye;
+
+					<tr class="smallish <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							<a class="white" href="round.mhtml?round_id=<% $panel->round->id %>&tourn_id=<% $tourn->id %>">
+								<% $panel->round->realname %>
+							</a>
+						</td>
+
+						<td>
+							<% $aff ? "Aff" : $neg ? "Neg" : "Bye" %>
+						</td>
+
+%						my @scores = $m->comp('/funclib/panel_scores.mas', panel => $panel, entry => $entry, judge => $judge);
+
+%       	    		my %scores_by_recipient =();
+
+% 		          		foreach my $score (@scores) {   
+%							push @{$scores_by_recipient{$score->student->id}}, $score if $score->student && $score->student->id; 
+%       	    		}
+
+						<td class="fixed nowrap">
+							<a class="padless white" href="entry_record.mhtml?tourn_id=<% $tourn->id %>&entry_id=<% $entry->id %>">
+								<% $entry->code %>
+							</a>
+						</td>
+
+						<td>
+%							foreach my $score (@scores) { 
+								<% $score->tag eq "ballot" ? $score->value ? "W" : "L" : "" %>
+%							}
+						</td>
+
+%						my @students = $entry->students;
+
+%						foreach my $student (@students) { 
+
+%							if ($bye || $points < 1) { 
+								<td colspan="<% 2 * scalar $entry->students %>"></td>
+%							} else {
+
+%								if (scalar @students > 1) { 
+									<td>
+										<% $student->last %>
+									</td>
+%								}
+
+%								foreach my $score (@{$scores_by_recipient{$student->id}}) { 
+	
+									<td>	
+										<% $score->value %>
+									</td>	
+%								}
+
+%							}
+
+%						}
+
+					</tr>
+%				}
+
+				<tr>
+					<td>
+					</td>
+				</tr>
+
+%			}
+
+		</table>
+
+%		if ($judge->account > 0) { 
+			<h4>Previous Tournaments</h4>
+
+			<div class="centeralign block">
+				<a href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>" class="dkgreen block">
+					Full Historical Record
+				</a>
+			</div>
+
+%		}
+
+		<h4>Live Updates</h4>
+
+		<div class="liblrow rightalign padmore">
+			<form action="/index/tourn/updates/judge_follow.mhtml" method="post">
+			<input type="hidden" name="judge_id" value="<% $judge->id %>">
+			<input type="hidden" name="tourn_id" value="<% $tourn->id %>">
+				<input type="submit" class="thin" value="Subscribe to Live Updates">
+			</form>
+		</div>
+
+
+	</div>
+

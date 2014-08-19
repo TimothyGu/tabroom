@@ -1,0 +1,78 @@
+<%args>
+	$tourn_id
+	$chapter_id
+	$account
+	$session
+	$return => undef
+</%args>
+<%init>
+
+	my $tourn = Tab::Tourn->retrieve($tourn_id);
+	my $chapter = Tab::Chapter->retrieve($chapter_id);
+
+	$m->comp("/user/chapter/auth.mas", chapter => $chapter, account => $account, session => $session) unless $return;
+
+	my ($existing_school) = $chapter->schools( tourn => $tourn->id);
+
+	if ($existing_school) {
+		$m->redirect("/user/enter/entry.mhtml?school_id=".$existing_school->id);
+	}
+
+	my $now = DateTime->now();
+
+	$m->abort if $tourn->reg_start > $now;
+	$m->abort if $tourn->reg_end < $now;
+
+	my ($school_code, $school_region) = $m->comp("/funclib/chapter_code.mas", tourn => $tourn, chapter => $chapter);
+
+	my $school = Tab::School->create({
+		tourn => $tourn->id,
+		chapter => $chapter->id,
+		name => $chapter->name,
+		code => $school_code,
+		region => $school_region,
+		contact_name => $account->first." ".$account->last,
+		contact_number => $account->phone,
+		contact => $account->id,
+		entered_on => $now
+	});
+
+	$m->comp('/funclib/chapter_conflicts.mas', school => $school);
+
+	if ($tourn->setting("track_reg_changes")) {
+
+		my $text = "School registered by ".$account->first." ".$account->last;
+
+		my $change = Tab::TournChange->create({
+			tourn => $tourn->id,
+			school => $school->id,
+			type => "registration",
+			text => $text,
+			account => $account->id
+		});
+
+	}
+
+	foreach my $fine ($tourn->tourn_fees) {
+
+		next unless $fine->amount > 0;
+
+		next if $fine->start && $fine->start > $now;
+		next if $fine->end && $fine->end < $now;
+
+		my $fee = Tab::SchoolFine->create({
+			school => $school->id,
+			amount => $fine->amount,
+			reason => $fine->reason,
+			tourn => $tourn->id,
+			levied_on => $now
+		});
+
+	}
+
+	return $school if $return;
+
+	$m->redirect("disclaimer.mhtml?school_id=".$school->id) if $tourn->setting("disclaimer") > 0;
+	$m->redirect("entry.mhtml?school_id=".$school->id);
+
+</%init>

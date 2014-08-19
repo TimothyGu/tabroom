@@ -1,0 +1,26 @@
+<%args>
+	$name => "RECEIPT";
+	$school_id
+	$session
+</%args>
+<%init>
+	my $school = Tab::School->retrieve($school_id);
+	my $tourn = $school->tourn;
+
+	my $filename = "invoice-".$school_id."-".$session->id;
+	my $filepath = $Tab::file_root."/tmp/".$filename;
+
+	my $garbage = `rm -f $filepath.*`;
+
+	$name =~ tr/[a-z]/[A-Z]/;
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1);
+
+	$m->comp("/register/school/print/fees.mas", school => $school, filename => $filename);
+
+	$m->comp("/register/school/print/concessions.mas", school => $school, filename => $filename) unless $school->tourn->setting("concession_invoice") eq "combined";
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+</%init>
+	

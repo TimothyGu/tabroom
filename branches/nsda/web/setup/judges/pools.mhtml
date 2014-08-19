@@ -1,0 +1,261 @@
+<%args>
+	$circuit
+	$tourn
+	$group_id
+	$new => undef
+</%args>
+<%init>
+
+	my @sites = $m->comp("/funclib/tourn_sites.mas", tourn => $tourn);
+
+	my $group = Tab::JudgeGroup->retrieve($group_id) if $group_id;
+
+	unless (@sites) { 
+
+		my $err = "You have to set up a site/location for your tournament before you can create judge pools.";
+		$m->redirect("/setup/rooms/manage_sites.mhtml?err=$err");
+
+	}
+
+	my $switch;
+
+</%init>
+
+    <script type="text/javascript"> 
+		function showMe (it, box) { 
+			var vis = (box.checked) ? "inline-block" : "none"; 
+			document.getElementById(it).style.display = vis;
+		} 
+    </script>
+
+	<& menubar.mas, group_id => $group_id, tourn => $tourn, page => "pools" &>
+
+	<div class="left huge">
+
+		<h2>
+			<% $group->name %>
+		</h2>
+
+		<& "tabbar.mas", whoami => "pools", group => $group &>
+
+		<h4>Judge pools</h4>
+
+		<p>
+			Use pools to only pull judges in that pool for a certain round, as in an elim.
+			You can add judges to a pool under Paneling -> Judge Pools.  Assign pools to
+			a round under Settings -> Schedule, or under Paneling -> Assign Judges -> Settings.
+		</p>
+
+
+		<table cellpadding="4" cellspacing="1" width="100%">
+
+			<tr class="yellowrow">
+				
+				<th class="smallish">
+					Pool Name
+				</th>
+
+				<th class="smallish">
+					Standby
+				</th>
+
+				<th class="smallish">
+					Publish
+				</th>
+
+				<th class="smallish">
+					Registrants assign judges to pools
+				</th>
+
+%				if (scalar @sites > 1) { 
+					<th class="smallish">
+						Site
+					</th>
+%				}
+
+				<th>
+					<form action="pool_save.mhtml" method="post">
+					<input type="hidden" name="group_id" value="<% $group->id %>">
+				</th>
+
+			</tr>
+
+%			foreach my $pool (sort {$a->name cmp $b->name} $group->pools) { 
+
+%				my $onclick = "showMe('event_based_".$pool->id."', this),showMe('burden_".$pool->id."', this)";
+%				my $standby_click = "showMe('standby_".$pool->id."', this)";
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<td>
+						<input type="text" name="<% $pool->id %>_name" size="10" value="<% $pool->name %>">
+					</td>
+
+					<td class="leftalign">
+
+						<input type="checkbox" name="<% $pool->id %>_standby" onclick="<% $standby_click %>" value="1" <% ($pool->standby) ? "checked" : ""  %>  >
+
+						<span class="smallish" id="standby_<% $pool->id %>" style="padding-left: 10px; <% $pool->standby ? "display: inline-block;" : "display: none;" %>">
+
+							<select name="<% $pool->id %>_timeslot" class='fixedtiny'>
+
+								<option value="">Choose When:</option>
+
+%								foreach my $timeslot ($tourn->timeslots) { 
+									<option value="<% $timeslot->id %>" <% $pool->standby_timeslot && $timeslot->id == $pool->standby_timeslot->id ? "selected" : "" %> >
+										<% $timeslot->name %>
+									</option>
+%								}
+							</select>
+						</span>
+					</td>
+
+					<td class="leftalign">
+						<input type="checkbox" name="<% $pool->id %>_publish" value="1" <% ($pool->publish) ? "checked" : ""  %>  >
+					</td>
+
+					<td class="leftalign">
+
+						<input type="checkbox" name="<% $pool->id %>_registrant" onclick="<% $onclick %>" value="1" <% ($pool->registrant) ? "checked" : ""  %>  >
+
+						|
+
+						<span class="threequarter smallish padno" id="event_based_<% $pool->id %>" style="<% $pool->registrant ? "display: inline-block;" : "display: none;" %>">
+
+							<span class="half padno">
+								<label for="<% $pool->id %>_event_based">
+								By Event
+								</label>
+
+								<input type="checkbox" class="thin" style="margin-top: -2px; margin-bottom: 0;padding-bottom: 0;" id="<% $pool->id %>_event_based" name="<% $pool->id %>_event_based" value="1" <% ($pool->event_based) ? "checked" : ""  %>  >
+
+							</span>
+
+							<span class="half">
+								| Burden
+								<input type="text" style="margin: 0;" class="thinner" name="<% $pool->id %>_burden" size="2"  value="<% $pool->burden %>">%
+							</span>
+
+						</span>
+					</td>
+
+%					if (scalar @sites > 1) { 
+						<td class="leftalign smallish">
+							<select name="<% $pool->id %>_site" class="fixedtiny">
+%								foreach my $site (@sites) { 
+									<option value="<% $site->id %>" <% $site->id == $pool->site->id ? "selected" : "" %>>
+										<% $site->name %>
+									</option>
+%								}
+							</select>
+						</td>
+%					} else { 
+						<input type="hidden" name="<% $pool->id %>_site" value="<% $sites[0]->id %>">
+%					}
+
+					<td class="smallish centeralign">
+%						my $warn = "You are about to delete his pool and all its judges.  Are you sure?";
+						<a <& "/funclib/confirm.mas", warn => $warn &>  href="pool_rm.mhtml?pool_id=<% $pool->id %>" class="dkred full block">
+							X
+						</a>
+					</td>
+
+				</tr>
+
+%			}
+
+%			if ($group->pools) { 
+	
+				<tr>
+					<td colspan="8">
+						<hr />
+					</td>
+				</tr>
+
+%			}
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<td>
+					<input type="text" name="new_name" size="10" placeholder="New judge pool">
+				</td>
+
+				<td>
+%					my $standby_click = "showMe('standby_new', this),showMe('burden_new', this)";
+					<input type="checkbox" name="new_standby" value="1" onclick="<% $standby_click %>">
+					<span class="smallish" id="standby_new" style="display: none;">
+						<select name="new_timeslot" class='fixedtiny'>
+							<option value="">Choose When:</option>
+%								foreach my $timeslot ($tourn->timeslots) { 
+								<option value="<% $timeslot->id %>">
+									<% $timeslot->name %>
+								</option>
+%								}
+						</select>
+					</span>
+				</td>
+
+				<td class="leftalign">
+					<input type="checkbox" name="new_publish" value="1">
+				</td>
+
+				<td class="leftalign">
+
+%					my $onclick = "showMe('event_based_new', this),showMe('burden_new', this)";
+
+					<input type="checkbox" name="new_registrant" onclick="<% $onclick %>" value="1">
+
+					<span class="twothird smallish rightalign padno" id="event_based_new" style="display: none;">
+
+						<span class="half">
+							<label for="new_event_based">
+							By Event
+							</label>
+						
+							<input type="checkbox" class="padno thin" style="margin-bottom: 0;padding-bottom: 0;" id="new_event_based" name="new_event_based" value="1">
+						</span>
+
+						<span class="quarter">
+							Burden
+						</span>
+						<span class="quarter">
+							<input type="text" style="margin: 0;" class="thinner" name="new_burden" size="2">
+						</span>
+
+					</span>
+
+				</td>
+
+%				if (scalar @sites > 1) { 
+					<td class="leftalign smallish">
+						<select name="new_site" class="fixedtiny">
+%							foreach my $site (@sites) { 
+								<option value="<% $site->id %>">
+									<% $site->name %>
+								</option>
+%							}
+						</select>
+					</td>
+%				} else { 
+					<input type="hidden" name="new_site" value="<% $sites[0]->id %>">
+%				} 
+
+				<td>
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td class="rightalign" colspan="9">
+					<input type="submit" class="thin" value=" Save Changes ">
+					</form>
+				</td>
+
+
+			</tr>
+
+		</table>
+
+
+	</div>

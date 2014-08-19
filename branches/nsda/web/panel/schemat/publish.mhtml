@@ -1,0 +1,37 @@
+<%args>
+	$round_id  => undef
+	$type      => undef
+	$published => 1
+	$clearing  => undef
+	$listed    => undef
+</%args>
+<%init>
+
+	$m->print("Round not sent.  Hit back and try again") unless $round_id;
+	$m->abort unless $round_id;
+
+	my $round = Tab::Round->retrieve($round_id);
+	my $msg;
+
+	if ($clearing) { 
+
+		$round->listed($listed);
+
+		$msg = "List of clearing entries has been removed from the public website";
+		$msg = "Entries clearing to round have been listed in alphabetical order on the public website" if $listed;
+
+	} else {
+
+		$round->published($published);
+
+		$msg = "Round has been removed from the public website";
+		$msg = "Round has been published on the public website" if $published;
+		$msg .= " without judges" if $published == 2;
+		$msg .= " with motion" if $published == 3;
+
+	}
+
+	$round->update;
+	$m->redirect("show.mhtml?round_id=$round_id&msg=$msg");
+
+</%init>

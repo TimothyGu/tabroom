@@ -1,0 +1,164 @@
+<%args>
+	$circuit
+	$tourn
+	$account
+	$session
+	$group_id => 0
+	$hires => undef
+	$drops => undef
+</%args>
+<%init>
+
+	my @groups = $tourn->groups unless $group_id;
+	push (@groups, Tab::JudgeGroup->retrieve($group_id)) if $group_id;
+
+	@groups = sort {$a->abbr cmp $b->abbr} @groups;
+
+	my $string = $groups[0]->abbr if $group_id;
+	$string = "all-judgegroups" unless $group_id;
+
+	$string .= "-DROPS" if $drops;
+	$string .= "-HIRES" if $hires;
+
+	my $filename = $Tab::file_root."/tmp/judges-".$string."-".$session->id;
+	my $garbage = `rm -f $filename.*`;
+
+	my $school_code = $tourn->setting("school_codes");
+	my $ncfl = $tourn->setting("ncfl");
+	undef $school_code if $ncfl;
+	my $regions = $tourn->setting("regions");
+
+	open (CSVOUT, ">$filename.csv");
+
+	print CSVOUT "Group,";
+	print CSVOUT "Code,";
+	print CSVOUT "Group," unless $group_id;
+	print CSVOUT "DioCode," if $ncfl;
+	print CSVOUT "Diocese," if $ncfl;
+	print CSVOUT "RegCode," if $regions;
+	print CSVOUT "Region," if $regions;
+	print CSVOUT "Schcode," if $school_code;
+	print CSVOUT "School,";
+	print CSVOUT "First,Last,";
+	print CSVOUT "Phone,";
+	print CSVOUT "Email,";
+	print CSVOUT "Avg Pref,";
+	print CSVOUT "Diverse,";
+	print CSVOUT "Coach Rating,";
+	print CSVOUT "Tab Rating,";
+	print CSVOUT "Started Judging,";
+
+	print CSVOUT "Dropped,";
+	print CSVOUT "Active,";
+	print CSVOUT "Notes,";
+	print CSVOUT "School Notes,";
+	print CSVOUT "Special Duty,";
+
+	my $pools_yes;
+
+	if ($group_id) { 
+
+		foreach my $pool ($groups[0]->pools) { 
+			$pools_yes++;
+			print CSVOUT '"'.$pool->name.'",';
+		}
+	}
+
+	print CSVOUT "\n";
+
+	foreach my $group (@groups) { 
+
+		my $no_code = $group->setting("no_codes");
+
+		my @judges;
+		
+		if ($drops) { 
+			@judges = $group->judges(dropped => 1);
+		} elsif ($hires) { 
+			@judges = $group->judges(school => 0);
+		} else { 
+			@judges = $group->judges;
+		}
+		
+		@judges = sort {$a->last cmp $b->last} @judges;
+		@judges = sort {$a->code <=> $b->code} @judges unless $no_code;
+
+		foreach my $judge (@judges) { 
+
+			my %pools = map{$_->id => 1} $judge->pools if $pools_yes++;
+
+			print CSVOUT $judge->judge_group->abbr.",";
+			print CSVOUT $judge->code unless $no_code;
+			print CSVOUT ",";
+			print CSVOUT $group->abbr."," unless $group_id;
+
+			if ($regions && $judge->school && $judge->school->region) { 
+				print CSVOUT $judge->school->region->name.",";
+				print CSVOUT $judge->school->region->code.",";
+			}
+
+			if ($ncfl) { 
+				print CSVOUT $judge->school->region->code.",";
+				print CSVOUT $judge->school->region->name.",";
+			} elsif ($school_code) { 
+				print CSVOUT $judge->school->code.",";
+			}
+
+			print CSVOUT "\"".$judge->school->name."\",";
+			print CSVOUT $judge->first.",";
+			print CSVOUT $judge->last.",";
+
+			if ($judge->account && $judge->account->phone) { 
+				print CSVOUT $judge->account->phone.",";
+			} else { 
+				print CSVOUT $judge->setting("phone").",";
+			}
+
+			if ($judge->account && $judge->account->email) { 
+				print CSVOUT $judge->account->email.",";
+			} else { 
+				print CSVOUT $judge->setting("email").",";
+			}
+
+			print CSVOUT $m->comp('/funclib/judge_avg_rating.mas', judge => $judge).",";
+			print CSVOUT "Y" if $judge->diverse;
+			print CSVOUT ",";
+			print CSVOUT "\"".$m->comp('/funclib/judge_rating.mas', judge => $judge, print => 1)."\",";
+			print CSVOUT "\"".$judge->tab_rating."\",";
+
+			print CSVOUT $judge->chapter_judge->started if $judge->chapter_judge;
+			print CSVOUT ",";
+		
+			print CSVOUT "Y," if $judge->dropped;
+			print CSVOUT "N," unless $judge->dropped;
+
+			print CSVOUT "Y," if $judge->active;
+			print CSVOUT "N," unless $judge->active;
+	
+			print CSVOUT "\"".$judge->notes."\",";
+			print CSVOUT "\"".$judge->chapter_judge->notes."\"," if $judge->chapter_judge;
+			print CSVOUT "," unless $judge->chapter_judge;
+			print CSVOUT "\"".$judge->special."\",";
+		
+			if ($pools_yes) { 
+				foreach my $pool ($group->pools) { 
+					print CSVOUT "Y" if $pools{$pool->id};
+					print CSVOUT ",";
+				}
+			}
+
+			print CSVOUT "\n";
+
+		}
+
+	}
+
+	close CSVOUT;
+
+	$m->redirect("$Tab::url_prefix/tmp/judges-".$string."-".$session->id.".csv");
+
+</%init>
+
+<div id="content">
+
+<p><% $filename %></p>

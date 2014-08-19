@@ -1,0 +1,75 @@
+<%args>
+	$tourn
+	$delete_me => undef
+</%args>
+<%init>
+
+	Tab::School->set_sql( by_empties => "
+		select distinct school.*
+		from school
+		where school.tourn = ? 
+		and not exists ( 
+			select entry.id from entry 
+			where entry.dropped != 1
+			and entry.school = school.id)
+		and not exists ( 
+			select judge.id from judge 
+			where judge.school = school.id)
+		order by school.name
+	");
+
+	my @empty_schools = Tab::School->search_by_empties($tourn->id);
+
+	if ($delete_me) { 
+		my $msg = scalar @empty_schools." have been deleted.";
+		foreach my $school (@empty_schools) { 
+			$school->delete;
+		}
+		$m->redirect("empty_schools.mhtml?msg=$msg");
+	}
+
+	my $switch;
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "schools_empty" &>
+
+	<div class="left huge">
+					
+		<h2><% scalar @empty_schools %> empty schools in <% $tourn->name %></h2>
+
+% 			my $warn = "This will delete all records of these ".scalar @empty_schools." having ever entered your tournament, including drop fees etc.  Contine?";
+
+			<div class="block centeralign">
+				<a class="huntwofive centeralign dkgreen" <& "/funclib/confirm.mas", warn => $warn &> href="empty_schools.mhtml?delete_me=like_you_mean_it">
+					Slay them all
+				</a>
+			</div>
+			<br />
+
+		<table cellpadding="5" cellspacing="0" width="100%" class='smallish'>
+
+%		foreach my $school (@empty_schools) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>"> 
+			
+				<th>
+					<a class="white" href="/register/school/edit.mhtml?school_id=<% $school->id %>">
+						<% $school->short_name %>
+					</a>
+				</th>
+
+%           	my $warn = "This will delete the entire record of ".$school->short_name." ever entering your tournament, including drop fees etc.  Contine?";
+
+				<td class="centeralign">
+					<a class="dkred" <& "/funclib/confirm.mas", warn => $warn &> href="empty_drop.mhtml?school_id=<% $school->id %>">
+						Drop School
+					</a>
+				</td> 
+				
+			</tr>
+
+%		} 
+
+	</table>
+
+	</div>

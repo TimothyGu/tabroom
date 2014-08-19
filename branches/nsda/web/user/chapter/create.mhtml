@@ -1,0 +1,211 @@
+<%args> 
+	$err => undef
+	$session
+	$account
+	$name      => undef
+	$country   => undef
+	$level     => undef
+	$state     => undef
+	$search    => undef
+	$duplicate => undef
+</%args>
+<%init> 
+	
+	my $switch;
+
+	my @chapters;
+
+	if ($search) { 
+
+		my $search_name = $name;
+		#this is friggin annoying
+	    $search_name =~ s/of Math and Science$//g;
+    	$search_name =~ s/Academy$//g;
+    	$search_name =~ s/Regional\ High\ School$//g;
+    	$search_name =~ s/High\ School$//g;
+   		$search_name =~ s/School$//g;
+    	$search_name =~ s/High$//g;
+    	$search_name =~ s/Preparatory$/Prep/g;
+    	$search_name =~ s/College\ Prep$/CP/g;
+    	$search_name =~ s/HS$//g;
+    	$search_name =~ s/Regional$//g;
+    	$search_name =~ s/Public\ Charter//g;
+    	$search_name =~ s/Charter\ Public//g;
+    	$search_name =~ s/^The//g;
+    	$search_name =~ s/^Saint/St./g;
+    	$search_name = "College Prep" if $search_name eq "CP";  #Sometimes it's the whole school name.  Oops.
+    	$search_name =~ s/High\ School/HS/g;
+    	$search_name =~ s/^\s+//;  #leading spaces
+    	$search_name =~ s/\s+$//;  #trailing spaces
+
+		unless ($duplicate) { 
+			@chapters = Tab::Chapter->search( name => $name, country => $country, state => $state );
+			push (@chapters, Tab::Chapter->search( name => $search_name, country => $country, state => $state ));
+		}
+	}
+
+</%init> 
+
+	<div class="left huge">
+
+
+%		if (@chapters) { 
+
+			<h2>That institution already exists!</h2>
+
+			<p>
+				An institution already exists with that name & location.  If
+				you are a new coach for an existing program, you should instead
+				email the previous coaches to request access to that program's
+				account, so you can gain access to the existing team history &
+				records.  
+			</p>
+
+			<p>
+				To gain access to an account where the coaches with access have
+				departed, please contact <a href="mailto: help@tabroom.com">help@tabroom.com</a>
+			</p>
+
+			<p>
+				However, if you are creating a parallel program, or if there are 
+				just two schools with the same name or something, click "confirm
+				dupilication" below. 
+			</p>
+
+
+			<table cellpadding="10" cellspacing="1">
+
+				<tr class="yellowrow">
+
+					<th>
+						Name
+					</th>
+
+					<th>
+						Accounts w/access
+					</th>
+
+				</tr>
+
+%				foreach my $chapter (@chapters) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+						
+						<td>
+							<% $chapter->name %>
+						</td>
+
+						<td>
+							<& /funclib/chapter_admins.mas, chapter => $chapter, print => 1 &>
+						</td>
+
+					</tr>
+% 				}
+
+			</table>
+
+			<br />
+
+			<h4>
+				Or, change names or confirm that this is a new school:
+			</h4>
+
+% 		} else {  
+
+			<h2>Create a new school/team</h2>
+% 		} 
+
+		<table cellpadding="20" cellspacing="1">
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+	
+				<th class="rightalign">
+					School/Team Name
+				</th>
+
+				<td>
+					<form action="save.mhtml" method="post"> 
+					<input type="hidden" name="new" value="yessireebob">
+					<input type="text" name="name" size="47" value="<% $name %>">
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					Level
+				</th>
+
+				<td>
+					<select name="level" class="fixed chosen">
+						<option value=""></option>
+						<option value="university">College/University</option>
+						<option value="highschool">High School/Secondary</option>
+						<option value="middle">Middle/Junior High</option>
+						<option value="elementary">Elementary</option>
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					Country
+				</th>
+
+				<td>
+					<select name="country" class="fixed chosen">
+						<& /funclib/country_select.mas, country => $country &>
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					State/Province (if applicable)
+				</th>
+
+				<td>
+					<select name="state" class="fixed chosen">
+						<& /funclib/state_select.mas, state => $state &>
+					</select>
+				</td>
+
+			</tr>
+
+%			if (@chapters) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+					<th class="rightalign">
+						<label for="dupe">
+							Confirm duplication:
+						</label>
+					</th>
+
+					<td>
+						<input type="checkbox" name="duplicate" value="1" id="dupe">
+					</td>
+	
+				</tr>
+%			}
+
+			<tr class="liblrow">
+	
+				<td colspan="2" class="rightalign">
+					<input type="submit" value="   Save School Info   ">
+					</form>
+				</td>
+	
+			</tr>
+	
+		</table>
+
+	</div>
+
+	<& /user/menu.mas, account => $account &>
+

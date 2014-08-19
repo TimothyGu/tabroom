@@ -1,0 +1,210 @@
+<%args>
+	$school
+	$account  => undef
+	$prefs    => undef
+	$whoami   => undef
+	$group_id => undef
+	$entry_id => undef
+	$nodiv    => undef
+	$ajaxify  => undef
+</%args>
+<%init>
+
+	my $tourn = $school->tourn;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $now = DateTime->now(time_zone => $tz);
+
+	my $entry = Tab::Entry->retrieve($entry_id) if $entry_id;
+
+	my $no_others;
+	my $ok;
+
+	if ($account) { 
+
+		$ok++ if $account->site_admin;
+
+		foreach my $admin ($school->chapter->admins) { 
+			$ok++ if $admin->id == $account->id;
+		}
+
+		if ($school->chapter->self_prefs) { 
+			$no_others++ unless $ok;
+			if ($entry) { 
+				foreach my $student ($entry->students) { 
+					$ok++ if $student->account->id == $account->id;
+				}
+			}
+		}
+	}
+
+	unless ($ok) { 
+		my $err = "You are not authorized to edit that pref sheet.";
+		$m->redirect("/user/home.mhtml?err=$err");
+	}
+
+	my @pref_groups;
+
+	my %pref_style;
+	my %conflicts;
+	my %school_strikes;
+	my %entry_strikes;
+	my %group_entries;
+
+	foreach my $ogroup (sort {$a->name cmp $b->name} $school->tourn->groups) {
+
+		@{$group_entries{$ogroup}} = $m->comp("/funclib/group_entries.mas", group => $ogroup, school => $school, preffable => 1);
+		next unless @{$group_entries{$ogroup}};
+
+		$conflicts{$ogroup} = $ogroup->setting("conflicts");
+		$pref_style{$ogroup} = $ogroup->setting("prefs");
+		$school_strikes{$ogroup}  = $ogroup->setting("school_strikes");
+		$entry_strikes{$ogroup}  = $ogroup->setting("entry_strikes");
+		next unless $conflicts{$ogroup} || $pref_style{$ogroup} || $school_strikes{$ogroup} || $entry_strikes{$ogroup};
+		push @pref_groups, $ogroup;
+	}
+
+	my $group = $pref_groups[0] if @pref_groups;
+	$group_id = $group->id if $group && not defined $group_id;
+
+</%init>
+
+%	unless ($nodiv) {
+		<div class="right small">
+%	}
+
+	
+%	GROUP:
+%	foreach my $group (@pref_groups) { 
+%		next unless $group->id == $group_id;
+%		next unless $conflicts{$group} || $pref_style{$group} || $school_strikes{$group} || $entry_strikes{$group};
+
+		<div class="sidenote">
+
+%			my ($uncovered, $overage) = $m->comp("/funclib/judgemath/uncovered_burden_by_group.mas", school => $school, group => $group);
+
+%			if ($uncovered > 0 && $group->setting("obligation_before_strikes")) {
+
+				<p class="smallwarning">No ratings/strikes until judge burden met</p>
+
+				<p> 
+					You are under your judge committment in <% $group->abbr %>.  
+					You must fix this before you can enter judge prefs.
+				</p>
+
+				</div>
+%				next GROUP;
+%			}
+
+%			if ($conflicts{$group}) { 
+
+				<h4>Conflicts in <% $group->abbr %></h4>
+
+%				unless ($no_others) { 
+					<a class="<% ($whoami eq "school_conflicts") ? "dk" : "" %>yellow block nowrap" 
+							href="conflicts.mhtml?school_id=<% $school->id %>&group_id=<% $group->id %>#yo">
+						School-wide Conflicts
+					</a>
+%				}
+
+%  		 		foreach my $entr (@{$group_entries{$group}}) { 
+%					next if $no_others && $entr->id != $entry_id;
+					<a class="<% ($whoami eq "conflicts" && $entry_id == $entr->id) ? "dk" : "" %>blue block nowrap"
+						href="conflicts.mhtml?school_id=<% $school->id %>&entry_id=<% $entr->id %>&group_id=<% $group->id %>#yo">
+						Conflicts for <% $entr->name %>
+					</a>
+%				}
+
+%			}
+
+%			if ($school_strikes{$group}) { 
+
+				<h4>Strikes in <% $group->abbr %></h4>
+
+				<a class="<% $whoami eq "school_strikes" ? "dk" : "" %>blue block nowrap" 
+					href="school_strikes.mhtml?school_id=<% $school->id %>&group_id=<% $group->id %>#yo">
+					School Strikes in <% $group->abbr %>
+				</a>
+%			}
+
+%			if ($entry_strikes{$group}) { 
+
+				<h4>Strikes in <% $group->abbr %></h4>
+
+%  			   	foreach my $entr (@{$group_entries{$group}}) { 
+%					next if $no_others && $entr->id != $entry_id;
+    	    		<a class="<% ($whoami eq "entry_strikes" && $entry_id == $entr->id) ? "dk" : "" %>blue block nowrap"
+    	               	href="entry_strikes.mhtml?school_id=<% $school->id %>&entry_id=<% $entr->id %>&group_id=<% $group->id %>&style=entry_ratings#yo">
+    	           		Strikes for <% substr($entr->name,0,20) %> (<% $entr->event->abbr %>)
+		           	</a>
+%				} 
+%			}
+
+%			if ($pref_style{$group}) { 
+
+				<h4>Prefs in <% $group->abbr %></h4>
+
+				<p class="padless marno exwhite">Red links == prefs aren't complete</p>
+
+%				my $pref_name = "Prefs";
+%				$pref_style{$group} = "tiered" if $pref_style{$group} eq "tiered_round";
+%				$pref_style{$group} = "tiered" if $pref_style{$group} eq "caps";
+%				$pref_name = "Community Ratings" if $pref_style{$group} eq "community";
+
+%				unless ($pref_style{$group} eq "community") { 
+
+% 	         		foreach my $entry (@{$group_entries{$group}}) {
+%						next if $no_others && $entry->id != $entry_id;
+
+%						my @unrated = $m->comp("/funclib/entry_unrated.mas", entry => $entry);
+
+						<a class=" <% ($whoami eq "entry_ratings" && $entry_id == $entry->id) ? "dk" : "" %><% scalar @unrated > 0 ? "red" : "blue" %> block nowrap"
+							href="<% $pref_style{$group} %>_prefs.mhtml?school_id=<% $school->id %>&group_id=<% $group->id %>&entry_id=<% $entry->id %>#yo">
+							<% scalar @unrated ? "(".scalar @unrated." unrated) " : "" %>
+							<% $pref_name %> for <% $entry->name %> 
+						</a>
+%					}
+
+%				} else { 
+					<a class="blue block nowrap" href="<% $pref_style{$group} %>_prefs.mhtml?school_id=<% $school->id %>&group_id=<% $group->id %>#yo">
+						<% $pref_name %> in <% $group->abbr %>
+					</a>
+%				}
+
+
+%			}
+
+		</div>
+%	}
+
+%	if ($no_others) { 
+
+%	} else { 
+		<div class="sidenote">
+
+			<h4>Judge Group</h4>
+
+			<div class="evenrow visible centeralign">
+
+				<form action="index.mhtml" method="post">
+				<input type="hidden" name="school_id" value="<% $school->id %>">
+
+				<select name="group_id" class="notfirst fixedmed chosen" onchange='this.form.submit()'>
+%				foreach my $ogroup (@pref_groups) { 
+					<option value="<% $ogroup->id %>" <% $ogroup->id == $group_id ? "selected" : ""%>><% $ogroup->name %></option>
+%				}
+				</select>
+
+				<noscript>
+					<input type="submit" class="right thin" value="Go">
+				</noscript>
+				</form>
+			</div>
+
+		</div>
+%	}
+
+%	unless ($nodiv) {
+		</div>
+%	}

@@ -1,0 +1,23 @@
+<%args>
+	$school
+	$tourn
+</%args>
+
+	<div class="left huge" style="width: 510px;">
+	
+%		if ($tourn->results) {
+
+			<& "/public_site/results/".$tourn->circuit->id."/".$tourn->id."/index.mhtml" &>
+
+%		}
+
+	</div>
+
+	<div class="right small">
+
+		<& menu.mas, school => $school, tourn => $tourn &>
+
+	</div>
+
+
+

@@ -1,0 +1,35 @@
+<%args>
+	$tourn
+	$group_id
+	$exchange            => 0
+	$track_judge_hires   => 0
+	$hired_fee           => 0
+	$hired_pool          => 0
+	$hired_rounds        => 0
+	$uncovered_entry_fee => 0
+	$round_hire_fee      => 0
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	#Throw an error if both uncovered entry method and missing judge method are set
+
+	if ($uncovered_entry_fee && $hired_fee) { 
+		my $err = "You can only use one Hiring Method for judges, not both.";
+		$m->redirect("hires.mhtml?group_id=$group_id&err=$err");
+	}
+
+	$group->setting("track_judge_hires", $track_judge_hires);
+	$group->setting("exchange", $exchange);
+	$group->setting("hired_pool", $hired_pool);
+	$group->setting("hired_rounds", $hired_rounds);
+	$group->setting("hired_fee", $hired_fee);
+	$group->setting("uncovered_entry_fee", $uncovered_entry_fee);
+	$group->setting("round_hire_fee", $round_hire_fee);
+
+	my $msg = "Judge group information saved";
+
+	$m->redirect("hires.mhtml?group_id=$group_id&msg=$msg");
+
+</%init>

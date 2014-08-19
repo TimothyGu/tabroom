@@ -1,0 +1,84 @@
+<%args>
+	$tourn
+	$account
+	$session
+</%args>
+<%init>
+
+	my $switch;
+
+	my $ok;
+	$ok++ if $account->site_admin;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => 'import_native_xml', ok => $ok &>
+
+	<div class="left huge">
+
+		<h2><% $tourn->name %></h2>
+
+		<h4>Import Full Tournament</h4>
+
+		<p>
+			Use this ONLY to import data directly downloaded from Tabroom in either
+			the STA (Smart Tournament Administrator) or CAT (Computer Assited Tab)
+			systems.  imports should use the "Import TRPC XML" system at right.
+		</p>
+
+		<form name="native_xml" enctype="multipart/form-data" action="/api/upload_tourn.mhtml" method="post" onsubmit="return uploadThis()">
+
+		<input type="hidden" name="account_id" value="<% $account->id %>">
+		<input type="hidden" name="session_id" value="<% $session->id %>">
+
+		<div class="liblrow">
+
+			<span class="half divider">
+				<div class="uploader">
+					<input type="file" name="native_xml" style="opacity: 0;" onchange="uploaderName()" id="upload">
+					<span id="filename" class="filename" style="-webkit-user-select: none;">No file selected</span>
+					<span class="action" style="-webkit-user-select: none;">Choose File</span>
+				</div>
+			</span>
+
+			<span class="quarter divider smallish">
+				Skip Prefs: <input type="checkbox" name="no_prefs" value="1" checked="checked">
+				<br />(faster uploads)
+			</span>
+
+			<span class="quarter">
+				<input type="submit" value="Upload Data" class="thin">
+			</span>
+
+		</div>
+
+		</form>
+
+		<h4>Import One Round</h4>
+
+		<form name="round_xml" enctype="multipart/form-data" action="/api/upload_round.mhtml" method="post" onsubmit="return uploadThis()">
+		<input type="hidden" name="account_id" value="<% $account->id %>">
+		<input type="hidden" name="session_id" value="<% $session->id %>">
+
+		<div class="evenrow">
+
+			<span class="half divider">
+				<div class="uploader">
+					<input type="file" name="round_xml" style="opacity: 0;" onchange="uploaderName('round_xml','xml_filename')" id="round_xml">
+					<span id="xml_filename" class="filename" style="-webkit-user-select: none;">No file selected</span>
+					<span class="action" style="-webkit-user-select: none;">Choose File</span>
+				</div>
+			</span>
+
+
+			<span class="half rightalign">
+				<input type="submit" value="Upload Round Only  " class="thin">
+			</span>
+
+		</div>
+
+		</form>
+
+	</div>
+
+

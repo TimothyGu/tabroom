@@ -1,0 +1,69 @@
+<%args>
+	$account
+	$tourn
+	$name
+	$directions => undef
+</%args>
+<%init>
+
+	my $err;
+
+	unless ($name) {
+
+		$err = "You must give your new tournament location a name.";
+		$m->redirect("manage_sites.mhtml?err=$err");
+
+	}
+
+#	Make sure this site doesn't already exist
+
+	my @already;
+	
+	foreach my $circuit ($tourn->circuits) { 
+		next if @already;
+		@already = Tab::Site->search( 
+			name => $name,
+			circuit => $circuit->id
+		);
+	};
+
+	if (@already) { 
+
+		my $err = "That site already exists in your circuit.  Add it from the drop-down menu instead.";
+		$m->redirect("manage_sites.mhtml?err=$err");
+	
+ 	} else { 
+
+		my $only_site++ if scalar $m->comp("/funclib/tourn_sites.mas", tourn => $tourn) < 1;
+
+		my $circuit = $tourn->circuits->first;
+		my $circuit_id = $circuit->id if $circuit;
+
+		my $site = Tab::Site->create({
+			name => $name,
+			directions => $directions,
+			circuit => $circuit_id,
+			host => $account->id,
+		});
+
+		my $join = Tab::TournSite->create ({
+			tourn => $tourn->id,
+			site => $site->id 
+		});
+
+		if ($only_site) { 
+
+			foreach my $round ($m->comp('/funclib/tourn_rounds.mas', tourn => $tourn)) { 
+				$round->site($site->id);
+				$round->update;
+			}
+		}
+	
+		my $msg = "Site added to your tournament.";
+
+		$m->redirect("/setup/rooms/manage_sites.mhtml?msg=$msg");
+
+	}
+
+</%init> 
+

@@ -1,0 +1,98 @@
+<%args>
+	$tourn_id
+	$judge_group_id => undef
+	$account  => undef
+</%args>
+<%init>
+
+	my $tourn =  Tab::Tourn->retrieve($tourn_id);
+
+	my $tz = $account->tz if $account;
+	$tz = $tourn->tz unless $tz;
+	$tz = "UTC" unless $tz;
+
+	my $now = DateTime->now;	
+	$now->set_time_zone($tz);
+
+	my $judge_group =  Tab::JudgeGroup->retrieve($judge_group_id);
+
+	Tab::JudgeGroup->set_sql( field_reports => "
+		select judge_group.* from judge_group, judge_group_setting
+		where judge_group.tourn = ?
+		and judge_group.id = judge_group_setting.judge_group
+		and judge_group_setting.tag = \"field_report\"
+		and judge_group_setting.value = 1
+		order by judge_group.name
+	");
+
+	my @judge_groups = Tab::JudgeGroup->search_field_reports($tourn->id);
+
+	$judge_group = $judge_groups[0] unless $judge_group;
+
+    my $webpage = Tab::Webpage->search( tourn => $tourn_id, special => "fields")->first;
+
+	my $switch;
+
+    my $name = $tourn->name;
+    $name =~ s/[\W_]//g;
+
+    my $filename = $name."-".$judge_group->abbr."-Paradigms-".$now->epoch;
+    my $filepath = $Tab::file_root."tmp/".$filename;
+    `rm -f $filepath.*`; 
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1 );
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	print TEXOUT "\\hfill {\\LARGE ".Tab::texify($tourn->name)."}\n";
+	print TEXOUT "\\smallskip\n";
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\bigskip\n";
+	print TEXOUT "\\hfill {\\Large ".Tab::texify($judge_group->name)." judge paradigms }\n";
+	print TEXOUT "\\newline\n";
+
+	foreach my $judge (sort {$a->last cmp $b->last} $judge_group->judges) { 
+
+		next unless $judge->account;
+		my $paradigm = $judge->account->setting("paradigm");
+		next unless $paradigm;
+
+		my $strip = HTML::Strip->new();
+		$paradigm = $strip->parse($paradigm);
+		$paradigm =~ s/[^[:ascii:]]//g;
+		$paradigm =~ s/^\s+//; 
+		$paradigm =~ s/\s+$//;
+		my $newline = "\\newline\n";
+		$paradigm = Tab::texify($paradigm);
+		$paradigm =~ s/\R/$newline/g;
+
+		print TEXOUT "\\begin{tabular}{p{2in}p{2.5in}p{2in}}\n";
+
+		print TEXOUT "\\large ".$judge->last.", ".$judge->first." & ";
+
+		if ($judge->school->id) { 
+			print TEXOUT "\\large ".Tab::texify($judge->school->short_name);
+		} else { 
+			print TEXOUT "\\large Hired";
+		}
+
+		print TEXOUT " & ";
+
+		if ($judge->obligation || $judge->hired) { 
+			print TEXOUT "\\large ".($judge->obligation + $judge->hired)." rounds ";
+		}
+
+		print TEXOUT " \\\\ \\hline \n \\end{tabular}\n\\smallskip\\newline\n";
+		print TEXOUT "\\small\n\\onehalfspacing\n";
+		print TEXOUT $paradigm."\\bigskip\\newline\n";
+
+	}
+
+	print TEXOUT "\\end{document}\n";
+
+	close TEXOUT;
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+
+</%init>

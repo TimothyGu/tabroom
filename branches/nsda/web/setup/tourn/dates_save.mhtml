@@ -1,0 +1,63 @@
+<%args>
+	$tourn
+	$account
+	$name => undef
+	$circuit_id => undef
+	$start => undef
+	$starttime => undef
+	$end => undef
+	$endtime => undef
+	$reg_start => undef
+	$reg_starttime => undef
+	$reg_end => undef
+	$reg_endtime => undef
+	$drop_deadline => undef
+	$drop_deadlinetime => undef
+	$judge_deadline => undef
+	$judge_deadlinetime => undef
+	$freeze_deadline => undef
+	$freeze_deadlinetime => undef
+	$fine_deadline => undef
+	$fine_deadlinetime => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $startdt = Tab::dtme($start, $starttime, $tz);
+	my $enddt = Tab::dtme($end, $endtime, $tz);
+
+	my $reg_startdt = Tab::dtme($reg_start,$reg_starttime, $tz);
+	my $reg_enddt = Tab::dtme($reg_end,$reg_endtime, $tz);
+
+	$tourn->start($startdt);
+	$tourn->end($enddt);
+
+	$tourn->reg_end($reg_enddt);
+	$tourn->reg_start($reg_startdt);
+
+	$tourn->update;
+
+	my $drop_deadlinedt = Tab::dtme($drop_deadline,$drop_deadlinetime, $tz);
+	my $judge_deadlinedt = Tab::dtme($judge_deadline,$judge_deadlinetime, $tz);
+	my $freeze_deadlinedt = Tab::dtme($freeze_deadline,$freeze_deadlinetime, $tz);
+	my $fine_deadlinedt = Tab::dtme($fine_deadline,$fine_deadlinetime, $tz);
+
+	$drop_deadlinedt = $reg_enddt->clone unless $drop_deadlinedt;
+	$judge_deadlinedt = $reg_enddt->clone unless $judge_deadlinedt;
+	$freeze_deadlinedt = $reg_enddt->clone unless $freeze_deadlinedt;
+	$fine_deadlinedt = $reg_enddt->clone unless $fine_deadlinedt;
+
+	$tourn->setting("drop_deadline", "date", $drop_deadlinedt);
+	$tourn->setting("judge_deadline", "date", $judge_deadlinedt);
+	$tourn->setting("freeze_deadline", "date", $freeze_deadlinedt);
+	$tourn->setting("fine_deadline", "date", $fine_deadlinedt);
+
+	my $msg = "Date changes have been saved";
+
+	$m->comp("/funclib/update_calendar.mas", tourn => $tourn);
+
+	$m->redirect("dates.mhtml?msg=$msg");
+
+</%init>

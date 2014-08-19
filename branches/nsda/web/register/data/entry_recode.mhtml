@@ -1,0 +1,110 @@
+<%args>
+	$circuit
+	$tourn
+	$err => undef
+	$class => undef
+</%args>
+<%init>
+
+	my $switch; 
+
+</%init>
+
+	<& "menu.mas", whoami => "entry_recode", tourn => $tourn &>
+	
+	<h2>Recode events</h2>
+
+	<div class="left huge">
+
+		<table cellpadding="6" width="100%" cellspacing="1">
+
+		<tr class="liblrow">
+
+			<th class="smallish">
+				Event
+			</th>
+
+			<th class="smallish">
+				Lowest
+			</th>
+
+			<th class="smallish">
+				Highest
+			</th>
+
+			<th class="smallish">
+				Start
+			</th>
+
+			<th class="smallish">
+				Sort by:
+			</th>
+
+			<th>
+			</th>
+
+		</tr>
+
+%		foreach my $event ( sort {$a->name cmp $b->name} $tourn->events) {
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<td class="leftalign smallish">
+					<form action="entry_recode_save.mhtml" method="post">
+					<input type="hidden" name="event_id" value="<% $event->id %>">
+
+					<a class="white" href="<% $Tab::url_prefix %>/register/event/roster.mhtml?event_id=<% $event->id %>">
+						<% $event->abbr %>
+					</a>
+				</td>
+
+				<td class="leftalign smallish">
+					<% $m->comp("/funclib/event_code.mas", min => 1, event => $event) %>
+				</td>
+
+				<td class="leftalign smallish">
+					<% $m->comp("/funclib/event_code.mas", max => 1, event => $event) %>
+				</td>
+
+%				my $code_style = $event->setting("code_style");
+
+				<td class="leftalign smallish">
+%					unless ($code_style eq "full_initials" || $code_style eq "initials" || $code_style eq "names" || $code_style eq "registrant" || $code_style eq "names_lastfirst"|| $code_style eq "last_names" || $code_style eq "school_name_only") { 
+						<input type="text" name="codestart" value="<% $event->setting("code_start") %>" size="3">
+%					}
+				</td>
+
+				<td class="leftalign smallish">
+%					if ($code_style eq "full_initials" || $code_style eq "initials" || $code_style eq "names" || $code_style eq "registrant" || $code_style eq "names_lastfirst"|| $code_style eq "last_names" || $code_style eq "school_name_only") { 
+						<% $code_style eq "full_initials" || $code_style eq "initials" || $code_style eq "registrant" ? "Initials" : "Names" %>
+						<% $code_style eq "names_lastfirst" ? " (Last name first ) " : "" %>
+						<% $code_style eq "last_names" ? " (Last name only) " : "" %>
+						<input type="hidden" name="sort_by" value="Initials">
+%					} else { 
+						<select name="sort_by" class="fixedtiny">
+							<option value="School">By School</option>
+							<option value="Randomly">Randomly</option>
+							<option value="RandomSchool">Randomly by School</option>
+							<option value="Registration">Registration</option>
+%							if ($tourn->setting("ncfl") | $tourn->setting("regions")) { 
+								<option value="<% ($tourn->setting("ncfl")) ? "Diocese" : "Region" %>">
+									<% ($tourn->setting("ncfl")) ? "Diocese" : "Region" %>
+								</option>
+%							}
+						</select>
+%					}
+				</td>
+
+				<td align="center">	
+					<input  type="submit" class="thin" value="Go">
+					</form>
+				</td>
+
+			</tr>
+
+%		}
+
+		</table>
+
+	</div>
+

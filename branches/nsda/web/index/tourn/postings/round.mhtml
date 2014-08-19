@@ -1,0 +1,74 @@
+<%args>
+	$account => undef
+	$tourn
+	$event_id => undef
+	$round_id => undef
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+	my $round = Tab::Round->retrieve($round_id) if $round_id;
+
+	$m->abort unless $round;
+
+	$event = $round->event unless $event;
+	$tourn = $event->tourn;
+
+	unless ($round->published) { 
+		$m->print("Stop messing around");
+		$m->abort;
+	}
+
+</%init>
+
+	<& menu.mas, tourn_id => $tourn->id, event_id => $event->id, round_id => $round->id &>
+
+	<div class="left huge">
+
+		<span class="threequarters">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter top rightalign">
+			<h4>
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<br style="clear: both;">
+
+        <& ../tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		if ($event) { 
+
+%			if ($round) { 
+
+%				if ($round->note) { 
+					<p style="margin-left: 20px; font-size: 11pt;" class="padless"><% $round->note ? "Note: ".$round->note : "" %></p>
+%				}
+
+%	 			if ( $event->type eq "speech" ) { 
+					<& show_speech.mas, round => $round &>
+%				}
+
+%	 			if ( $event->type eq "congress" ) { 
+					<& show_congress.mas, round => $round &>
+%				}
+
+%	 			if ( $event->type eq "wudc" ) { 
+					<& show_wudc.mas, round => $round &>
+%				}
+	
+% 				if ( $event->type eq "debate" || $event->type eq "policy" || $event->type eq "pf" || $event->type eq "ld" || $event->type eq "parli")  { 
+					<& show_debate.mas, round => $round &>
+%				}
+
+
+%			} 
+
+%		}
+
+	</div>
+

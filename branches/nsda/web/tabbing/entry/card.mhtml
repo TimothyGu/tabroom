@@ -1,0 +1,352 @@
+<%args>
+	$tourn
+	$account
+	$code => undef
+	$last => undef
+	$entry_id => undef
+</%args>
+<%init>
+
+	my $entry;
+	my @entries;
+
+	if ($entry_id) { 
+		$entry = Tab::Entry->retrieve($entry_id);
+	}
+
+	if ($code) { 
+
+		@entries = Tab::Entry->search( tourn => $tourn, code => $code);
+
+		unless (@entries) {  
+			my $err = "No competitors found with speaker code $code";
+			$m->redirect("card.mhtml?err=$err");
+		}
+
+		$entry = shift @entries if scalar @entries == 1;
+	}
+
+	if ($last) { 
+		@entries = $m->comp("/funclib/tourn_entries.mas", tourn => $tourn, last => $last);
+
+		unless (@entries) {  
+			my $err = "No competitors found with last name $last";
+			$m->redirect("card.mhtml?err=$err");
+		}
+		$entry = shift @entries if scalar @entries == 1;
+	}
+
+	my $tourn_access = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id )->first;
+
+	if ($tourn_access && $tourn_access->no_setup) { 
+		$m->print("<p>You do not have access to that feature.</p>");
+		$m->abort;
+	}
+
+	my $event = $entry->event if $entry;
+	my @students = $entry->students if $entry;
+
+	Tab::Student->set_sql(by_entry => "
+		select distinct student.*
+		from student, ballot_value, ballot
+		where ballot.id = ballot_value.ballot
+		and ballot_value.student = student.id
+		and ballot.entry = ? 
+	");
+
+	push @students, Tab::Student->search_by_entry($entry->id) if $entry;
+
+	my %seen = (); 
+	@students = grep { ! $seen{$_->id} ++ } @students;
+	
+</%init>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>Search for entry</h4>
+
+			<span class="evenrow block">
+				<form action="card.mhtml" method="post">
+				<input type="text" name="code" size="10" placeholder="Code" style="margin-right: 45px;">
+				<input class="thin" style="right" type="submit" value="Go">
+				</form>
+			</span> 
+
+			<span class="evenrow block">
+				<form action="card.mhtml" method="post">
+				<input type="text" name="last" size="15" placeholder="Last Name" style="margin-right: 15px;">
+				<input class="thin" type="submit" value="Go">
+				</form>
+			</span> 
+
+		</div>
+
+% 		if ($entry) {
+		
+			<div class="sidenote">
+		
+				<a href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>" class="yellow block" style="margin-bottom: 10px;">
+					View/Edit Entry <% $entry->code %>
+				</a>
+
+%				foreach my $panel ($m->comp("/funclib/entry_panels.mas", entry => $entry)) { 
+					<a class="blue block" href="panel.mhtml?panel_id=<% $panel->id %>">	
+						<% $panel->round->realname." Section ".$panel->letter %>
+					</a>
+%				}
+
+			</div>
+
+%		}
+
+	</div>
+
+	<div class="left huge">
+
+% 		if (@entries && not defined $entry) {
+
+%			foreach my $entry (@entries) { 
+
+				<a class="half blue block noline smallish" href="card.mhtml?entry_id=<% $entry->id %>">
+					<% $entry->code %> <% $entry->name %> in <% $entry->event->abbr %>
+				</a>
+%			}
+
+%		}
+
+% 		if ($entry) {
+		
+			<h2><% $entry->code %> <% $entry->name %> edit </h2>
+
+			<table cellpadding="5" cellspacing="1" width="100%">
+
+				<tr class="liblrow">
+
+					<th>
+						<% $entry->code %>
+					</th>
+
+					<th>
+						<% $event->abbr %>
+					</th>
+
+					<th>
+						<% $entry->name %>
+					</th>
+
+					<th>
+						<% $entry->school->short_name %>
+					</th>
+
+				</tr>
+
+			</table> 
+
+			<hr>
+
+			<form action="card_save.mhtml" method="post">
+			<input type="hidden" name="entry_id" value="<% $entry->id %>">
+
+			<table cellpadding="4" cellspacing="1" width="100%">
+
+%				my $switch;
+%				my $team_scores++ if $event->type eq "speech" || $event->type eq "congress";
+%				my $team_ranks_only++ if $event->type eq "wudc";
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						Round
+					</th>
+					
+					<th class="smallish">
+						Judge
+					</th>
+
+					<th class="smallish">
+						Wins
+					</th>
+
+					<th class="smallish">
+						Rank
+					</th>
+
+					<th class="smallish">
+						Points
+					</th>
+
+%              		if ($event->type eq "speech") { 
+
+						<th class="smallish">
+							Overtime
+						</th>
+
+						<th class="smallish">
+							Noshow
+						</th>
+%					} else {  
+						<th class="smallish">
+							Bye
+						</th>
+						<th class="smallish">
+							Fft
+						</th>
+%					} 
+
+				</tr>
+
+<%perl> 
+               foreach my $panel ($m->comp("/funclib/entry_panels.mas", entry => $entry)) {
+
+					my $wins;
+					my $ranks;
+					my $points;
+
+					my $mfl_tv = $panel->round->tb_set->setting("mfl_time_violations");
+					my $noshow = $panel->round->tb_set->setting("noshows_never_break");
+
+					foreach my $tb ($panel->round->tb_set->tiebreaks) { 
+						$ranks++ if ($tb->name eq "ranks" || $tb->name eq "reciprocals");
+						$wins++ if ($tb->name eq "opp_wins" || $tb->name eq "winloss" || $tb->name eq "ballots");
+						$points++ if ($tb->name eq "points" || $tb->name eq "competition" || $tb->name eq "opp_points");
+					}
+
+					foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel), 0) { 
+
+						my $ballot = Tab::Ballot->search( judge => $judge, panel => $panel->id, entry => $entry->id )->first;
+
+						next unless $ballot;
+						next if $event->type eq "wudc" &! $ballot->chair;
+
+						my @scores = $ballot->ballot_values;
+						my $winner;
+
+						my %student_ranks;
+						my %student_points;
+
+						my $team_ranks;
+						my $team_points;
+
+						foreach my $score (@scores) { 
+
+							$winner++ if $score->value == 1 and $score->tag eq "ballot";
+
+							if ($team_scores) { 
+								$team_ranks += $score->value if $score->tag eq "rank";
+								$team_points += $score->value if $score->tag eq "points";
+							} elsif ($team_ranks_only) { 
+								$team_ranks += $score->value if $score->tag eq "rank";
+								$student_points{$score->student->id} += $score->value if $score->student && $score->tag eq "points";
+							} else { 
+								$student_ranks{$score->student->id} += $score->value if $score->student && $score->tag eq "rank";
+								$student_points{$score->student->id} += $score->value if $score->student && $score->tag eq "points";
+							}
+
+						}
+
+</%perl> 
+
+						<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+							<td>
+								<% $panel->round->realname %>
+							</td>
+
+							<td>
+%								if ($judge) { 
+									<a class="white padno" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>">
+										<% $judge->code %> <% $judge->last %>
+									</a>
+%								} else { 
+									None
+%								} 
+							</td>
+
+							<td class="centeralign">
+%								if ($wins) { 
+									<input type="checkbox" name="winner_<% $ballot->id %>" value="1" <% $winner ? 'checked="checked"' : "" %>>
+%								}
+							</td>
+
+							<td class="centeralign">
+%								if ($ranks) { 
+%									if ($team_scores || $team_ranks_only) { 
+										<input type="number" name="ranks_<% $ballot->id %>" size="5" value="<% $team_ranks %>" min=1 max=9>
+										<% $team_ranks ? '<div class="block smallish martop">'.(4 - $team_ranks)." pts</div>" : "" %>
+%									} else { 
+%										foreach my $student (@students) { 
+											<div class="block">
+%												if (scalar @students > 1) { 
+													<span><% $student->last %></span>
+%												}
+												<span><input type="number" min=1 max=9 name="ranks_<% $ballot->id."-".$student->id %>" value="<% $student_ranks{$student->id} %>"></span>
+											</div>
+%										}
+%									}
+%								}
+							</td>
+
+							<td>
+%								if ($points) { 
+%									if ($team_scores) { 
+										<input type="number" name="points_<% $ballot->id %>" size="5" value="<% $team_points %>" min=0 max=100 step=.1>
+%									} else { 
+%										foreach my $student (@students) { 
+											<div class="block">
+												<span>
+													<input type="number" name="points_<% $ballot->id."-".$student->id %>" min=0 max=100 step=.1 value="<% $student_points{$student->id} %>">
+												</span>
+											</div>
+%										}
+%									}
+%								}
+
+							</td>
+
+%  	       	     			if ($event->type eq "speech") { 
+
+								<td align="center">
+%	  	       	     				if ($mfl_tv) { 
+										<input type="checkbox" name="tv_<% $ballot->id %>" value="1" <% ($ballot->tv) ? "checked" : "" %>>
+%	  	       	     				}
+								</td>
+
+								<td align="center">
+%	  	       	     				if ($noshow) { 
+										<input type="checkbox" name="noshow_<% $ballot->id %>" value="1" <% ($ballot->noshow) ? "checked" : "" %>>
+%	  	       	     				}
+								</td>
+
+%  	       	     			} else { 
+
+								<td align="center">
+									<input type="checkbox" name="bye_<% $ballot->id %>" value="1" <% ($ballot->bye) ? "checked" : "" %>>
+								</td>
+
+								<td align="center">
+									<input type="checkbox" name="noshow_<% $ballot->id %>" value="1" <% ($ballot->noshow) ? "checked" : "" %>>
+								</td>
+
+%  	       	     			} 
+
+						</tr>
+
+%					}
+
+
+%				}	
+
+				<tr class="liblrow">
+					<td colspan="8" align="right">
+						<input type="submit" class="thin" value="  Save Changes  " >
+						</form>
+					</td>
+				</tr>
+
+			</table>
+
+%		} #end of if entry
+
+	</div> 

@@ -1,0 +1,22 @@
+<%args>
+	$debug   => undef
+	$account => undef
+	$circuit => undef
+	$tourn   => undef
+	$session => undef
+</%args>
+
+%	unless ($r->uri =~ /login/ || $r->uri =~ /cruz/) {
+		<& /user/login/account_required.mas, account => $account, session => $session &>
+%	}
+
+	<div id="wrapper">
+		<div id="content">
+			<% $m->call_next %>
+			<br style="clear: both;" />
+		</div>
+
+		<div id="content-spacer"></div>
+
+	</div>
+

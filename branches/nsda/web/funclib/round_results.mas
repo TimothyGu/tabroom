@@ -1,0 +1,32 @@
+<%args>
+	$done => undef
+	$round
+</%args>
+<%init>
+
+	Tab::Panel->set_sql( done_by_round => "
+		select distinct panel.*, ballot.judge as judge
+		from panel, ballot
+		where panel.round = ? 
+		and ballot.panel = panel.id
+		and ballot.audit != 0
+		order by panel.letter
+	") if $done;
+
+	Tab::Panel->set_sql( done_by_round => "
+		select distinct panel.*, ballot.judge as judge, ballot.audit as audit
+		from panel, ballot, ballot_value
+		where panel.round = ? 
+		and ballot.panel = panel.id
+		and ballot_value.ballot = ballot.id
+		and not exists ( select b2.id 
+			from ballot b2
+			where b2.panel = panel.id
+			and b2.audit != 1)
+		order by panel.letter, ballot.judge
+	");
+
+	return Tab::Panel->search_done_by_round($round->id);
+
+</%init>
+

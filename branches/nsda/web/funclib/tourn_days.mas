@@ -1,0 +1,39 @@
+<%args>
+	$tourn
+	$add_one => undef
+</%args>
+<%init>
+
+    my $start = $tourn->start->set_time_zone($tourn->tz);
+    my $end = $tourn->end->set_time_zone($tourn->tz);
+
+    $end->truncate(to => 'day');
+    $start->truncate(to => 'day');
+	
+    my @tourn_days;
+
+    unless ($start->day == $end->day) {
+        my $holder = $start->clone;
+
+        until ($holder->epoch > $end->epoch) {
+            push (@tourn_days, $holder->clone);
+            $holder->add( days => 1); 
+        }
+
+    } else { 
+        push (@tourn_days, $start);
+    } 
+
+	if ($add_one) { 
+		my $first = $start->clone;
+		$first = $start->subtract( days => 1);
+		unshift(@tourn_days, $first);
+	}
+
+	my %seen = (); 
+	@tourn_days = grep { ! $seen{$_->day} ++ } @tourn_days;
+
+    return @tourn_days;
+	
+
+</%init>

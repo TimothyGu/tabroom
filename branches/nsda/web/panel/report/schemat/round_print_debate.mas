@@ -1,0 +1,296 @@
+<%args>
+	$round_id
+	$filename
+	$schools => undef
+	$record => undef
+</%args>
+<%init>
+	
+	my $round = Tab::Round->retrieve($round_id);
+
+	my $round_name = $round->name;
+	$round_name--;
+	my $tourn = $round->event->tourn;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my $event = $round->event;
+	my $round_robin++ if $event->setting("round_robin");
+
+	Tab::Panel->columns(TEMP => "roomname");
+
+	Tab::Panel->set_sql( schemat => "
+		select panel.*, room.name as roomname
+		from panel, room
+		where panel.round = ? 
+		and panel.room = room.id
+		order by panel.letter");
+
+	Tab::Panel->set_sql( schemat_roomless => "
+		select panel.*, \"Ask Tab\" as roomname
+		from panel
+		where panel.round = ? 
+		and panel.room = 0
+		order by panel.letter");
+
+	my @panels = Tab::Panel->search_schemat($round->id);
+	push (@panels, Tab::Panel->search_schemat_roomless($round->id));
+
+	my %entry_wins = (); 
+
+	my $no_side_constraints++ if $event->setting('no_side_constraints');
+	my $sidelocks++ if ($round->type eq "elim" || $round->type eq "final") && not defined $no_side_constraints;
+
+	if ($record) { 
+		%entry_wins = $m->comp("/funclib/entry_wins.mas", event => $round->event, round => $round);
+	}
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $start = $round->start_time;
+	$start = $round->timeslot->start unless $start;
+	$start->set_time_zone($tz);
+
+	my $flighted++ if $round->flighted > 1;
+	my $flight_offset = $event->setting("flight_offset");
+
+	my $filepath = $Tab::file_root."tmp/".$filename;
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	my $tabular;
+
+	$tabular = "\\begin{tabular}{p{1.5in}p{1.5in}p{2in}p{1.5in}}\n";
+	$tabular = "\\begin{tabular}{p{.075in}p{1.15in}p{1.15in}p{1in}p{.75in}}\n" if $flighted;
+
+	print TEXOUT "\\pagebreak[1]\n";
+	print TEXOUT "{\\bf \\Large ". Tab::texify($round->realname);
+	print TEXOUT "} \\hfill {\\bf \\Large ". Tab::texify($event->name);
+	print TEXOUT "} \\hfill {\\bf \\Large Start: ".Tab::nicetime($start)." } ";
+
+	print TEXOUT " \\\\ \n";
+	print TEXOUT "\\smallskip\n" if $flighted;
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\small\n";
+
+	if ($flighted && $flight_offset) { 
+		foreach my $flight (1 .. $round->flighted) { 
+			my $offset_time = $start->clone;
+			my $offset_factor = $flight_offset * ($flight - 1);
+			$offset_time->add( minutes => $offset_factor );
+			print TEXOUT "\\parbox[][][c]{5in}{\\centering \\bf Flight $flight begins at ".Tab::nicetime($offset_time)."} ";
+		}
+	
+		print TEXOUT "\\newline\n";
+	}
+
+	print TEXOUT $tabular;
+	print TEXOUT "\\rowcolor[rgb]{1.0,.94,.65}\[6pt\]\[6pt\]\n";
+
+	if ($sidelocks || $no_side_constraints) { 
+		print TEXOUT "Fl & Entries & & Room & Judge \\\\ \n" if $flighted;
+		print TEXOUT "Teams & & Room & Judge \\\\ \n" unless $flighted;
+	} else { 
+		print TEXOUT "Fl & Aff & Neg & Room & Judge \\\\ \n" if $flighted;
+		print TEXOUT "Aff & Neg & Room & Judge \\\\ \n" unless $flighted;
+	}
+
+	print TEXOUT "\\end{tabular}\n";
+
+	if ($flighted) { 
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{1.0,.94,.65}\[6pt\]\[6pt\]\n";
+		if ($round->event->type eq "pf" || $round->type eq "elim" ) { 
+			print TEXOUT "Fl & Entries &  & Room & Judge \\\\ \n";
+		} else { 
+			print TEXOUT "Fl & Aff & Neg & Room & Judge \\\\ \n";
+		}
+		print TEXOUT "\\end{tabular}\n";
+	}
+
+	print TEXOUT "\\footnotesize\n";
+	print TEXOUT "\\scriptsize\n" if scalar @panels > 48 && not defined $flighted;
+
+	my $codes = $tourn->setting("schemat_display");
+
+	my @entries = $m->comp("/funclib/round_entries.mas", round => $round);
+	my @judges = $m->comp("/funclib/round_judges.mas", round => $round);
+	my @ballots = $m->comp("/funclib/round_ballots.mas", round => $round);
+
+	my %pod_name;
+
+    if ($round_robin) { 
+        foreach my $entry (@entries) { 
+            next if $pod_name{$entry->pair_seed};
+            $pod_name{$entry->pair_seed} = $event->setting("pod_".$entry->pair_seed);
+            $pod_name{$entry->pair_seed} = "Pod ".$entry->pair_seed unless $pod_name{$entry->pair_seed};
+        }   
+    }   
+
+	my %judge_by_id = ();
+	foreach my $judge (@judges) { 
+		$judge_by_id{$judge->id} = $judge;
+	}
+
+	my %entries_by_panel = ();
+
+	foreach my $entry (@entries) { 
+		next if $entry->dropped;
+		next if $entry->dq;
+		push (@{$entries_by_panel{$entry->panelid}}, $entry);
+	}
+
+	my %ballots_by_entry = ();
+	my %panel_undone = ();
+	my %judges_by_panel = ();
+
+	foreach my $ballot (@ballots) { 
+		push @{$ballots_by_entry{$ballot->entry->id}}, $ballot if $ballot->entry;
+		$panel_undone{$ballot->panel->id}++ unless $ballot->audit;
+		push @{$judges_by_panel{$ballot->panel->id}}, $judge_by_id{$ballot->judge->id} if  $judge_by_id{$ballot->judge->id};
+	}
+
+	@panels = sort {$a->flight <=> $b->flight} @panels if $flighted;
+	@panels = sort {$a->roomname cmp $b->roomname} @panels;
+	@panels = sort {$a->bye <=> $b->bye} @panels;
+
+	my $switch = 1;
+	my $last_room;
+	my $last_pod;
+	my $last_flight;
+
+	foreach my $panel (@panels) { 
+
+		my $aff;
+		my $neg;
+		my @byes;
+
+		my $locked_aff =  $m->comp("/funclib/round_elim_dueaff.mas", panel => $panel) if $sidelocks;
+
+		foreach my $pc (@{$entries_by_panel{$panel->id}}) { 
+
+			if ($ballots_by_entry{$pc->id}) { 
+				push @byes, $pc if $panel->bye;
+				$aff = $pc if ${$ballots_by_entry{$pc->id}}[0]->side == "1";
+				$neg = $pc if ${$ballots_by_entry{$pc->id}}[0]->side == "2";
+			}
+
+		}
+
+		if ($round_robin && ($aff && $last_pod != $aff->pair_seed) || (@byes && $last_pod != $byes[0]->pair_seed)) { 
+			print TEXOUT "\\vspace{.02in}\\newline\n" unless $last_pod;
+			print TEXOUT "\\smallskip\n\\newline\n" if $last_pod;
+			print TEXOUT "{\\normalsize \\bf ".Tab::texify($pod_name{$aff->pair_seed})."}\n" if $aff;
+			print TEXOUT "{\\normalsize \\bf ".Tab::texify($pod_name{$byes[0]->pair_seed})."}\n" if @byes;
+			$last_pod = $aff->pair_seed if $aff;
+			$last_pod = $byes[0]->pair_seed if @byes;
+			print TEXOUT "\\normalsize\n";
+
+		}
+	
+		unless ($last_room && $last_room == $panel->room->id) { 
+			print TEXOUT "\\newline\n";
+
+			$switch++;
+
+			if ($flighted && $panel->flight == 2) { 
+				print TEXOUT $tabular."\n";
+				print TEXOUT "\\rowcolor[rgb]{.91,.91,.91}\[5.5pt\]\[5.5pt\] " if $switch % 2;
+				print TEXOUT "& & & & \\\\ \n \\end{tabular}\n" if $panel->flight == 2;
+			}
+			$last_room = $panel->room->id;
+		}
+
+		next unless $entries_by_panel{$panel->id};
+	
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{.91,.91,.91}\[5.5pt\]\[5.5pt\]" if $switch % 2;
+		print TEXOUT $panel->flight." & " if $flighted;
+
+		if ($panel->bye) { 
+
+			foreach my $bye (@byes) {
+				print TEXOUT "\\scriptsize " if $flighted;
+				print TEXOUT Tab::texify($entry_wins{$bye->id}."-".($round_name - $entry_wins{$bye->id})." ") if $record;
+				print TEXOUT "\\raggedright ".Tab::texify($bye->code)." & ";
+			}
+
+		} elsif ($aff) { 
+			print TEXOUT "\\scriptsize " if $flighted;
+			print TEXOUT Tab::texify($entry_wins{$aff->id}."-".($round_name - $entry_wins{$aff->id})." ") if $record;
+			print TEXOUT "\\raggedright ".Tab::texify($aff->code);
+			print TEXOUT "\\newline \\hspace*{0pt} \\hfill \\scriptsize{Aff}" if $locked_aff;
+			print TEXOUT "\\newline \\hspace*{0pt} \\hfill \\scriptsize{Flip}" if $sidelocks && not defined $locked_aff;
+			print TEXOUT " & ";  
+		} 
+
+		if ($panel->bye) { 
+			if (scalar @byes > 1) { 
+				print TEXOUT "BYE ";  
+			} else { 
+				print TEXOUT " BYE & ";
+			}
+		} elsif ($neg) { 
+			print TEXOUT "\\scriptsize " if $flighted;
+			print TEXOUT Tab::texify($entry_wins{$neg->id}."-".($round_name - $entry_wins{$neg->id})." ") if $record;
+			print TEXOUT "\\raggedright ".Tab::texify($neg->code);  
+			print TEXOUT "\\newline \\hspace*{0pt} \\hfill \\scriptsize{Neg}" if $locked_aff;
+			print TEXOUT "\\newline \\hspace*{0pt} \\hfill \\scriptsize{Flip}" if $sidelocks && not defined $locked_aff;
+		}
+
+		print TEXOUT " & ";
+		print TEXOUT "\\scriptsize " unless $round_robin;
+		print TEXOUT "\\truncate[]{.72in}{".Tab::texify($panel->roomname)."} & " if $flighted && $panel->bye < 1;
+		print TEXOUT "\\truncate[]{1.9in}{".Tab::texify($panel->roomname)."} & " unless $flighted || $panel->bye;
+
+		my $notfirst;
+		my %used = ();
+
+		if ($judges_by_panel{$panel->id}) { 
+
+			foreach my $judge (sort {$b->chair <=> $a->chair} @{$judges_by_panel{$panel->id}}) {
+
+				next if $used{$judge->id};
+				$used{$judge->id}++;
+
+				if ($notfirst) { 
+					print TEXOUT "\\smallskip \\newline\n";
+				}
+
+				print TEXOUT "\\scriptsize " if $flighted;
+				print TEXOUT " *" if $judge->chair;
+
+				if ($ncfl) { 
+					if ($record) { 
+						print TEXOUT "\\truncate[]{.78in}{".$judge->tab_rating." ".Tab::texify($judge->code)." }" if $flighted;
+						print TEXOUT "\\truncate[]{1.90in}{".$judge->tab_rating." ".Tab::texify($judge->code)." }" unless $flighted;
+					} else { 
+						print TEXOUT "\\truncate[]{.78in}{".Tab::texify($judge->code)." }" if $flighted;
+						print TEXOUT "\\truncate[]{1.90in}{".Tab::texify($judge->code)." }" unless $flighted;
+					}
+
+				} else {
+
+					if ($record) { 
+						print TEXOUT "\\truncate[]{.78in}{".$judge->tab_rating." ".Tab::texify($judge->last.", ".$judge->first)." }" if $flighted;
+						print TEXOUT "\\truncate[]{1.90in}{".$judge->tab_rating." ".Tab::texify($judge->last.", ".$judge->first)." }" unless $flighted;
+					} else { 
+						print TEXOUT "\\truncate[]{.78in}{".Tab::texify($judge->last.", ".$judge->first)." }" if $flighted;
+						print TEXOUT "\\truncate[]{1.90in}{".Tab::texify($judge->last.", ".$judge->first)." }" unless $flighted;
+					}
+				}
+				$notfirst++;
+			} 
+
+		}
+
+
+		print TEXOUT "\n\\end{tabular}\n";
+
+
+	} 
+
+</%init>
+
+

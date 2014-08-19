@@ -1,0 +1,109 @@
+<%args>
+	$tourn
+	$group_id
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	my @hired_judges =  Tab::Judge->search_where( 
+			judge_group => $group->id, 
+			school => {"<", 1}
+	);
+
+	my $switch;
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "hires", group => $group&>
+
+	<div class="left huge">
+
+	<h2><% scalar @hired_judges %> hires in <% $group->abbr %></h2>
+
+	<table cellpadding="5" cellspacing="1" width="100%">
+
+		<tr class="liblrow">
+
+			<th class="smaller">
+				Code
+			</th>
+
+			<th class="smaller">
+				Last
+			</th>
+
+			<th class="smaller">
+				First
+			</th>
+
+			<th class="smaller">
+				Active
+			</th>
+
+%			if ($group->setting("rounds_per")) { 
+				<th class="smaller">
+					Rounds
+				</th>
+%			}
+
+			<th class="smaller">
+				Notes
+			</th>
+
+			<th class="smaller">
+				Special Job
+			</th>
+
+			<th></th>
+
+		</tr>
+
+%		foreach my $judge (sort {$a->last cmp $b->last} @hired_judges) {
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td>
+					<% $judge->code %>
+				</td>
+				
+				<td>
+					<% $judge->last %>
+				</td> 
+				
+				<td>
+					<% $judge->first %>
+				</td> 
+				
+				<td>
+					<% ($judge->active) ? "Yes" : "No" %>
+				</td> 
+
+%				if ($group->setting("rounds_per")) { 
+					<td>
+						<% $judge->obligation."/".$judge->hired %>
+					</td> 
+%				}
+				
+				<td>
+					<% $judge->notes %>
+				</td> 
+				
+				<td>
+					<% $judge->special %>
+				</td> 
+
+				<td class="centeralign">
+					<a class="dkgreen block" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>">
+						Edit
+					</a>
+				</td>
+
+			</tr>
+
+% 		}
+
+		</table>
+
+	</div>
+

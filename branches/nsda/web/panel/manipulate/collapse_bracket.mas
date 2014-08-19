@@ -1,0 +1,24 @@
+<%args>
+	$round_id
+	$bracket
+	$pull_iterator
+	$fromjava => undef
+</%args>
+
+<%perl>
+
+	my $round = Tab::Round->retrieve( $round_id );
+	my @entries = Tab::Entry->search( event=>$round->event, placement=>$bracket );	
+
+	foreach my $entry_obj (@entries) {
+		$entry_obj->placement( $entry_obj->placement + $pull_iterator );
+		$entry_obj->update;
+	}
+
+	if ($fromjava) {
+		$m->redirect("manual_powermatch_javascript.mhtml?round_id=$round_id&bracket=$bracket&msg=Bracket collapsed");	
+	} else {
+		$m->redirect("manual_powermatch.mhtml?round_id=$round_id&bracket=$bracket&msg=Bracket collapsed");
+	}
+	
+</%perl>

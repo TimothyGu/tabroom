@@ -1,0 +1,115 @@
+<%args>
+	$circuit	
+	$account
+	$tourn
+	$err => undef
+</%args>
+
+%	my $switch;
+%	my $symbol = $tourn->setting('currency');
+
+	<& menu.mas, chosen => "hires", tourn => $tourn  &>
+
+	<div class="left huge">
+
+		<h2>Hired Judging Fees</h2>
+
+		<table cellpadding="5" width="100%" cellspacing="1">
+
+% 			$switch = 1;
+	
+			<tr class="liblrow">
+	
+				<th>
+					Group
+				</th>
+
+				<th>
+					Per hire
+				</th>
+
+				<th>
+					Per uncovered entry
+				</th>
+
+				<th>
+					Per missing judge
+					<form action="hires_save.mhtml" method="post">
+				</th>
+
+			</tr>
+
+%			foreach my $group (sort {$a->name cmp $b->name} $tourn->judge_groups) { 
+
+ 				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th class="centeralign">
+						<% $group->abbr %>
+					</td>
+
+					<td align="center">
+						<% $symbol %> <input type="number" name="hired_<% $group->id %>" value="<% $group->setting("hired_fee") %>" size="4" min=0 max=999>
+					</td>
+
+					<td align="center">
+						<% $symbol %> <input type="number" name="uncovered_<% $group->id %>" value="<% $group->setting("uncovered_entry_fee") %>" size="4" min=0 max=999>
+					</td>
+
+					<td align="center">
+						<% $symbol %> <input type="number" name="missing_<% $group->id %>" value="<% $group->setting("missing_judge_fee") %>" size="4" min=0 max=999>
+					</td>
+
+				</tr>
+% 			}
+
+			<tr class="liblrow">
+				<td colspan="10" align="right">
+					<input  type="submit" value="     Save Judge Fees     ">
+				</td>
+			</tr>
+
+		</table>
+
+		<h4>Availability</h4>
+
+		<table cellpadding="5" width="100%" cellspacing="1">
+
+% 			$switch = 1;
+	
+			<tr class="liblrow">
+	
+				<th>
+					Group
+				</th>
+
+				<th>
+					Judges Available
+				</th>
+
+			</tr>
+
+%			foreach my $group (sort {$a->name cmp $b->name} $tourn->judge_groups) { 
+
+ 				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th class="centeralign">
+						<% $group->abbr %>
+					</td>
+
+					<td align="left">
+						<input type="number" name="judges_<%$group->id %>" value="<% $group->setting("hired_pool") %>" size="10">
+					</td>
+
+				</tr>
+% 			}
+
+			<tr class="liblrow">
+				<td colspan="10" align="right">
+					<input  type="submit" value="     Save Judge Numbers    ">
+					</form>
+				</td>
+			</tr>
+
+		</table>
+
+	</div>

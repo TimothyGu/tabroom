@@ -1,0 +1,332 @@
+<%args>
+	$account
+	$chapter    => undef
+	$region     => undef
+	$nodiv      => undef
+	$circuit_id => undef
+	$whoami     => undef
+</%args>
+<%init>
+
+	my $tz = $account->tz;
+	$tz = "UTC" unless $tz;
+
+	my @all_tourns = $m->comp("/funclib/account_tourns.mas", account => $account, all => 1);
+	my @tourns = $m->comp("/funclib/account_tourns.mas", account => $account);
+
+	my @entries = $m->comp("/funclib/account_entries.mas", account => $account);
+	my @allentries = $m->comp("/funclib/account_entries.mas", account => $account, all => 1);
+
+	my @chapters = $m->comp("/funclib/account_chapters.mas", account => $account, prefs => "yes");
+	my @regions = $m->comp("/funclib/account_regions.mas", account => $account);
+
+	my @circuits = $m->comp("/funclib/account_circuits.mas", account => $account);
+	my @followed = $m->comp("/funclib/account_followed.mas", account => $account);
+
+	my @nowjudges = $m->comp("/funclib/account_judges.mas", account => $account, current => 1);
+	my @alljudges = $m->comp("/funclib/account_judges.mas", account => $account, all => 1);
+	my @all_chapter_judges = $account->chapter_judges;
+
+	my $now = DateTime->now;
+	my $year = $now->year;
+	my $limit = $year."-07-01 00:00:00";
+
+	Tab::Student->set_sql(by_ndt => "
+		select distinct s2.id, s1.id as code
+			from student s1, entry_student es1, entry, event, tourn, tourn_circuit, student s2, entry_student es2 
+			where s1.account = ?
+			and es1.student = s1.id
+			and es1.entry = entry.id
+			and entry.event = event.id
+			and event.tourn = tourn_circuit.tourn
+			and tourn_circuit.circuit = \"43\"
+			and es2.entry = entry.id
+			and es2.student != es1.student
+			and es2.student = s2.id 
+			and entry.timestamp > \"$limit\"
+	");
+
+	my @partners = Tab::Student->search_by_ndt($account->id);
+
+</%init>
+
+%	unless ( $nodiv) { 
+		<div class="right small">
+%	}
+
+%	if (@chapters || @all_tourns || @circuits || @regions) { 
+			<div class="sidenote">
+%	}
+
+%	if (@chapters || @regions) { 
+				<h4>
+					Institutions
+				</h4>
+
+%				foreach my $ochapter (@chapters) { 
+					<a class="nowrap <% ($chapter && $ochapter->id == $chapter->id )? "dk" : "" %>blue full" href="/user/chapter/tournaments.mhtml?chapter_id=<% $ochapter->id %>">
+						<span class="threequarter">
+							<% $ochapter->name %>
+						</span>
+						<span class="quarter">
+							<% $ochapter->prefs ? "Prefs" : "" %>
+						</span>
+					</a>
+%				}
+
+%				foreach my $oregion (@regions) { 
+
+%					if ($oregion->circuit->id == 3) {   #NCFL 
+						<a class="nowrap <% ($region && $oregion->id == $region->id )? "yellow" : "blue" %> full" href="/user/diocese/tournaments.mhtml?region_id=<% $oregion->id %>">
+							<% $oregion->arch ? "Archdiocese" : "Diocese" %> of <% $oregion->name %>
+						</a>
+%					} else { 
+
+						<a class="nowrap <% ($region && $oregion->id == $region->id )? "yellow" : "blue" %> full" href="/user/region/tournaments.mhtml?region_id=<% $oregion->id %>">
+							<% $oregion->name %> Region
+						</a>
+%					}
+
+%				}
+%		}
+
+%		if (@all_tourns) { 
+
+			<h4>
+				Tournaments
+			</h4>
+
+%			foreach my $tourn (@tourns) { 
+
+				<a class="blue full" href="/user/tourn/select.mhtml?tourn_id=<% $tourn->id %>">
+
+					<span class="threequarter">
+						<% $tourn->name %>
+					</span>
+
+					<span class="quarter mono smaller rightalign">
+						<% $tourn->location %>
+					</span>
+				</a>
+%			}
+
+			<a class="martop-half blue full" href="/user/tourn/all.mhtml">
+				See Past Tournaments
+			</a>
+%		}
+
+%		if (@circuits) { 
+
+				<h4>
+					Circuits
+				</h4>
+
+%				foreach my $circuit (@circuits) { 
+
+					<a class="<% $circuit->id == $circuit_id ? "dk" : "" %>blue nowrap full" href="/user/circuit/index.mhtml?circuit_id=<% $circuit->id %>">
+
+						<span class="threequarter">
+							<% $circuit->name %>
+						</span>
+
+						<span class="quarter mono smaller rightalign">
+							<% ($circuit->state) ? $circuit->state."/" : "" %><% $circuit->country %>
+						</span>
+					</a>
+
+%					if ($m->comp("/funclib/circuit_tourns.mas", circuit => $circuit, approval => 1)) { 
+
+						<a class="yellow nowrap full indent" href="/user/circuit/approvals.mhtml?circuit_id=<% $circuit->id %>">
+							Approve Tourn Requests
+						</a>
+
+%					}
+
+%				}
+%		}
+
+
+%		if (@chapters || @all_tourns || @circuits || @regions) { 
+			</div>
+%		}
+
+			<div class="sidenote">
+
+				<h4>
+					Judging
+				</h4>
+
+%				if (@nowjudges) { 
+					<a class="blue full" href="/user/judge/panels.mhtml">
+						Current Ballots & Panels
+					</a>
+%				}
+
+%				if (@alljudges || @all_chapter_judges) { 
+					<a class="blue half sep" href="/user/judge/index.mhtml">
+						Upcoming
+					</a><a class="blue half" href="/user/judge/history.mhtml?account_id=<% $account->id %>">
+						History
+					</a>
+%				}
+
+				<a class="blue half sep" href="/user/judge/conflicts.mhtml">	
+					Conflicts
+				</a><a class="blue half" href="/user/judge/paradigm.mhtml">
+					Paradigm
+				</a>
+
+%				if ($m->comp("/funclib/tourn_exchange.mas")) { 
+	                <a class="blue full nowrap" href="/user/judge/hire.mhtml?account_id=<% $account->id %>">
+						Offer Hired Judging Rounds
+					</a>
+%				}
+
+
+			</div>
+
+
+%		if (@entries || @allentries) { 
+			<div class="sidenote">
+				<h4>
+					Competing
+				</h4>
+
+				<a class="nowrap yellow full" href="/user/student/conflicts.mhtml">
+					Standing Conflicts
+				</a>
+				
+				<a class="nowrap yellow full" href="/index/circuit/claim_calendar.mhtml">
+					Link Account to Entries
+				</a>
+
+%		}
+
+%		if (@allentries) { 
+			<a class="yellow full" href="/user/student/index.mhtml?account_id=<% $account->id %>">
+				Past Pairings & Results
+			</a>
+%		}
+
+%		foreach my $partner (@partners) { 
+			<a class="yellow full" href="/jbruschke/TeamBidSheet.php?id1=<% $partner->id %>&id2=<% $partner->code %>">
+				NDT Bid Sheet w/<% $partner->last %>
+			</a>
+%		}
+
+
+%		if (@entries) { 
+				
+			<h4>
+				Upcoming
+			</h4>
+
+%			foreach my $entry (@entries) { 
+
+<%perl>
+				my $tourn_start = $entry->event->tourn->start;
+				my $tourn_end = $entry->event->tourn->end;
+				my $date_string .= Tab::niceshortdate($tourn_start);
+				$date_string .= " - ".Tab::niceshortdate($tourn_end) if $tourn_end->day != $tourn_start->day;
+
+				my $prefs_due = $entry->event->judge_group->setting("strike_end");
+				my $prefs_start = $entry->event->judge_group->setting("strike_start");
+				my $pref_string;
+
+				if ($prefs_start > $now) {
+					$prefs_start->set_time_zone($tz);
+					$pref_string = "Prefs open: ";
+					$pref_string .= Tab::niceshortdt($prefs_start);
+					$pref_string .= " ".Tab::tzname($tz);
+				} elsif ($prefs_due) {
+					$prefs_due->set_time_zone($tz);
+					$pref_string = "Prefs due: ";
+					$pref_string .= Tab::niceshortdt($prefs_due);
+					$pref_string .= " ".Tab::tzname($tz);
+				}
+
+</%perl>
+
+				<a class="blue full" href="/user/student/entry.mhtml?entry_id=<% $entry->id %>">
+					<span class="full nowrap padno">
+						<% $entry->event->abbr ? $entry->event->abbr : substr($entry->event->name, 0, 4) %> at <% $entry->event->tourn->name %> 
+					</span>
+					<span class="full nowrap ">
+						<% $date_string %>  
+					</span>
+%					if ($pref_string) {
+						<span class="full nowrap ">
+							<% $pref_string %>
+						</span>
+%					}
+				</a>
+%			}
+
+%			foreach my $student ($account->students) { 
+				<a class="nowrap blue full" href="/user/entry/students.mhtml?student_id=<% $student->id %>">
+					<% $student->chapter ? $student->chapter->name : "" %> signups
+				</a>
+%			}
+%		}
+
+%		if (@allentries || @entries) { 
+			</div>
+%		}
+
+%		if (@followed) { 
+
+			<div class="sidenote">
+				<h4>
+					Following
+				</h4>
+
+%				foreach my $account (@followed) { 
+					<a class="blue full" href="/user/follow/index.mhtml?follow_id=<% $account->id %>">
+						<% $account->first." ".$account->last %>
+					</a>
+%				}
+
+			</div>
+
+%		}
+
+%		if ($account->site_admin) { 
+			<& admin/menu.mas, account => $account, nodiv => 1, whoami => $whoami &>
+%		}
+
+		<div class="sidenote">
+
+			<h4>Your Account</h4>
+
+			<a class="yellow full" href="/user/chapter/create.mhtml">
+				Create a new school/team
+			</a>
+
+			<a class="yellow full" href="/user/tourn/request.mhtml">
+				Request a new tournament
+			</a>
+<!--
+			<a class="yellow full" href="/user/circuit/request.mhtml">
+				Request a new circuit
+			</a>
+-->
+
+			<a class="yellow full" href="/user/judge/search.mhtml">
+				Link your account to a judge
+			</a>
+
+			<a class="yellow full" href="/user/student/search.mhtml">
+				Link your account to a student
+			</a>
+
+			<a class="yellow full" href="/user/student/follow.mhtml">
+				Get updates for a student
+			</a>
+
+
+		</div>
+
+%	unless ( $nodiv) { 
+	</div>
+%	}
+

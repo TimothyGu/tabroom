@@ -1,0 +1,269 @@
+<%args>
+	$student_id => undef
+	$tourn
+	$event_id  => undef
+	$entry_id  => undef
+	$school_id => undef
+	$err       => undef
+</%args>
+<%init>
+
+	my $student = Tab::Student->retrieve($student_id);
+
+	# Find the chapter either passed to me, or given as part of the student.
+	# Barf if we don't have one.
+
+	my $school = Tab::School->retrieve($school_id) if $school_id;
+	my $event = Tab::School->retrieve($event_id) if $event_id;
+	my $chapter = $school->chapter if $school;
+	$chapter = $student->chapter if $student;
+
+	$school = Tab::School->search( tourn => $tourn->id, chapter => $chapter->id)->first if $chapter && not defined $school;
+
+	my $entry = Tab::Entry->retrieve($entry_id) if $entry_id;
+	$school = $entry->school if $entry && not defined $school;
+
+	$m->abort("<p>No school information came across. Please try again</p>") unless $chapter;
+
+	#Default year is this school year, if there isn't one already
+
+	my $now = DateTime->now;
+	my $year = $now->year;
+	$year++ if $now->month > 6;
+
+	my @student_requests = Tab::Student->search_where({ 
+		chapter => $chapter->id,
+		acct_request => { ">", 0 } 
+	}); 
+
+	my $switch;
+
+    my $demo;
+    foreach my $circuit ($chapter->circuits) { 
+        next if $demo;
+        $demo++ if $circuit->setting("demographics");
+    }   
+	
+</%init>
+
+%	my $name;
+
+	<& /register/menubar.mas, school => $school, whoami => "students", tourn => $tourn &>
+
+		<h4>
+			<% ($student) ? "Edit ".$student->first." ".$student->last : "Create Student in ". $name %>
+		</h4> 
+
+		<table cellpadding="7" width="100%" border="0">
+
+%			undef $switch;
+	
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+		
+				<th>
+					First Name:
+					<form action="student_save.mhtml" method="post"> 
+					<input type="hidden" name="chapter_id" value="<% $chapter->id %>">
+					<input type="hidden" name="student_id" value="<% $student_id %>">
+					<input type="hidden" name="event_id" value="<% $event_id %>">
+					<input type="hidden" name="entry_id" value="<% $entry_id %>">
+				</th>
+
+				<td>
+					<input type="text" name="first" value="<% ($student) ? $student->first : "" %>">
+				</td>
+
+			</tr>
+
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th>
+					Last Name:
+				</th>
+
+				<td>
+					<input type="text" name="last" value="<% ($student) ? $student->last : "" %>">
+				</td>
+				
+			</tr> 
+			
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<th>
+					Phonetic:
+				</th>
+				
+				<td>
+					<input type="text" name="phonetic" value="<% ($student) ? $student->phonetic : "" %>">
+				</td>
+				
+			</tr> 
+			
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th>
+					Graduation Year:
+				</th> 
+				
+				<td>
+					<input type="text" name="grad_year" value="<% ($student) ? $student->grad_year : $year %>">
+				</td> 
+				
+			</tr> 
+			
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<th>
+					Novice
+				</th>
+				
+				<td>
+					<input type="checkbox" name="novice" value="1" <% ($student) ? ($student->novice) ? "checked" : "" : "" %> >
+				</td>
+				
+			</tr> 
+			
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<th>
+					Gender
+				</th>
+				
+				<td>
+					<input type="radio" name="gender" id="F" value="F" <% ($student) ? ($student->gender eq "F") ? "checked" : "" :""%> >
+						<label for="F">Female</label>
+					<input type="radio" name="gender" id="M" value="M" <% ($student) ? ($student->gender eq "M") ? "checked" : "" :""%> >
+						<label for="M">Male</label>
+					<input type="radio" name="gender" id="O" value="O" <% ($student) ? ($student->gender eq "O") ? "checked" : "" :""%> >
+						<label for="O">Other</label>
+				</td>
+			</tr> 
+
+%			if ($demo) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="rightalign">
+						Student ID
+					</td>
+
+					<td>
+						<input type="text" name="school_sid" size="30" value="<% $student ? $student->school_sid : "" %>">
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="rightalign">
+						Date of Birth
+					</td>
+
+					<& /funclib/datepicker.mas, id => "birthdate" &>
+
+					<td>
+						<input type="text" name="birthdate" id="birthdate" size="10" 
+						value="<% $student->birthdate ? Tab::pickerdate($student->birthdate) : "" %> ">
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+% 	              my $race = $student->race if $student;
+
+					<td class="rightalign">
+						Ethnic Background
+					</td>
+
+					<td>
+						<select name="race" class="fixedmed">
+							<option value="">Choose one</option>
+							<option value="white" <% $race eq "white" ? "selected" : "" %> >White, non-Hispanic/Latino</option>
+							<option value="black" <% $race eq "black" ? "selected" : "" %> >Black, non-Hispanic/Latino</option>
+							<option value="latino" <% $race eq "latino" ? "selected" : "" %> >Hispanic/Latino</option>
+							<option value="amerindian" <% $race eq "amerindian" ? "selected" : "" %> >American Indian/Native Alaskan</option>
+							<option value="asian" <% $race eq "asian" ? "selected" : "" %> >Asian</option>
+							<option value="pacific" <% $race eq "pacific" ? "selected" : "" %> >Native Hawaiian/Pacific Islander</option>
+							<option value="dual" <% $race eq "dual" ? "selected" : "" %> >Two or more races</option>
+							<option value="other" <% $race eq "other" ? "selected" : "" %> >Other</option>
+						</select>
+					</td>
+				</tr>
+
+%			}
+
+            <tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+                <td class="rightalign">
+                    Diet Notes
+                </td>
+
+                <td>
+                    <input type="text" name="diet" size="30" value="<% $student ? $student->diet : "" %>">
+                </td>
+            </tr>
+			
+			<tr class="liblrow">
+
+				<td align="right" colspan="2">
+					<input  type="submit" value="Save Student">
+					</form>
+				</td>
+				
+			</tr>
+
+		</table> 
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>School</h4>
+
+%		if ($tourn->setting("ncfl")) { 
+
+			<a class="blue block" href="diocese/entry.mhtml?diocese_id=<% $school->region->id %>">
+				Return to <% $school->region->name %>
+			</a>
+
+%		}
+
+%		if ($school) { 
+
+			<a class="blue block" href="/register/school/entries.mhtml?school_id=<% $school->id %>">
+				Return to <% $school->short_name %>'s Entry
+			</a>
+
+%		}
+
+		</div>
+
+		<div class="sidenote">
+
+		<h4>Student's Entries</h4>
+
+%			if ($student) { 
+
+%				foreach my $entry ($m->comp("/funclib/student_entries.mas", student => $student, tourn => $tourn)) { 
+
+					<a class="blue block" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+						<% $entry->code %> in <% $entry->event->abbr %>
+						<% ($entry->waitlist) ? "Waitlisted" : "" %>
+						<% ($entry->dropped) ? "Dropped" : "" %>
+					</a>
+	
+%				}
+
+			<hr>
+
+			<a class="blue block" href="/register/student_print.mhtml?student_id=<% $student->id %>">
+				Print Student Dance Card
+			</a>
+
+%			}
+
+		</div>
+
+	</div>
+

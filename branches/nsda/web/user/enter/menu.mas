@@ -1,0 +1,112 @@
+<%args>
+	$school
+	$whoami => undef
+</%args>
+<%init> 
+
+	my $tz = $school->tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $now = DateTime->now(time_zone => $tz);
+
+	my $short;
+
+	foreach my $group ($school->tourn->groups) { 
+		my ($uncovered, $overage) = $m->comp("/funclib/judgemath/uncovered_burden_by_group.mas", group => $group, school => $school); 
+		$short++ if $uncovered;
+		last if $short;
+	}	
+
+	my $ratings;
+
+	foreach my $group ($school->tourn->groups) { 
+
+		my $strike_start = $group->setting("strike_start");
+
+		if ($strike_start) { 
+			$ratings++ if ($strike_start->epoch < $now->epoch);
+		}
+		last if $ratings;
+	}	
+
+</%init>
+
+%	my $tourn = $school->tourn;
+
+	<ul id="tabnav">
+
+		<li class="<% ($whoami eq "tourn") ? "selected" : "" %>">
+			<a href="/user/enter/entry.mhtml?school_id=<% $school->id %>">General</a>
+		</li>
+
+%		if ($tourn->setting("onsite_registration")) { 
+
+%			my $onsite_starts = $tourn->setting("onsite_starts");
+%			$onsite_starts->set_time_zone($tz) if $onsite_starts;
+%			my $onsite_ends = $tourn->setting("onsite_ends");
+
+%			if ($onsite_starts < $now && $now < $onsite_ends) { 
+				<li class="<% ($whoami eq "onsite") ? "selected" : "" %> <% $school->registered ? "" : "warning" %>">
+					<a href="/user/enter/onsite.mhtml?school_id=<% $school->id %>">Onsite Confirmation</a>
+				</li>
+%			}
+
+%		}
+
+		<li class="<% ($whoami eq "students") ? "selected" : "" %>">
+			<a href="/user/enter/students.mhtml?school_id=<% $school->id %>">Entries</a>
+		</li>
+
+		<li class="<% ($short) ? "warning" : ($whoami eq "judges") ? "selected" : "" %>">
+			<a href="/user/enter/judges.mhtml?school_id=<% $school->id %>">Judges</a>
+		</li>
+
+%		if ($tourn->setting("housing")) { 
+			<li class="<% ($whoami eq "housing") ? "selected" : "" %>">
+				<a href="/user/enter/housing.mhtml?school_id=<% $school->id %>">Housing</a>
+			</li>
+%		}
+
+%		if ($tourn->concessions) {
+			<li class="<% ($whoami eq "concessions") ? "selected" : "" %>">
+				<a href="/user/enter/concessions.mhtml?school_id=<% $school->id %>">
+					<% ($tourn->setting("concession_name")) ? $tourn->setting("concession_name") : "Concessions" %>
+				</a>
+			</li>
+%		}
+
+%		if ($ratings) { 
+
+<%perl>
+
+	my $red_ratings;
+
+    foreach my $ogroup (sort {$a->name cmp $b->name} $tourn->groups) {
+
+		my @entries= $m->comp("/funclib/group_entries.mas", group => $ogroup, school => $school, preffable => 1);
+        next unless @entries;
+
+        my $pref_style = $ogroup->setting("prefs");
+		next unless $pref_style;
+		next if $pref_style eq "community";
+
+		foreach my $entry (@entries) { 
+			my @unrated = $m->comp("/funclib/entry_unrated.mas", entry => $entry);
+			$red_ratings++ if @unrated;
+			last if $red_ratings;
+		}
+
+		last if $red_ratings;
+    }
+
+</%perl>
+
+			<li class="<% $red_ratings ? "warning" : "" %> <% ($whoami eq "ratings" || $whoami eq "conflicts") ? "selected" : "" %>">
+				<a href="/user/enter/ratings/index.mhtml?school_id=<% $school->id %>">Prefs</a>
+			</li>
+%		}
+
+		<li>
+			<a href="/index/tourn/index.mhtml?tourn_id=<% $tourn->id %>">Website</a>
+		</li>
+
+	</ul>

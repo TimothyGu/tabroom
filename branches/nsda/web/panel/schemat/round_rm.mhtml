@@ -1,0 +1,14 @@
+<%args>
+	$round_id
+	$tourn
+</%args>
+<%init>
+
+	my $round = Tab::Round->retrieve($round_id);
+
+	my $event = $round->event if $round;
+	$round->delete if $round;
+
+	$m->redirect("/panel/schemat/show.mhtml?event_id=".$event);
+
+</%init>

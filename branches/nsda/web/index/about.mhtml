@@ -1,0 +1,62 @@
+<%args>
+	$account
+</%args>
+<%init>
+
+	my $webpage = Tab::Webpage->search( sitewide => 1, active => 1 )->first;
+
+</%init>
+
+	<div class="left huge">
+
+		<div class="about">
+
+			<h2>
+				<% ($webpage) ? $webpage->title : ""%>
+			</h2>
+
+			<% $webpage ? $webpage->content : "" %>
+	
+		</div>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>How-to Guides</h4>
+
+			<a href="/help" class="blue block">
+				Tabroom online manual
+			</a>
+
+			<a href="/jbruschke/CATDownloads/HowToRegister.pdf" class="blue block">
+				Registering for a tournament
+			</a>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Need help?</h4>
+			
+			<p>To report bugs or if you're having trouble with your account, please email:</p>
+
+			<a href="mailto:help@tabroom.com" class="yellow block">
+				help@tabroom.com
+			</a>
+	
+			<p>For feature requests or ideas, email:</p>
+
+			<a href="mailto:requests@tabroom.com" class="yellow block">
+				requests@tabroom.com
+			</a>
+
+			<p>To run a tournament on Tabroom, log in and hit "Request a
+			tournament" on the right hand toolbar</p>
+
+		</div>
+
+
+	</div>

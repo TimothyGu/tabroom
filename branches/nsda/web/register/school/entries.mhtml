@@ -1,0 +1,160 @@
+<%args> 
+	$tourn
+	$all => undef
+	$event_id => undef
+	$school_id => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $school = Tab::School->retrieve($school_id);
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+
+ 	my $switch;
+	my $quals ++ if $event && $event->setting("ask_quals");
+
+</%init>
+
+	<& /register/menubar.mas, school => $school, whoami => "students", tourn => $tourn &>
+
+%	if ($event_id) { 
+		<& event_show.mas,  event => $event, school => $school &>
+		<& entry_add.mas,  event => $event, school => $school &>
+
+%	} else { 
+
+		<p>Choose an division/event at right to add entries</p>
+
+		<h4>Entry roster:</h4>
+
+		<& /funclib/tablesorter.mas, table => 'sortme' &>
+
+		<table cellpadding="4" cellspacing="1" id="sortme">
+
+			<thead>
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Event
+				</th>
+
+				<th class="smaller">
+					Code
+				</th>
+
+				<th class="smaller">
+					Name
+				</th>
+
+%				if ($quals) { 
+					<th class="smaller">
+						Qualifiers
+					</th>
+%				}
+
+				<th class="smaller">
+					Registered
+				</th>
+
+				<th class="smaller">
+				</th>
+
+				<th class="smaller">
+				</th>
+			</tr>
+		</thead>
+		<tbody>
+
+%		foreach my $event ($m->comp("/funclib/school_events.mas", school => $school)) { 
+
+%			my $no_codes++ if $event->setting("code_style") eq "names";
+
+% 			my @entries = Tab::Entry->search( event => $event->id, school => $school->id );
+%			my @hybrids = $m->comp("/funclib/school_hybrids.mas", event => $event, school => $school);
+
+%			my %used;
+
+% 			foreach my $entry (@hybrids, @entries) { 
+
+%				next if $used{$entry->id};
+%				$used{$entry->id}++;
+				
+				<tr>
+
+					<td class="smallish">
+						<% $event->abbr %>
+					</td>
+
+					<td class="smallish">
+%						if ($entry->dropped) { 
+							<a class="dkred block" href="/register/entry/delete.mhtml?entry_id=<% $entry->id %>">
+								DELETE
+							</a>
+%						} elsif ($no_codes) {
+
+%						} else {
+							<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+								<% $entry->code %>
+							</a>
+%						} 
+					</td>
+	
+					<td class="<% ($entry->dropped) ? "strike" : "" %> smallish" >
+						<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+						<% $entry->name %>
+						</a>
+					</td>
+
+%					if ($quals) { 
+						<td class="smallish">
+%							my $notfirst;
+%							foreach my $qual ($entry->qualifiers) { 
+								<% ($notfirst) ? "<br />" : "" %>
+								<% $qual->name %> 
+								<% ($qual->result) ? "(".$qual->result.")" : "" %> 
+%									$notfirst++;
+%							}
+%							if ($entry->seed eq "atlarge") { 
+								<% ($notfirst) ? "<br />" : "" %>
+								*At Large Applicant*
+%							}
+						</td>
+%					}
+
+					<td class="centeralign smallish">
+						<% $entry->reg_time ? Tab::niceshortdt($entry->reg_time->set_time_zone($tz)) : "" %>
+					</td>
+
+					<td class="smallish">
+%						if ($entry->othername) { 
+							<% $entry->othername %> Hybrid
+%						}
+						<% $entry->dropped ? "Dropped" : "" %>
+						<% ($entry->waitlist) ? "On Waitlist" : "" %>
+						<% ($entry->dq) ? "DISQUALIFIED" : "" %>
+						<% ($entry->dropped && $entry->drop_time) ? "at: ".Tab::niceshortdt($entry->drop_time->set_time_zone($tz)) : "" %>
+						<% ($entry->title) ? $entry->title : "" %>
+					</td>
+
+					<td class="centeralign">
+						<a class="<% ($entry->dropped) ? "dkgreen" : "dkred" %> block" href="drop_switch.mhtml?entry_id=<% $entry->id %>">	
+							<% ($entry->dropped) ? "Un-Drop" : "Drop" %>
+						</a>
+					</td>
+
+				</tr>
+%   		}
+
+%   	}
+
+		</tbody>
+
+		</table>
+%	} 
+
+	</div>
+
+	<& menu.mas, tourn => $tourn, school => $school, event_id => $event_id &>
+

@@ -1,0 +1,23 @@
+<%args>
+	$tourn
+	$left_margin 
+	$top_margin
+	$row_space
+	$col_space
+</%args>
+<%perl>
+
+
+	$tourn->setting("col_space", $col_space);
+	$tourn->setting("row_space", $row_space);
+	$tourn->setting("top_margin", $top_margin);
+	$tourn->setting("left_margin", $left_margin);
+
+	$tourn->update;
+
+	my $msg = "Ballot label size adjusted";
+
+	$m->redirect("index.mhtml?msg=$msg");
+
+</%perl>
+

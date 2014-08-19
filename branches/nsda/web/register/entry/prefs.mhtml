@@ -1,0 +1,255 @@
+<%args> 
+	$tourn
+	$entry_id => undef
+</%args>
+<%init>
+
+	my $entry = Tab::Entry->retrieve($entry_id);
+
+	my $school = $entry->school;
+	my $diocese = $m->comp("/school_region.mas", school => $school) if $tourn->setting("ncfl");
+
+	my $group = $entry->event->judge_group;
+	my @all_judges = sort {$a->last cmp $b->last} $group->judges;
+
+ 	my @panels = $m->comp('/funclib/entry_panels.mas', entry => $entry);
+
+	my %used;
+	my $switch = 1;
+
+	my $prefs = $group->setting("prefs");
+
+	my %judge_pref; 
+	my %judge_percentile; 
+
+	if ($prefs eq "ordinals") { 
+
+		%judge_pref = map {$_->judge->id => $_->ordinal} $entry->ratings;
+		%judge_percentile = map {$_->judge->id => $_->percentile} $entry->ratings;
+
+	}  elsif ($prefs eq "tiered" || $prefs eq "tiered_round" || $prefs eq "caps") { 
+
+		my %tier_name = ();
+
+		foreach my $tier ($group->rating_tiers) { 
+			$tier_name{$tier->id} = $tier->name;
+		}
+
+		%judge_pref = map {$_->judge->id => $tier_name{$_->rating_tier}} $entry->ratings;
+
+	}
+
+	my %judge_conflict;
+
+	foreach my $conflict ($m->comp("/funclib/judge_entry_rating.mas", entry => $entry, type => "conflicted")) { 
+		$judge_conflict{$conflict->id}++;
+	}
+
+	my @school_conflicts = $m->comp("/funclib/school_conflicts.mas", school => $entry->school, group => $group);
+	my %school_conflict = map {$_->judge->id => 1} @school_conflicts;
+	
+</%init>
+
+   	<& "/register/menubar.mas", school => $school, whoami => "students", tourn => $tourn &>
+
+	<div>
+		<span class="hugespan">
+			<h4>Pref Sheet for <% $entry->name %></h4>
+		</span>
+		<span class="medspan">
+			<h4 class="rightalign"><% scalar @all_judges %> judges</h4>
+		</span>
+	</div>
+
+	<p class="exwhite padno">
+		Note: Quotas are not enforced on this screen.  You can
+		feel free to blow your own foot off if you so choose.
+	</p>
+
+	<& "/funclib/tablesorter.mas", table => "sortme" &>
+
+		<form action="prefs_save.mhtml" method="post">
+		<input type="hidden" name="entry_id" value="<% $entry->id %>">
+
+		<table cellpadding="5" id="sortme">
+
+			<thead>
+
+				<tr class="yellowrow">
+
+					<th>
+					</th>
+
+					<th class="smallish">
+						Judge Last
+					</th>
+
+					<th class="smallish">
+						Judge First
+					</th>
+
+					<th class="centeralign smallish">
+						Rounds
+					</th>
+
+					<th class="centeralign smallish">
+						Conflict
+					</th>
+
+					<th class="centeralign smallish">
+						Rating
+					</th>
+
+					<th class="centeralign smallish">
+						%ile
+					</th>
+
+				</tr>
+
+			</thead>
+
+
+			<tbody>
+
+%			foreach my $judge (@all_judges) { 
+
+				<tr>
+
+					<td>
+						<% $switch++ %>
+					</td>
+
+					<td>
+						<% $judge->last %>
+					</td>
+
+					<td>
+						<% $judge->first %>
+					</td>
+
+					<td class="centeralign">
+						<% $judge->obligation + $judge->hired %>
+					</td>
+
+%					if ($judge->school->id == $entry->school->id) { 
+
+						<td class="centeralign">
+							X
+						</td>
+
+						<td class="centeralign">
+							Own
+							Judge
+						</td>
+
+						<td>
+						</td>
+
+%					} elsif ($school_conflict{$judge->id}) { 
+
+						<td>
+						</td>
+
+						<td class="centeralign">
+							School
+						</td>
+
+						<td class="centeralign">
+							Conflict
+						</td>
+
+%					} else { 
+
+						<td class="centeralign">
+							<span class="hidden"><% $judge_conflict{$judge->id} %></span>
+							<input type="checkbox" class="notfirst" tabindex="-1" name="conflict_<% $judge->id %>" 
+								value="1" <% $judge_conflict{$judge->id} ? 'checked="checked"' : "" %>>
+						</td>
+
+						<td class="centeralign">
+							<span class="hidden"><% $judge_pref{$judge->id} %></span>
+							<input type="text" size="5" name="<% $judge->id %>" value="<% $judge_pref{$judge->id} %>">
+						</td>
+
+						<td class="centeralign">
+							<% sprintf "%.2f", $judge_percentile{$judge->id} %>
+						</td>
+
+%					} 
+
+				</tr>
+
+%			}
+
+			</tbody>
+
+			<tr class="liblrow">
+				<td colspan="9" class="rightalign">
+					<input type="submit" value=" Save Prefs ">
+					</form>
+				</tr>
+			</tr>
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Return</h4>
+			
+			<a class="yellow block" href="edit.mhtml?entry_id=<% $entry_id %>">
+				Return to <% $entry->code %>
+			</a>
+
+			<a class="yellow block" href="/register/reports/prefs.mhtml">
+				Return to Prefs Report
+			</a>
+
+			<br />
+
+			<a class="blue block" href="prefs_print.mhtml?entry_id=<% $entry->id %>">
+				Print This Pref Sheet
+			</a>
+
+		</div>
+
+		<div class="sidenote">
+			<h4>School's Other Prefs</h4>
+
+%			foreach my $other (Tab::Entry->search( event => $entry->event->id, school => $entry->school->id, waitlist => 0, unconfirmed => 0, dropped => 0)) { 
+
+%				next if $other->id == $entry->id;
+			
+				<a class="nowrap blue block" href="prefs.mhtml?entry_id=<% $other->id %>">
+					<% $other->name %> (<% $other->code %>)
+				</a>
+%			}
+
+			<h4>Clone Prefs</h4>
+			
+			<p>Copy <% $entry->code %>'s prefs to:</p>
+
+			<div class="evenrow block">
+				<form action="clone.mhtml" method="post">
+				<input type="hidden" name="clone_id" value="<% $entry->id %>">
+				<input type="hidden" name="school_id" value="<% $entry->school->id %>">
+
+				<select name="entry_id" class="fixedsmall">
+%				   foreach my $other ($m->comp("/funclib/school_entry_by_group.mas", group => $entry->event->judge_group, school => $school)) {
+%					   next if $entry->id == $other->id;
+%					   next if $entry->dropped;
+						<option value="<% $other->id %>"><% $other->name %></option>
+%				   }   
+				</select>
+				<input type="submit" value="Go" class="thin">
+				</form>
+			</div>
+
+		</div>
+
+	</div>
+
+

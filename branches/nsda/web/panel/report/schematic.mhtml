@@ -1,0 +1,155 @@
+<%args>
+	$tourn
+	$session
+	$event_id 	 => undef
+	$schools     => undef
+	$min_paper   => 1
+	$round_id    => undef
+	$timeslot_id => undef
+	$record      => undef
+	$no_break    => undef
+</%args>
+<%init>
+
+	unless ($event_id) { 
+		$m->print("I wasn't sent an event.  Something is wrong");
+		$m->abort;
+	}
+
+	my @events;
+	my $round = Tab::Round->retrieve($round_id) if $round_id;
+
+	my $flighted;
+	$flighted++ if $round && $round->flighted > 1;
+
+	if ($event_id eq "all") { 
+		@events = $tourn->events;
+	} else {
+		push (@events, Tab::Event->retrieve($event_id));
+	}
+
+	@events = sort {$a->name cmp $b->name} @events;
+
+	my @timeslots;
+
+	if ($timeslot_id eq "all") { 
+		@timeslots = $tourn->timeslots;
+	} else { 
+		push (@timeslots, Tab::Timeslot->retrieve($timeslot_id)) if $timeslot_id;
+		push (@timeslots, $round->timeslot) if $round;
+	}
+
+	@timeslots = sort {$a->start->epoch <=> $b->start->epoch} @timeslots;
+
+	foreach my $timeslot (@timeslots) { 
+		foreach my $event (@events) { 
+			my @rounds = Tab::Round->search(event => $event->id, timeslot => $timeslot->id);
+			foreach my $round (@rounds) { 
+				$flighted++ if $round->flighted > 1;
+			}
+		}
+	}
+
+	my $name = $events[0]->name if $event_id ne "all";
+	$name = "ALL" unless $name;
+    $name =~ s/[\W_]//g;
+	
+	my $round_name .= "-".$round->realname if $round;
+	$round_name = "-ALL";
+    $round_name =~ s/[\W_]//g;
+
+    my $filename = "Schematic-".$name."-$round_name-".$session->id;
+    my $filepath = $Tab::file_root."tmp/".$filename;
+    `rm -f $filepath.*`;
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1, narrow => 1, array => "1.3", landscape => $flighted );
+
+	if ($round) { 
+
+		my $event = $round->event;
+		next unless $round->panels;
+		my @entries = $m->comp("/funclib/round_entries.mas", round => $round);
+		next unless @entries;
+
+		if ($event->type eq "speech") { 
+			$m->comp("schemat/round_print_speech.mas", round_id => $round->id, filename => $filename, schools => $schools);
+		} elsif ($event->type eq "congress") { 
+			$m->comp("schemat/round_print_congress.mas", round_id => $round->id, filename => $filename, schools => $schools, tourn => $tourn);
+		} elsif ($event->type eq "wudc") { 
+			$m->comp("schemat/round_print_wudc.mas", round_id => $round->id, filename => $filename, schools => $schools);
+		} else { 
+			$m->comp("schemat/round_print_debate.mas", round_id => $round->id, filename => $filename, schools => $schools, record => $record);
+		}
+
+		if ($round->note) { 
+			print TEXOUT "\\medskip\n";
+			print TEXOUT "\\newline\n";
+			print TEXOUT "\\normalsize\n";
+			print TEXOUT Tab::texify($round->note);
+		}
+
+		open (TEXOUT, ">>$filepath.tex");
+		print TEXOUT "\\newpage\n" unless $no_break;
+		close TEXOUT;
+
+	} else { 
+
+		EVENT:
+		foreach my $event (@events) { 
+	
+			TIMESLOT:
+			foreach my $timeslot (@timeslots) { 
+				my @rounds = Tab::Round->search(event => $event->id, timeslot => $timeslot->id);
+	
+				unless ($timeslot) { 
+					open (TEXOUT, ">>$filepath.tex");
+					print TEXOUT "\\huge TAB ROOM COPY: ". $event->name ." \\\\ \n" if $schools;
+					print TEXOUT "\\huge ". $event->name ." \\\\ \n" unless $schools;
+					close TEXOUT;
+				}
+
+				foreach my $round (@rounds) { 
+
+					next unless $round->panels;
+		
+					next unless $m->comp("/funclib/round_entries.mas", round => $round);
+			
+					if ($event->type eq "speech") { 
+						$m->comp("schemat/round_print_speech.mas", round_id => $round->id, filename => $filename, schools => $schools);
+					} elsif ($event->type eq "congress") { 
+						$m->comp("schemat/round_print_congress.mas", round_id => $round->id, filename => $filename, schools => $schools, tourn => $tourn);
+					} elsif ($event->type eq "BP") { 
+						$m->comp("schemat/round_print_bp.mas", round_id => $round->id, filename => $filename, schools => $schools);
+					} else { 
+						$m->comp("schemat/round_print_debate.mas", round_id => $round->id, filename => $filename, schools => $schools);
+					}
+
+					open (TEXOUT, ">>$filepath.tex");
+
+					if ($round->note) { 
+						print TEXOUT "\\medskip\n";
+						print TEXOUT "\\newline\n";
+						print TEXOUT "\\normalsize\n";
+						print TEXOUT Tab::texify($round->note);
+					}
+
+					print TEXOUT "\\bigskip\n";
+					print TEXOUT "\\newpage\n" unless $no_break;
+					print TEXOUT "\\newline\n" if $no_break;
+					close TEXOUT;
+
+				}
+
+			} 	
+		
+			open (TEXOUT, ">>$filepath.tex");
+
+			close TEXOUT;
+
+		} 	
+
+	} 
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1, landscape => $flighted );
+
+</%init>

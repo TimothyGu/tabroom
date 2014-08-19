@@ -1,0 +1,139 @@
+<%args>
+	$account
+	$tourn
+	$event_id => undef
+	$school_id
+	$student_id => undef
+	$title => undef
+	$seed => undef
+	$code => undef
+	$from => undef
+</%args>
+<%init>
+
+	$m->abort unless $event_id;
+
+	my $event = Tab::Event->retrieve($event_id);
+	my $school = Tab::School->retrieve($school_id);
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	
+    my $now = DateTime->now;
+    $now->set_time_zone($tz);
+
+    my $fine_deadline = $tourn->setting("fine_deadline");
+    $fine_deadline->set_time_zone($tz) if $fine_deadline;
+	my $fine_amount = $tourn->setting("add_fine") if $now > $fine_deadline;
+
+	my $minimum = $event->setting("min_entry");
+
+	my %already;
+
+	my $err;
+	
+	foreach my $slot (1 .. $event->setting("max_entry")) { 
+
+		if ($slot < $minimum && not defined $ARGS{$slot}) { 
+			$err = "You did not enter enough students for a valid entry";
+			$m->redirect("entries.mhtml?school_id=$school_id&event_id=$event_id&err=$err");
+		}
+
+		if ($already{$ARGS{$slot}}) { 
+			$err = "You entered the same student twice.  Please try again.  Student is ".$ARGS{$slot};
+			$m->redirect("entries.mhtml?school_id=$school_id&event_id=$event_id&err=$err");
+		}
+
+		$already{$ARGS{$slot}}++ if $ARGS{$slot};
+
+	}
+
+	my $entry = Tab::Entry->create({ 
+		tourn         => $tourn->id,
+		school        => $school_id,
+		event         => $event_id,
+		title		  => $title,
+		reg_time 	  => $now,
+		reg_by		  => $account->id,
+		dropped       => 0,
+		unconfirmed   => 0,
+		tba   		  => 0
+	});
+
+    if ($tourn->setting("track_reg_changes")) { 
+
+        my $text = $account->first." ".$account->last." entered ".$event->abbr." entry $code (".$entry->name.") as an admin.";            
+
+        my $change = Tab::TournChange->create({
+            tourn => $tourn->id,
+            school => $school_id,
+            type => "registration",
+            text => $text
+        });
+
+    }
+
+	my @students;
+
+	foreach my $student_id (keys %already) { 
+		$entry->add_student($student_id);
+		push (@students, Tab::Student->retrieve($student_id));
+	}
+
+	if ($now > $fine_deadline) { 
+
+		my $add_reason = "Late Add in ". $entry->event->abbr;
+
+		my $fine = Tab::SchoolFine->create({ 
+			school => $school_id,
+			amount => $fine_amount,
+			reason => $add_reason,
+			levied_on => $now,
+			levied_by => $account->id
+		}) if $fine_amount > 0;
+		
+	}
+
+	my $name;
+
+	if (scalar @students > 2) { 
+		$name = $school->short_name." ";
+		foreach my $stud (@students) { 
+			$name .= ucfirst substr($stud->last,0,1) if $stud;
+		}
+	} else { 
+		$name = $students[0]->first." ".$students[0]->last if scalar @students == 1;
+		$name = $students[0]->last." & ".$students[1]->last if scalar @students == 2;
+	}
+
+	$entry->name($name);
+	$entry->update;
+
+    if ($code && $code ne $entry->code) { 
+
+        my $other = Tab::Entry->search_where({ code => $code, school => $school->id, event => $event->id, id => {'!=', $entry->id}    })->first;
+
+		if ($other) { 
+            $err .= "Code $code is already taken.  Choose another";
+			$m->redirect("/register/entry/edit.mhtml?school_id=$school_id&entry_id=".$entry->id."&err=$err");
+        } else { 
+            $entry->code($code);
+        }
+    } else {
+        $entry->code($m->comp("/funclib/entry_code.mas", entry => $entry)) unless $code;
+    }   
+	
+	$entry->update;
+
+	foreach my $student (@students) { 
+		$m->comp("/funclib/account_conflict.mas", tourn => $tourn, account => $student->account) if $student->account;
+	}
+
+	my $msg = $entry->name." registered in ".$event->name;
+	
+	$m->redirect("/register/event/roster.mhtml?event_id=$event_id&msg=$msg&err=$err") if $from eq "roster";
+	$m->redirect("entries.mhtml?school_id=$school_id&event_id=$event_id&msg=$msg&err=$err");
+
+</%init>
+
+

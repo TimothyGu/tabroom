@@ -1,0 +1,274 @@
+<%args>
+	$timeslot_id
+	$event_id
+	$round_id    => undef
+	$panel_id    => undef
+	$sort_by     => undef
+	$accountless => undef
+	$tourn
+	$session
+</%args>
+<%init>
+
+	my $tourn_id = $tourn->id;
+	my @timeslots;
+
+	if ($timeslot_id eq "all") { 
+		@timeslots = $tourn->timeslots;
+	} else {
+		push (@timeslots, Tab::Timeslot->retrieve($timeslot_id));
+	} 
+
+	my @events;
+	if ($event_id eq "all") { 
+		@events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+	} else {
+		push (@events, Tab::Event->retrieve($event_id));
+	} 
+
+	@timeslots = sort {$a->start <=> $b->start} @timeslots;
+	@events = sort {$a->name cmp $b->name} @events;
+	
+	#Set up the filename and the needed trace files
+    my $name = $events[0]->name if $event_id ne "all";
+    $name = "ALL" unless $name;
+    $name =~ s/[\W_]//g;
+
+	my $round_name = "all" if $timeslot_id eq "all";
+	$round_name = $timeslots[0]->name unless $round_name;
+    $round_name =~ s/[\W_]//g;
+
+    my $filename = "MasterBallots-".$name."-$round_name-".$session->id;
+    my $filepath = $Tab::file_root."tmp/".$filename;
+    `rm -f $filepath.*`;
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1, taller => "yeah" );
+
+	my $first; 
+	my $didit;
+
+	my %printed;
+
+	if ($sort_by eq "code" || $sort_by eq "name" || $sort_by eq "school" || $sort_by eq "panname") { 
+
+		my %panels_by_judge = ();
+		my @judges; 
+		my %judge_event;
+
+		foreach my $timeslot (@timeslots) { 
+
+			foreach my $event (@events) { 
+
+				my @panels = $m->comp('/funclib/event_panels.mas', event => $event, timeslot => $timeslot);
+
+				foreach my $panel (@panels) { 
+
+					next unless $panel->round->timeslot->id == $timeslot->id;
+
+					my $done;
+
+					foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) {
+
+						next if $accountless && $judge->account && $judge->account->id;
+
+						$done++;
+
+						$judge_event{$judge->id} = $event->name;
+
+						if ($panel->round->event->type eq "wudc") { 
+							push (@judges, $judge) if $judge->chair;
+							push (@{$panels_by_judge{$judge->id}}, $panel);
+						} else { 
+							push (@judges, $judge);
+							push (@{$panels_by_judge{$judge->id}}, $panel);
+						}
+					}
+				}
+			}
+		}
+
+		my %seen = (); 
+		@judges = grep { ! $seen{$_->id} ++ } @judges;
+
+		@judges = sort {$a->code <=> $b->code} @judges;
+		@judges = sort {$a->last cmp $b->last} @judges if $sort_by eq "name" || $sort_by eq "panname";
+		@judges = sort {$judge_event{$a->id} cmp $judge_event{$b->id}} @judges if $sort_by eq "panname";
+		@judges = sort {$a->school->name <=> $b->school->name} @judges if $sort_by eq "schools";
+
+		my $done;
+
+		foreach my $judge (@judges) { 
+
+			my %printed_panel;
+		
+			foreach my $panel (@{$panels_by_judge{$judge->id}}) { 
+
+				next if $printed_panel{$panel}++;
+
+				my $type = $panel->round->event->type;
+
+				$didit++;
+
+			    $m->comp("ballots/speech_master.mas", 
+						judge_id => $judge->id,
+						panel_id => $panel->id,
+						chair    => $judge->chair,
+						filename => $filename) if $type eq "speech";
+
+			    $m->comp("ballots/congress_master.mas", 
+						judge_id => $judge->id,
+						panel_id => $panel->id,
+						chair    => $judge->chair,
+						filename => $filename) if $type eq "congress";
+
+			    $m->comp("ballots/wudc_master.mas", 
+						judge_id => $judge->id,
+						panel_id => $panel->id,
+						filename => $filename) if $type eq "wudc" && $judge->chair;
+
+			    $m->comp("ballots/debate_master.mas", 
+						judge_id => $judge->id,
+						panel_id => $panel->id,
+						chair    => $judge->chair,
+						filename => $filename) if ($type eq "debate" || $type eq "parli" || $type eq "policy" || $type eq "ld" || $type eq "pf");
+
+
+   				open (TEXOUT, ">>$filepath.tex");
+				print TEXOUT "\\newpage\n";
+				close TEXOUT;
+
+			}
+
+		} #end of foreach judge
+
+	} elsif ($sort_by eq "blank") {  
+
+		foreach my $event (@events) { 
+
+			my $type = $event->type;
+
+			$m->comp("ballots/speech_master.mas", 
+					event_id => $event->id,
+					filename => $filename) if $type eq "speech";
+
+			$m->comp("ballots/congress_master.mas", 
+					event_id => $event->id,
+					filename => $filename) if $type eq "congress";
+
+			$m->comp("ballots/wudc_master.mas", 
+					event_id => $event->id,
+					filename => $filename) if $type eq "wudc";
+
+			$m->comp("ballots/debate_master.mas", 
+					event_id => $event->id,
+					filename => $filename) if ($type eq "debate" || $type eq "parli" || $type eq "policy" || $type eq "ld" || $type eq "pf");
+
+			open (TEXOUT, ">>$filepath.tex");
+			print TEXOUT "\\newpage\n";
+			close TEXOUT;
+
+			$didit++;
+			
+		} # end of foreach event
+
+	} else { 
+		
+		foreach my $ts (@timeslots) { 
+
+			foreach my $event (@events) { 
+
+				my $type = $event->type;
+
+				my @panels = $m->comp("/funclib/event_panels.mas", timeslot => $ts, event => $event) unless $panel_id;
+				push (@panels, Tab::Panel->retrieve($panel_id)) if $panel_id;
+
+				@panels = sort {$a->letter cmp $b->letter} @panels;
+				@panels = sort {length($a->letter) <=> length($b->letter)} @panels;
+				@panels = sort {$a->roomname cmp $b->roomname} @panels;
+				@panels = sort {$a->roomname <=> $b->roomname} @panels;
+				@panels = sort {$a->round->event->name cmp $b->round->event->name } @panels;
+
+				foreach my $panel (@panels) { 
+
+					next unless $panel->round->timeslot->id == $ts->id;
+
+					my $done_judge;
+					my $num_judges = $panel->round->judges;
+
+					Tab::debuglog("Number of judges is $num_judges");
+
+					foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) {
+
+						$done_judge++;
+						$didit++;
+
+						$m->comp("ballots/speech_master.mas", 
+								judge_id => $judge->id,
+								panel_id => $panel->id,
+								chair    => $judge->chair,
+								filename => $filename) if $type eq "speech";
+
+						$m->comp("ballots/congress_master.mas", 
+								judge_id => $judge->id,
+								panel_id => $panel->id,
+								chair    => $judge->chair,
+								filename => $filename) if $type eq "congress";
+
+						$m->comp("ballots/wudc_master.mas", 
+								judge_id => $judge->id,
+								panel_id => $panel->id,
+								filename => $filename) if $type eq "wudc" && $judge->chair;
+
+						$m->comp("ballots/debate_master.mas", 
+								judge_id => $judge->id,
+								panel_id => $panel->id,
+								chair    => $judge->chair,
+								filename => $filename) if ($type eq "debate" || $type eq "parli" || $type eq "policy" || $type eq "ld" || $type eq "pf");
+
+   						open (TEXOUT, ">>$filepath.tex");
+						print TEXOUT "\\newpage\n";
+						close TEXOUT;
+				
+					} #end of foreach judge		
+
+					if ($done_judge < $num_judges) { 
+
+						foreach my $tick ($done_judge .. $num_judges) { 
+
+							$didit++;
+
+							$m->comp("ballots/speech_master.mas", 
+									panel_id => $panel->id,
+									filename => $filename) if $type eq "speech";
+
+							$m->comp("ballots/congress_master.mas", 
+									panel_id => $panel->id,
+									filename => $filename) if $type eq "congress";
+
+							$m->comp("ballots/debate_master.mas", 
+									panel_id => $panel->id,
+									filename => $filename) if ($type eq "debate" || $type eq "parli" || $type eq "policy" || $type eq "ld" || $type eq "pf");
+
+							open (TEXOUT, ">>$filepath.tex");
+							print TEXOUT "\\newpage\n";
+							close TEXOUT;
+
+						}
+					}
+
+				} #end of foreach panels
+
+			} # end of foreach event
+
+		} # end of foreach timeslot
+
+	} #end of unless sort_by
+
+	unless ($didit) { 
+		$m->print("<p class=\"err\">Nothing was printed: Either you haven't assigned judges yet, or that event has no rounds in that timeslot, or something.</p>");
+		$m->abort;
+	}
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1, pdflatex => 1);
+
+</%init>

@@ -1,0 +1,98 @@
+<%args>
+	$circuit
+	$tourn	
+	$account
+	$session
+	$debug
+</%args>
+<%init> 
+
+	my @judges = $m->comp("/funclib/tourn_judges.mas", tourn => $tourn);
+	my %judges_by_name = ();
+	my %judges_by_id = ();
+
+	foreach my $judge (@judges) { 
+
+		push (@{$judges_by_name{$judge->first.":".$judge->last}}, $judge);
+		system "$Tab::logger Pushing judge ".$judge->id." into ".$judge->first.":".$judge->last if $debug && $judge->last eq "Palmer";
+		$judges_by_id{$judge->id} = $judge;
+	}
+
+	my $switch;
+	my $count = 1;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "shenanigans" &>
+
+	<div class="left huge">
+	
+		<h2>I disapprove of your shenanigans</h2>
+
+		<h4><% scalar @judges %> judges.  Double-registered: </h4>
+
+%			foreach my $name (keys %judges_by_name) {
+
+%				my @judges = @{$judges_by_name{$name}};
+%				next unless scalar @judges > 1;
+
+%				my %notfirst;
+
+%				foreach my $judge (@judges) { 
+
+%					if ($notfirst{$judge->first."-".$judge->last}) { 
+
+						<span class="third nospace">
+						</span>
+
+%					} else { 
+
+						<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<span class="third nospace">
+							<a class="white" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>">
+								<% $judge->first." ".$judge->last %>
+							</a>
+						</span>
+
+%					}
+
+%						if ($tourn->setting("ncfl")) { 
+
+							<span class="sixth nospace">
+								<a class="white" href="/register/school/judges.mhtml?group_id=<% $judge->judge_group->id %>&school_id=<% $judge->school ? $judge->school->id : ""%>">
+									<% ($judge->school) ? $judge->school->name : "Hired" %>
+								</a>
+							</span>
+				
+							<span class="sixth nospace">
+								<a class="white" href="/register/region/tourn_judges.mhtml?group_id=<% $judge->judge_group->id %>&tourn_id=<% $tourn->id %>&region_id=<% $judge->school &&  $judge->school->region ? $judge->school->region->id : ""%>">
+									<% ($judge->school && $judge->school->region) ? $judge->school->region->name : "" %>
+								</a>
+							</span>
+
+%						} else { 
+
+							<span class="third nospace">
+								<a class="white" href="/register/school/judges.mhtml?group_id=<% $judge->judge_group->id %>&school_id=<% $judge->school ? $judge->school->id : ""%>">
+									<% ($judge->school) ? $judge->school->name : "Hired" %>
+								</a>
+							</span>
+%						} 
+
+						<span class="sixth nospace">
+							<a class="white" href="/register/judge/roster.mhtml?group_id=<% $judge->judge_group->id %>">
+								<% $judge->judge_group->abbr %>
+							</a>
+						</span>
+			
+
+%					if ($notfirst{$judge->first."-".$judge->last}++) { 
+						</div>
+%					}
+
+%				}
+
+%			}
+
+	</div>

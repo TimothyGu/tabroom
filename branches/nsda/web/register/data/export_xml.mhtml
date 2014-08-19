@@ -1,0 +1,98 @@
+<%args>
+	$tourn
+	$account
+	$judge_group_id => undef
+	$session
+</%args>
+<%init>
+
+	my $judge_group = Tab::JudgeGroup->retrieve($judge_group_id) if $judge_group_id;
+	$judge_group = $tourn->judge_groups->first if (scalar $tourn->judge_groups) == 1;
+	$judge_group_id = $judge_group->id if $judge_group;
+
+	my $switch;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => 'export_xml' &>
+
+	<div class="left huge">
+
+		<h2>Export Universal XML</h2>
+
+		<h4>Choose a judge group:</h4>
+
+		<table cellpadding="4" cellspacing="1">
+
+%			foreach my $jg ($tourn->judge_groups) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<th>
+						<% $jg->name %>
+					</th>
+
+					<td>
+						<% scalar $jg->events %> Events
+					</td>
+
+					<td class="centeralign">
+						<a class="<% $judge_group_id == $jg->id ? "dkgreen" : "dkred" %> block" 
+							href="export_xml.mhtml?judge_group_id=<% $jg->id %>">
+							<% $judge_group_id == $jg->id ? "SELECTED" : "CHOOSE" %>
+						</a>
+					</td>
+
+				</tr>
+
+%			}
+
+		</table>
+
+%		if ($judge_group_id) { 
+
+			<h4>Select events/divisions</h4>
+
+			<form action="/api/download_tourn.mhtml">
+			<input type="hidden" name="session_id" value="<% $session->id %>">
+			<input type="hidden" name="tourn_id" value="<% $tourn->id %>">
+			<input type="hidden" name="judge_group_id" value="<% $judge_group->id %>">
+
+			<table cellpadding="4" cellspacing="1">
+
+%				foreach my $event ($judge_group->events) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<th>
+							<% $event->name %>
+						</th>
+
+						<td>
+							<% scalar $event->entries(dropped => 0, waitlist => 0, unconfirmed => 0) %> Entries
+						</td>
+	
+						<td>
+							<input type="checkbox" name="<% $event->id %>" value="1">
+						</td>
+
+					</tr>
+
+%				}
+
+				<tr class="liblrow">
+
+					<td colspan="3" class="rightalign">
+						<input type="submit" value="Export XML">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+
+%		}
+
+	</div>
+
+

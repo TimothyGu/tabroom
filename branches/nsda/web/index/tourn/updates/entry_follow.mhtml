@@ -1,0 +1,115 @@
+<%args>
+	$entry_id
+	$tourn_id
+	$account => undef
+	$domain => undef
+	$phone => 0
+	$email => 0
+</%args>
+<%init>
+
+	my $msg;
+	my $err;
+
+	my $entry = Tab::Entry->retrieve($entry_id);
+
+	unless ($entry) { 
+		$m->print("Entry does not exist.  Hit back and try again");
+		$m->abort;
+	}
+
+	my $phone_bad = 0;
+	my $email_bad = 0;
+
+	if ($account) { 
+		$email = $account->email;
+		$phone = $account->phone;
+		$domain = $account->provider;
+		undef $phone unless $domain;
+	}
+
+	$phone =~ s/\D//g;
+
+	my $emailok = Email::Valid->address( -address => $email, -mxcheck => 0 ) ? 'yes' : 'no' if $email;
+
+	if ($email && $emailok eq "no") { 
+		$err .= "Email address $email is invalid.  Try again <br />" if $emailok eq "no";
+		$email_bad++;
+	}
+
+	if ($phone && length($phone) != 10) { 
+		$err .= "That phone number had ".length($phone)." digits.  10 digits required <br/>";
+		$phone_bad++;
+	}
+
+	if ($phone && not defined $domain) { 
+		$err .= "Please choose a phone provider <br />";
+		$phone_bad++;
+	}
+
+	my $follower;
+	my $follower_id = $account->id if $account;
+
+	if (($email && $phone) && ($email_bad == 0 && $phone_bad == 0))  { 
+
+		my @existing = Tab::FollowEntry->search( entry => $entry->id, email => $email );
+		push (@existing, Tab::FollowEntry->search( entry => $entry->id, cell => $phone ));
+
+		my %seen = ();
+		@existing = grep { ! $seen{$_->id} ++ } @existing;
+
+		foreach (@existing) { $_->delete; }
+
+		$follower = Tab::FollowEntry->create({
+			entry => $entry->id,
+			cell => $phone,
+			email => $email,
+			domain => $domain,
+			follower => $follower_id
+		});
+
+		$msg .= "$email and $phone are now following ".$entry->name." <br /> <br />";
+
+	} elsif ($email && $email_bad == 0 && $phone == 0) { 
+
+		my @existing = Tab::FollowEntry->search( entry => $entry->id, email => $email );
+
+		unless (@existing) { 
+			
+			$follower = Tab::FollowEntry->create({
+				entry => $entry->id,
+				email => $email,
+				follower => $follower_id
+			});
+			
+			$msg .= "$email is now following ".$entry->name." <br /> <br />";
+
+		}
+		
+
+	} elsif ($phone && $email == 0 && $phone_bad == 0) { 
+
+		my @existing = Tab::FollowEntry->search( entry => $entry_id, cell => $phone );
+		
+		unless (@existing) {
+
+			$follower = Tab::FollowEntry->create({
+				entry => $entry->id,
+				cell => $phone,
+				domain => $domain,
+				follower => $follower_id
+			});
+
+		}
+
+		$msg .= "Phone $phone is now following ".$entry->name." <br /> <br />";
+
+	} 
+	
+	if ($follower) { 
+		$m->comp("send_confirmation.mas", follower => $follower);
+	}
+
+	$m->redirect("index.mhtml?event_id=".$entry->event->id."&tourn_id=$tourn_id&msg=$msg&err=$err");
+
+</%init>

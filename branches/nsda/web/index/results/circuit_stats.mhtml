@@ -1,0 +1,233 @@
+<%args>
+	$account    => undef
+	$circuit    => undef
+	$circuit_id => undef
+	$year       => undef
+</%args>
+<%init>
+
+	use Time::HiRes qw( time );
+	my $code_start = time(); 
+	##Tab::debuglog("CODE STARTS for circuit_stats");
+		
+	$circuit = Tab::Circuit->retrieve($circuit_id) if $circuit_id;
+
+	unless ($circuit) { 
+		$circuit = Tab::Circuit->retrieve( 43 ); 
+		$circuit_id = $circuit->id; 
+	}
+
+	unless ($year) { 
+		my $this_year = Tab::school_year;
+		$year = $this_year->year;
+	}
+
+	my $start_string = "07/01/$year";
+	my $end_string = "06/30/".($year + 1);
+
+	my $start_dt = Tab::dtme($start_string);	
+	my $end_dt = Tab::dtme($end_string);	
+
+	my $code_end = time(); ##Tab::debuglog("Time before first pull ".sprintf("%.2f", $code_end-$code_start) );
+
+	#Load chapter characteristics
+
+#	Tab::Chapter->columns(TEMP => qw/nstudents/);	
+#	Tab::Chapter->columns(TEMP => qw/njudges/);	
+#	Tab::Chapter->set_sql(pull_competitors => "
+#		select chapter.*, count(student.id) as nstudents, count(chapter_judge.id) as njudges 
+#		from chapter, student, chapter_judge, chapter_circuit
+#		where chapter.id=student.chapter 
+#		and chapter.id=chapter_judge.chapter 
+#		and chapter.id=chapter_circuit.chapter 
+#		and chapter_circuit.circuit = $circuit_id
+#		group by chapter.id
+#	");
+	
+	Tab::Chapter->set_sql(pull_competitors => "
+		select chapter.*
+		from chapter, chapter_circuit
+		where chapter.id=chapter_circuit.chapter 
+		and chapter_circuit.circuit = $circuit_id
+	");
+
+	my @chpt = Tab::Chapter->search_pull_competitors;
+	$code_end = time(); ##Tab::debuglog("Time AFTER first pull ".sprintf("%.2f", $code_end-$code_start) );
+		
+#	@chpt = sort { $b->nstudents <=> $a->nstudents } @chpt;
+	
+#	my $totalstudents=0;
+#	my $totaljudges=0;
+#	foreach my $chapter (@chpt) {
+#		$totalstudents += $chapter->nstudents;
+#		$totaljudges += $chapter->njudges;
+#	}
+
+	#student and judge active counts
+
+	$code_end = time(); ##Tab::debuglog("Time before second pull ".sprintf("%.2f", $code_end-$code_start) );
+
+	Tab::Student->columns(TEMP => qw/total_students/);		
+	Tab::Student->set_sql(pull_student => "
+		select student.id, count(student.id) as total_students
+		from chapter, student, chapter_circuit
+		where student.retired=0 
+		and student.chapter=chapter.id 
+		and chapter.id=chapter_circuit.chapter 
+		and chapter_circuit.circuit = $circuit_id
+	");
+	
+	my @student = Tab::Student->search_pull_student;
+		
+	$code_end = time(); ##Tab::debuglog("Time AFTER active student pull ".sprintf("%.2f", $code_end-$code_start) );
+	
+	$code_end = time(); ##Tab::debuglog("Time before second pull ".sprintf("%.2f", $code_end-$code_start) );
+
+	Tab::Student->columns(TEMP => qw/total_students/);		
+	Tab::Student->set_sql(pull_student => "
+		select count(distinct student.id) as total_students
+		from student, chapter_circuit, entry_student, tourn, entry 
+		where entry_student.student = student.id
+		and student.chapter=chapter_circuit.chapter 
+		and chapter_circuit.circuit = $circuit_id
+		and entry.id=entry_student.entry
+		and tourn.id=entry.tourn
+		and tourn.start >= ? 
+		and tourn.end <=  ?
+	");
+	
+	my @student_entry = Tab::Student->search_pull_student ( DateTime::Format::MySQL->format_date($start_dt), DateTime::Format::MySQL->format_date($end_dt));
+		
+	$code_end = time(); ##Tab::debuglog("Time AFTER entered student pull ".sprintf("%.2f", $code_end-$code_start) );
+
+	Tab::ChapterJudge->columns(TEMP => qw/active_judges/);		
+	Tab::ChapterJudge->set_sql(pull_judge => "
+		select count(chapter_judge.id) as active_judges
+		from chapter_judge, chapter_circuit
+		where chapter_judge.retired=0
+		and chapter_judge.chapter=chapter_circuit.chapter
+		and chapter_circuit.circuit = $circuit_id
+	");
+	my @active_judge = Tab::ChapterJudge->search_pull_judge;
+	$code_end = time(); ##Tab::debuglog("Time after judge pull ".sprintf("%.2f", $code_end-$code_start) );
+	
+	#Load tournament characteristics
+
+	Tab::Tourn->columns(TEMP => qw/entries/);	
+	Tab::Tourn->columns(TEMP => qw/events/);	
+	Tab::Tourn->set_sql(pull_tourn => "
+		select tourn.*, count(entry.id) as entries, count(event.id) as events
+		from tourn
+		left join entry on tourn.id=entry.tourn 
+		left join event on tourn.id=event.tourn 
+		left join tourn_circuit on tourn.id=tourn_circuit.tourn 
+		where tourn_circuit.circuit = $circuit_id
+		and tourn_circuit.approved = 1
+		and tourn.start >= ? 
+		and tourn.end <=  ?
+		group by tourn.id
+	");
+	
+	my @tourn = Tab::Tourn->search_pull_tourn( DateTime::Format::MySQL->format_date($start_dt), DateTime::Format::MySQL->format_date($end_dt));
+	$code_end = time(); ##Tab::debuglog("Time after tourney pull ".sprintf("%.2f", $code_end-$code_start) );
+	
+	my $totalentries = 0;
+	my $totalevents = 0;
+
+	foreach my $tourney(@tourn) {
+		$totalentries += $tourney->entries;
+		$totalevents += $tourney->events;
+	}
+	
+	$code_end = time(); ##Tab::debuglog("Time at end of processing: ".sprintf("%.2f", $code_end-$code_start) );
+			
+	sub commify {
+		local($_)=shift;
+		1 while s/^(-?\d+)(\d{3})/$1,$2/;
+		return $_;
+	}
+	
+</%init>
+
+	<& menu.mas, circuit_id => $circuit_id, whoami => "stats", year => $year &>
+
+	<h5>Tip -> get tournament results and team or speaker breakdowns using the "Circuit Stats" box to the right</h5>
+	
+	<p></p>
+		
+	<div class="left huge">
+	
+		<h2>Circuit statistics for <% $circuit->name %></h2>
+		
+		<table cellpadding="4">
+
+			<thead>
+				<tr class="yellowrow">
+					<th class="smallish">
+						Data
+					</th>
+					<th class="smallish">
+						Number
+					</th>
+				</tr>
+				</tr>
+			</thead>
+
+			<tbody>
+
+				<tr>
+					<td> Schools/Institutions</td>
+					<td> <% scalar(@chpt)  %> </td>
+				</tr>
+				<tr>
+					<td> Active Students </td>
+					<td> <% commify(sprintf("%.0f", $student[0]->total_students)) %> </td>
+				</tr>
+				<tr>
+					<td> Active Judges </td>
+					<td> <% commify(sprintf("%.0f", $active_judge[0]->active_judges))  %> </td>
+				</tr>
+		</tbody>
+
+		</table>
+
+		<h4><% $year %>-<% $year+1 %> season</h4>
+
+		<table cellpadding="4">
+
+			<thead>
+				<tr class="yellowrow">
+					<th class="smallish">
+						Data
+					</th>
+					<th class="smallish">
+						Number
+					</th>
+				</tr>
+				</tr>
+			</thead>
+
+			<tbody>
+
+				<tr>
+					<td> Students Entered in 1+ tournaments </td>
+					<td> <% commify(sprintf("%.0f", $student_entry[0]->total_students)) %> </td>
+				</tr>
+				<tr>
+					<td> Tournaments in <% $year %> </td>
+					<td> <% scalar(@tourn)  %> </td>
+				</tr>
+				<tr>
+					<td> Events/Divisions in <% $year %></td>
+					<td> <% commify(sprintf("%.0f", $totalevents))  %> </td>
+				</tr>
+				<tr>
+					<td> Total Entries in <% $year %> </td>
+					<td> <% commify(sprintf("%.0f", $totalentries))  %> </td>
+				</tr>
+
+			</tbody>
+
+		</table>
+
+	</div>

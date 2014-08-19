@@ -1,0 +1,142 @@
+<%args>
+	$tourn
+	$session
+	$account
+</%args>
+<%init>
+
+	my @concessions = sort {$a->name cmp $b->name} $tourn->concessions;
+	my $switch;
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+</%init>
+
+    <& menu.mas, chosen => "concessions", tourn => $tourn &>
+
+	<div class="left huge">
+
+		<h2><% ($tourn->setting("concession_name")) ? $tourn->setting("concession_name") : "Concessions" %></h2>
+
+		<table cellpadding="6" cellspacing="1" border="0" width="100%">
+
+			<tr class="yellowrow">
+
+				<th>
+					<form action="concessions_save.mhtml" method="post">
+					Name
+				</th>
+
+				<th>
+					Price
+				</th>
+
+				<th>
+					Cap
+				</th>
+				
+				<th colspan="2">
+					Order Deadline
+				</th>
+
+			</tr>
+	
+% 			foreach my $concession (@concessions) { 
+	
+				<tr <% ($switch % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+	
+					<td>
+						<input type="text" name="<% $concession->id %>_name" size="10" value="<% $concession->name %>">
+					</td>
+	
+					<td>
+						<input type="text" name="<% $concession->id %>_price" size="3" value="<% $concession->price %>">
+					</td>
+
+					<td>
+						<input type="text" name="<% $concession->id %>_cap" size="3" value="<% $concession->cap %>">
+					</td>
+
+		            <& /funclib/datepicker.mas, id => $concession->id."_date", max => $tourn->start &>
+	
+%					my $deadline = $concession->deadline->set_time_zone($tourn->tz) if $concession->deadline;
+	
+				    <td> 
+
+	                    <input type="text" name="<% $concession->id %>_date" id="<% $concession->id %>_date" size="10" 
+							value="<% ($deadline) ? Tab::pickerdate($deadline) : "" %>">
+							@
+	                    <& /funclib/timepicker.mas, name => $concession->id."_time", size => 8, time => $deadline &>
+
+					</td>
+
+					<td>
+						<a class="dkred block" href="concessions_rm.mhtml?concession_id=<% $concession->id %>">
+							DELETE
+						</a> 
+					</td>
+
+				</tr>
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<td class="rightalign">
+						Description:
+					</td>
+
+					<td colspan="4">
+						<input type="text" name="<% $concession->id %>_description" size="70" value="<% $concession->description %>">
+					</td>
+
+				</tr>
+%			}
+
+			<tr <% ($switch % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+	
+				<td>
+					<input type="text" name="new_name" size="10" placeholder="Add new item">
+				</td>
+				
+				<td>
+					<input type="number" name="new_price" size="3" min="0" max="999">
+				</td>
+
+				<td>
+					<input type="number" name="new_cap" size="3" max="9999" min="0">
+				</td>
+	
+				<td>
+		            <& /funclib/datepicker.mas, id => "new_date", max => $tourn->start &>
+       	            <input type="text" name="new_date" id="new_date" size="10">
+					@
+                    <& /funclib/timepicker.mas, name => "new_time", size => "8", dt => $tourn->reg_end->set_time_zone($tourn->tz) &>
+				</td> 
+
+			</tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<td class="rightalign">
+					Description:
+				</td>
+
+				<td colspan="4">
+					<input type="text" name="new_description" size="70" placeholder="Description">
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td colspan="5" align="right">
+					<input type="submit" value=" Save Concessions Changes ">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>
+
+

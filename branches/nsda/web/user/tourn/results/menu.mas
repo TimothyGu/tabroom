@@ -1,0 +1,15 @@
+<%args>
+	$school
+	$tourn
+</%args>
+
+
+		<a class="blue block" href="index.mhtml">Results Home</a>
+
+		<a class="blue block" href="print_school_report.mhtml">Printable IE Student Report</a>
+
+		<a class="blue block" href="invoice_print.mhtml">Print Invoice/Receipt</a>
+
+		<a class="blue block" href="roster_print.mhtml">Print Registration Roster</a>
+
+

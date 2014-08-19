@@ -1,0 +1,118 @@
+<%args>
+	$tourn
+	$account
+	$session
+</%args>
+<%init>
+
+	my $switch;
+
+	my @events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+	my @on_events = $m->comp("/funclib/tourn_liveupdates_events.mas", tourn => $tourn);
+
+	my %seen = ();
+
+</%init>
+
+	<div class="left huge">
+
+%		if (@on_events) { 
+			<h4>Events using Live Updates</h4>
+			<table cellpadding="6" cellspacing="1" width="100%">
+
+				<tr class="yellowrow">
+					
+					<th>
+						Event
+					</th>
+
+					<th>
+						Type
+					</th>
+
+					<th>
+					</th>
+
+				</tr>
+%		}
+
+%			foreach my $event (@on_events) { 
+
+%				$seen{$event->id}++;
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<td>
+						<% $event->name %>
+					</td>
+
+					<td>
+						<% ucfirst($event->type) %>
+					</td>
+
+					<td class="centeralign" width="18%">
+						<a class="dkred block" href="live_switch.mhtml?event_id=<% $event->id %>">Disable</a>
+					</td>
+
+				</tr>
+
+%			}
+
+%		if (@on_events) { 
+			</table>
+%		}
+
+%		if (@events) { 
+
+			<h4>Events without Live Updates</h4>
+
+			<table cellpadding="6" cellspacing="1" width="100%">
+
+				<tr class="yellowrow">
+					
+					<th>
+						Event
+					</th>
+
+					<th>
+						Type
+					</th>
+
+					<th>
+					</th>
+
+				</tr>
+%		}
+
+%			foreach my $event (sort {$a->name cmp $b->name} @events) { 
+
+%				next if $seen{$event->id};
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<td>
+						<% $event->name %>
+					</td>
+
+					<td>
+						<% ucfirst($event->type) %>
+					</td>
+
+					<td class="centeralign" width="18%">
+						<a class="dkgreen block" href="live_switch.mhtml?event_id=<% $event->id %>">Enable</a>
+					</td>
+
+				</tr>
+
+%			}
+
+%		if (@events) { 
+			</table>
+%		}
+
+	</div>
+
+	<& sidebar.mas, tourn => $tourn, webpage_type => "livecontrol" &>
+
+	<br style="clear: both;">
+

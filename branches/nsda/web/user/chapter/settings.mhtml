@@ -1,0 +1,206 @@
+<%args>
+	$chapter_id
+	$account
+	$session
+</%args>
+<%init>
+
+	my $chapter = Tab::Chapter->retrieve($chapter_id);
+
+	my $switch;
+
+	$m->comp("/user/chapter/auth.mas", chapter => $chapter, account => $account, session => $session);
+
+</%init>
+
+	<& /user/menu.mas, chapter => $chapter, account => $account &>
+
+	<div class="left huge">
+
+		<h2><% $chapter->name %>: Settings</h2>
+
+		<& tabbar.mas, chapter => $chapter, whoami => "settings" &>
+
+		<table cellpadding="10" cellspacing="1">
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+	
+				<th class="rightalign">
+					School/Team Name
+				</th>
+
+				<td>
+					<form action="save.mhtml" method="post"> 
+					<input type="hidden" name="chapter_id" value="<% $chapter->id %>">
+					<input type="text" name="name" size="47" value="<% $chapter->name %>">
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					Level
+				</th>
+
+				<td>
+					<select name="level" class="fixed chosen">
+						<option value=""></option>
+						<option <% $chapter->level eq "university" ? "selected" : "" %> value="university">College/University</option>
+						<option <% $chapter->level eq "highschool" ? "selected" : "" %> value="highschool">High School/Secondary</option>
+						<option <% $chapter->level eq "middle" ? "selected" : "" %> value="middle">Middle/Junior High</option>
+						<option <% $chapter->level eq "elementary" ? "selected" : "" %> value="elementary">Elementary</option>
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					Country
+				</th>
+
+				<td>
+					<select name="country" class="fixed chosen">
+						<& /funclib/country_select.mas, country => $chapter->country &>
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					State/Province (if applicable)
+				</th>
+
+				<td>
+					<select name="state" class="fixed chosen">
+						<& /funclib/state_select.mas, state => $chapter->state &>
+					</select>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					Coach names (for credits)
+				</th>
+
+				<td>
+					<input type="text" name="coaches" size="47" value="<% $chapter->coaches %>">
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					<label for="self_prefs">
+					 	Entries may enter their own prefs
+					</label>
+				</th>
+
+				<td>
+
+					<span class="smallspan centeralign">
+						<input type="checkbox" id="self_prefs" name="self_prefs" class="check" value="1" <% $chapter->self_prefs ? 'checked="checked"' : "" %>>
+					</span>
+
+					<span class="biggishspan smallish">
+						*Entries must link tabroom accounts; see Students tab
+					</span>
+				</td>
+
+			</tr>
+	
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow"%>" >
+
+				<th class="rightalign">
+					<label for="naudl">
+						NAUDL participating school
+					</label>
+				</th>
+
+				<td>
+					<span class="smallspan centeralign">
+						<input type="checkbox" id="naudl" name="naudl" class="check" value="1" <% $chapter->naudl ? 'checked="checked"' : "" %>>
+					</span>
+					<span class="biggishspan smallish">
+						*Allows NAUDL to see your school result reports
+					</span>
+				</td>
+
+			</tr>
+	
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input type="submit" value=" Save Chapter Details ">
+					</form>
+				</td>
+			</tr>
+
+		</table>
+
+		<h4>Accounts with access to this tabroom.com chapter</h4>
+
+		<table cellpadding="5" cellspacing="1">
+
+%			foreach my $coach ($m->comp("/funclib/chapter_admins.mas", chapter => $chapter, prefs => "yep")) { 
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>	
+
+    	    	    <td>
+       		    	    <% $coach->first." ".$coach->last %>
+					</td>
+
+           			<td>
+						<a class="white" href="mailto:<% $coach->email %>">
+               			<% $coach->email %>
+						</a>
+           			</td>
+
+           			<td class="centeralign smallish">
+						<a class="dk<% $coach->prefs ? "red" : "green" %> block" href="/user/chapter/prefs_switch.mhtml?coach_id=<% $coach->id%>&chapter_id=<% $chapter->id%>">
+							<% $coach->prefs ? "Prefs Only" : "Full Access" %>
+						</a>
+		            </td>
+
+           			<td class="centeralign smallish">
+						<a class="dkred block" href="/user/chapter/admin_rm.mhtml?coach_id=<% $coach->id%>&chapter_id=<% $chapter->id%>">
+							Remove
+						</a>
+		            </td>
+
+	       		</tr>
+
+%			}
+
+			<tr class="liblrow">
+
+				<th>
+					Add:
+				</th>
+	
+	       		<td colspan="2">
+					<form action="/user/chapter/admin_add.mhtml" method="post">
+					<input type="hidden" name="chapter_id" value="<% $chapter->id%>">
+					<input type="text" name="email" size="47" value="Enter coach's email address" onfocus="value=''">
+				</td>
+	
+       			<td class="rightalign">
+					<input type="submit"  value="   Grant    ">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>
+
+
+

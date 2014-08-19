@@ -1,0 +1,1004 @@
+<%args>
+	$tourn
+	$entry_id => undef
+</%args>
+<%init>
+
+	my $entry = Tab::Entry->retrieve($entry_id) if $entry_id;
+	$m->abort unless $entry;
+
+	my $event = $entry->event;
+	my @students = $entry->students;
+
+	my $no_codes++ if $event->setting("code_style") eq "names";
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	Tab::Round->set_sql( flightedness => "
+		select max(round.flighted) from round where event = ? 
+	");
+
+	my $max_flights = Tab::Round->sql_flightedness->select_val($event->id);
+
+	my %wins = $m->comp("/funclib/entry_wins.mas", event => $event);
+	my %losses = $m->comp("/funclib/entry_losses.mas", event => $event);
+	
+</%init>
+
+	<& /funclib/editable.mas, class => "code", dest => "code_change.mhtml" &>
+	<& /funclib/editable.mas, class => "name", dest => "name_change.mhtml" &>
+	
+	<& /register/menubar.mas, school => $entry->school, whoami => "students", tourn => $tourn &>
+
+	<div>
+
+		<span class="threequarter"> 
+			<h4>Entry in <% $event->name %></h4>
+		</span>
+
+%		if ($event->type ne "congress" && $event->type ne "speech" && $event->type ne "wudc") { 
+			<span class="quarter rightalign">	
+				<h4>
+					<% $wins{$entry->id}."-".$losses{$entry->id} %>
+				</h4>
+			</span>
+%		}
+
+	</div>
+
+%	my $switch;
+%	my $code_setting = $event->setting("code_style");
+
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="quarter">
+			</span>
+
+			<span class="quarter bold">
+				Entry Name
+			</span>
+
+			<span class="half">
+				<span class="edit name white" id="<% $entry->id %>"><% $entry->name %></span>
+			</span>
+
+		</div>
+
+%		unless ($event->setting("no_codes") || $no_codes) { 
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+				</span>
+
+				<span class="quarter bold">
+					Entry Code
+				</span>
+
+				<span class="half">
+					<span class="white edit code" id="<% $entry->id %>"><% $entry->code %></span>
+				</span>
+
+			</div>
+
+%		}
+
+%		my %entry_students = ();
+
+%		my $tick = 1;
+
+% 		foreach my $student (@students) { 
+
+%			my $hybrid_school;
+
+%			if ($student->chapter && $student->chapter->id != $entry->school->chapter->id) { 
+%				$hybrid_school = Tab::School->search( tourn => $tourn->id, chapter => $student->chapter->id)->first;
+%			}
+
+%			$entry_students{$student->id}++;
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+				</span>
+				<span class="quarter bold">
+					Student <% $tick++ %>
+				</span>
+
+				<span class="half">
+
+					<span class="nospace half">
+						<a class="nospace white" href="student_edit.mhtml?student_id=<%$student->id%>&entry_id=<% $entry->id %>">
+							<% $student->first." ".$student->last %>
+						</a>
+					</span>
+
+					<span class="half rightalign smaller">
+						<% $student->novice ? '(Novice)' : "" %>
+
+%						if ($hybrid_school) { 
+							<a class="white smaller" href="/register/school/entries.mhtml?school_id=<%$hybrid_school->id%>&event_id=<% $event->id %>">
+								(Hybrid from: <% $hybrid_school->name %>)
+							</a>
+%						}
+					</span>
+
+				</span>
+
+			</div>
+
+%		}
+
+
+%		if ($event->setting("ask_for_titles")) {
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+				</span>
+				<span class="quarter bold">
+					Piece Title
+				</th>
+	
+				<span class="half">
+					<% $entry->title %>
+				</span>
+
+			</div>
+
+%		}
+
+
+% 	if ($ncfl) { 
+
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="quarter">
+			</span>
+			<span class="quarter bold">
+				Diocese:
+			</span>
+
+			<span class="half">
+				<a class="white" href="/register/diocese/entry.mhtml?diocese_id=<% $entry->school->region->id %>">
+					<% $entry->school->region->name ." (".$entry->school->region->code .")" %>
+				</a>
+			</span>
+
+		</div>
+
+% 	}
+
+% 	if ($entry->ada) { 
+		<div class="<% ($switch++ % 2) ? "lirdrow" : "redrow" %>">
+%	} else { 
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+%	}
+
+			<span class="quarter">
+			</span>
+			<span class="quarter bold">
+				Accomodations
+			</span>
+
+			<span class="half">
+				<a class="white " href="ada_switch.mhtml?entry_id=<% $entry->id %>"><% ($entry->ada) ? "Yes" : "No" %></a>
+			</span>
+	
+		</div>
+
+% 		if ($event->setting("apda")) { 
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+				</span>
+				<span class="quarter bold">
+					<form action="seed_save.mhtml" method="post">
+					<input type="hidden" name="entry_id" value="<% $entry->id %>">
+					APDA Seed
+				</span>
+
+				<span class="half">
+					<select name="seed" onchange='this.form.submit()' class="fixedsmall"> 
+						<option value="">None</option>
+						<option value="half" <% $entry->seed eq "half" ? "selected" : "" %>>Half</option>
+						<option value="full" <% $entry->seed eq "full" ? "selected" : "" %>>Full</option>
+						<option value="free" <% $entry->seed eq "free" ? "selected" : "" %>>Free</option>
+					</select>
+
+					<noscript>
+						<input type="submit" class="thin" value="Save">
+					</noscript>
+					</form>
+				</span>
+			</div>
+
+% 		} elsif ($event->setting("seed_presets")) { 
+
+			<form action="seed_save.mhtml" method="post">
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+				</span>
+
+				<span class="quarter bold">
+					<input type="hidden" name="entry_id" value="<% $entry->id %>">
+					Prelim Seeding
+				</span>
+
+				<span class="half">
+					<span class="half">
+						<input type="text" name="seed" size="10" value="<% $entry->pair_seed %>">
+					</span>
+
+					<span class="half rightalign">
+						<input type="submit" class="thin" value="Save Seed">
+						</form>
+					</span>
+
+				</span>
+
+			</div>
+
+% 		} 
+
+% 	if ($entry && $event->setting("ask_quals")) {
+
+		<h4 style="margin-top: 10px;">Qualifying Information:</h4>
+
+		<table cellpadding="5" width="100%" cellspacing="1">
+
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					<form action="qual_save.mhtml" method="post">
+					<input type="hidden" name="entry_id" value="<% $entry->id %>">
+				</th>
+
+				<th class="smaller">
+					Tournament
+				</th>
+
+				<th class="smaller">
+					Placement/Points
+				</th>
+
+			</div>
+
+%			my $tick = 1;
+
+%			foreach my $qual ($entry->qualifiers) { 
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th>
+						Qual <% $tick++ %>.
+					</th>
+
+					<td>
+						<input type="text" size="20" name="qual_<% $qual->id %>_name" value="<% $qual->name %>">
+					</td>
+
+					<td>
+						<input type="text" size="20" name="qual_<% $qual->id %>_result" value="<% $qual->result %>">
+					</td>
+
+				</tr>
+
+% 			}
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<th>
+					Add Qual:
+				</th>
+
+				<td>
+					<input type="text" size="20" name="qual_new_name">
+				</td>
+
+				<td>
+					<input type="text" size="20" name="qual_new_result">
+				</td>
+
+			</tr>
+
+% 			if ($entry && $event->setting("ask_quals")) {
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th>	
+						<label for="atlarge">
+							At-Large
+						</label>
+					</th>
+
+					<td colspan="2" class="leftalign">
+						<input id="atlarge" type="checkbox" name="atlarge" value="1"  <% $entry->seed eq "atlarge" ? 'checked="checked"' : "" %>>
+					</td>
+
+				</tr>
+% 			}
+
+			<tr class="liblrow">
+
+				<td colspan="3" class="rightalign">
+					<input type="submit" value="Save Qualifiers">
+					</form>
+				</td>
+
+			</tr>
+	
+		</table>
+
+% 	}
+
+%   if ($tourn->setting("housing")) {
+
+<%perl>
+
+		my $start = $tourn->start;
+		my $end = $tourn->end;
+
+		$start->set_time_zone($tz);
+		$end->set_time_zone($tz);
+		$end->truncate(to   => 'day');
+		$start->truncate(to => 'day');
+
+		my @days = $m->comp("/funclib/tourn_days.mas", tourn => $tourn);
+		my $day_before = $days[0]->clone;
+		$day_before->subtract( days => 1);
+		push (@days, $day_before);
+
+</%perl>
+
+		<h4>Housing</h4>
+
+		<form action="housing_save.mhtml" method="post">
+		<input type="hidden" name="entry_id" value="<% $entry->id %>">
+
+%		foreach my $student (@students) { 
+
+			<div class="half">
+
+				<div class="yellowrow smallish">
+
+					<span class="half padmore">
+						<% $student->first." ".$student->last %>
+					</span>
+					
+					<span class="half padmore">
+						Gender
+
+						M <input type="radio" class="padno" name="gender_<%$student->id%>" value="M" <% ($student->gender eq "M") ? "checked" : "" %> >
+						F <input type="radio" class="padno" name="gender_<%$student->id%>" value="F" <% ($student->gender eq "F") ? "checked" : "" %> >
+					</span>
+
+				</div>
+					
+%				undef ($switch);
+
+%				foreach my $day (@days) { 
+
+%					next unless Tab::HousingSlots->search( night => $day );
+%					my $housing = $m->comp("/funclib/student_housing.mas", student => $student, tourn => $tourn, day=> $day);
+
+					<div class="<% ($switch++ % 2) ? "even" : "odd" %> smallish">	
+
+						<span class="third">
+							<% Tab::niceshortdayte($day) %>
+						</span>
+
+						<label for="request_<% $student->id."_".$day->ymd %>">
+						<span class="third hover">
+							<span class="quarter nospace">
+									Req:
+							</span>
+							<span class="half nospace">
+								<input 	type="checkbox" name="request_<% $student->id."_".$day->ymd %>" value="1" <% ($housing) ? "checked" : "" %> id="request_<% $student->id."_".$day->ymd %>" >
+							</span>
+						</span>
+						</label>
+
+						<label for="waitlist_<% $student->id."_".$day->ymd %>">	
+						<span class="third hover">
+							<span class="twothird nospace">
+								Waitlist:
+							</span>
+							<span class="third nospace">
+								<input 	type="checkbox" name="waitlist_<% $student->id."_".$day->ymd %>" 
+									id="waitlist_<% $student->id."_".$day->ymd %>" value="1" <% ($housing && $housing->waitlist) ? "checked" : "" %> >
+							</span>
+						</span>
+						</label>
+
+					</div>
+%   			}
+	
+			</div>
+
+%		} 
+
+		<span class="liblrow rightalign">
+		   	<input type="submit" value="Save Housing Details">
+   			</form>
+		</span>
+
+%	} # end of if housing.
+
+
+
+%	my @rounds = sort { $a->name <=> $b->name } $event->rounds;
+
+%	if (@rounds) { 
+
+		<h4>Rounds:</h4>
+
+		<table cellpadding="5" width="100%" cellspacing="1"> 
+
+			<tr class="yellowrow">
+	
+				<th class="smaller">
+					Rnd
+				</td>
+		
+				<th class="smaller">
+					Start
+				</th>
+
+%				if ($event->type eq "wudc" || $event->type eq "speech") { 
+					<th class="smaller">
+						Speaks
+					</th>
+%				}
+
+%				if ($event->type eq "debate" || $event->type eq "policy"  || $event->type eq "ld"  || $event->type eq "pf" || $event->type eq "parli") { 
+				
+					<th class="smaller">
+						Vs.
+					</th>
+
+					<th class="smaller">
+						S
+					</th>
+
+% 					if ($event->setting("seed_presets")) { 
+						<th class="smaller">
+							Rate
+						</th>
+%					}
+%				}
+		
+				<th class="smaller">
+					Room
+				</th>
+		
+				<th class="smaller">
+					Judging
+				</th>
+		
+				<th class="smaller">
+					Result
+				</th>
+		
+				<th class="smaller">
+				</th>
+		
+			</tr>
+		
+% 			foreach my $round (@rounds) { 
+
+%				my @panels = $m->comp("/funclib/entry_panels.mas", round => $round, entry => $entry);
+%				my $panel = shift @panels;
+
+%				if ($panel) {
+		
+%					my @all_ballots = Tab::Ballot->search( panel => $panel->id ); 
+%					my @ballots;
+
+%					my $opp;
+%					my $side;
+
+%					foreach my $ballot (@all_ballots) {
+%						if ($ballot->entry && $entry && $ballot->entry->id == $entry->id) { 
+%							push @ballots, $ballot;
+%							$side = $ballot->side 
+%						} else { 
+%							$opp = $ballot->entry;
+%						} 
+%					}
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td class="smallish centeralign">
+							<% $round->name %>
+						</td>
+
+						<td class="smallish nowrap">
+							<% &Tab::nicetime($panel->round->timeslot->start->set_time_zone($tz)) %>
+						</td>
+
+%						if ($event->type eq "wudc" || $event->type eq "speech") { 
+							<td class="smallish centeralign">
+								<% Lingua::EN::Numbers::Ordinate::ordinate($m->comp("/funclib/entry_speakerorder.mas", entry => $entry, panel => $panel)) %> 
+							</td>
+%						}
+
+%						if ($event->type eq "debate" || $event->type eq "policy"  || $event->type eq "ld"  || $event->type eq "pf" || $event->type eq "parli") { 
+
+%							if ($panel->bye) { 
+								<td class="smallish" colspan="6">
+									BYE
+								</td>
+%							} else { 
+
+								<td class="smaller">
+									<a class="white" href="edit.mhtml?entry_id=<% $opp ? $opp->id : ""%>">
+										<% $opp ? $opp->code : "" %>
+									</a>
+								</td>
+
+								<td class="smallish centeralign">
+%									if ($panel->bye) { 
+										B
+%									} elsif ($event->type eq "pf") { 
+										<% $side == 1 ? "P" : "C" %>
+%									} elsif ($event->type eq "parli") { 
+										<% $side == 1 ? "G" : "O" %>
+%									} else { 
+										<% $side == 1 ? "A" : "N" %>
+%									}
+		
+								</td>
+
+% 								if ($event->setting("seed_presets")) { 
+									<td class="smallish centeralign">
+										<% $opp ? $opp->pair_seed : "" %>
+									</td>
+% 								}
+
+								<td class="smaller">
+									<a class="white" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+										<% ($panel->room->id) ? $panel->room->name : "No Room" %>
+									</a>
+								</td>
+
+								<td class="smaller">
+
+%				 					if ($panel->bye) { 
+										<div class="nospace nowrap">
+											<a class="white" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+												BYE
+											</a>
+										</div>
+%									} else {
+%					 					foreach my $judge (sort {$a->ballotid <=> $b->ballotid} $m->comp("/funclib/panel_judges.mas", panel => $panel)) { 	
+											<div class="full nospace nowrap">
+												<a class="<% $judge->chair ? "bold" : "" %> white" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+													<% $judge->judge_group->setting('no_codes') ? $judge->last : $judge->code." ".$judge->last." ".$judge->first %><% $judge->chair ? "*" : "" %>
+												</a>
+											</div>
+%		 								}	
+%		 							}	
+
+								</td>
+
+								<td class="smaller limit">
+
+%		 							foreach my $ballot (@ballots) { 
+
+										<div class="nospace nowrap">
+%											my @values = $ballot->values;
+
+%											if ($event->type eq "wudc") { 
+%												foreach my $value (@values) { 
+%													if ($value->tag eq "rank") { 
+														<span class="eighth marno">
+															<% Lingua::EN::Numbers::Ordinate::ordinate($value->value) %>
+														</span>
+%													}
+%												}
+
+%											} else { 
+
+%												if ($ballot->bye) {
+													<span class="eighth marno">
+														BYE
+													</span>
+%												} elsif ($ballot->noshow) { 
+													<span class="eighth marno">
+														FFT	
+													</span>
+%												}
+%												foreach my $value (@values) { 
+%													if ( $value->tag eq "ballot") { 
+														<span class="eighth marno">
+															<% $value->value ? "W" : "L" %>
+														</span>
+%													}
+%												}
+%											}
+
+											<span class="threequarter smaller nowrap limit">
+
+%											foreach my $student (@students) { 
+
+%												my $yo;
+												<div class="nospace">
+
+%												foreach my $value (@values) { 
+%													next unless $value->student && $value->student->id == $student->id;
+%													if ($value->tag eq "points") { 
+														<span class="quarter nospace">
+															<% $value->value %>
+														</span>
+%														$yo++;
+%													} 
+%												} 
+
+%												foreach my $value (@values) { 
+%													next unless $value->student && $value->student->id == $student->id;
+%													if ($value->tag eq "rank") { 
+														<span class="nospace eighth">
+															<% $value->value %>
+														</span>
+%														$yo++;
+%													} 
+%												} 
+												
+												<% $yo ? $student->first." ".$student->last : "" %>
+												</div>
+%		 									} 
+
+											</span>
+
+										</div>
+%		 	
+%		 							} 
+
+								</td> 
+%							} 
+
+%						}  else { 
+
+								<td class="smallish">
+									<a class="white" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+										<% ($panel->room->id) ? $panel->room->name : "No Room" %>
+									</a>
+								</td>
+
+								<td class="smallish">
+
+%					 				foreach my $judge (sort {$a->ballotid <=> $b->ballotid} $m->comp("/funclib/panel_judges.mas", panel => $panel)) { 	
+										<div class="full padmore">
+											<a class="<% $judge->chair ? "bold" : "" %> white padless" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+												<% $judge->judge_group->setting('no_codes') ? $judge->last : $judge->code." ".$judge->last." ".$judge->first %><% $judge->chair ? "*" : "" %>
+											</a>
+										</div>
+%		 							}	
+								</td>
+
+								<td class="smallish" align="center">
+
+%		 							foreach my $ballot (sort {$a->judge->last cmp $b->judge->last} @ballots) { 
+
+										<div class="padless">
+
+											<% $ballot->noshow ? "NoShow" : "" %>
+											<% $ballot->bye ? "Bye" : "" %>
+
+%											my @values = $ballot->values;
+
+%											foreach my $value (@values) { 
+%												if ($value->tag eq "rank") { 
+													<% $value->value %>
+%												} 
+%											} 
+
+%											foreach my $value (@values) { 
+%												if ($value->tag eq "points") { 
+													&ndash; <% $value->value %>
+%			 									} 
+%		 									} 
+
+										</div>
+
+%		 							} 
+
+								</td> 
+%						}
+
+						<td class="smallish" align="center">
+							<a class="dkgreen block" href="/panel/manipulate/entry_edit.mhtml?entry_id=<% $entry->id %>&round_id=<% $round->id %>">
+								Move
+							</a>
+						</td>
+
+					</tr>
+	
+% 				} else { 
+							
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>	
+
+						<td class="smallish centeralign">
+							<% $round->name %>
+						</td>
+						
+						<td colspan="9" class="smallish">
+							<span class="threequarter">
+								Not scheduled in <% ($round->label) ? $round->label : "Round ".$round->name %>
+							</span>
+
+							<span class="quarter">
+								<a class="right dkgreen block" href="/panel/manipulate/entry_edit.mhtml?entry_id=<% $entry->id %>&round_id=<% $round->id %>">
+									Add Manually
+								</a>
+							</span>
+						</td>
+					</tr>
+% 				}
+
+% 			} 
+
+		</table>
+%	} 
+
+%		$switch = 1;
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote" style="padding-top: 30px;">
+
+% 			if ($entry->dq == 1) { 
+
+				<a class="dkred block">
+					DISQUALIFIED 
+				</a>
+				<br />
+						
+%			} 
+
+% 			if ($entry->dropped) { 
+
+				<a class="dkred block">
+					DROPPED 
+
+%					if ($entry->drop_time) { 
+						on <% &Tab::niceshortdt($entry->drop_time->set_time_zone($tz)) %>
+%					}
+				</a>
+				<br />
+
+%			} 
+
+
+% 			if ($ncfl) { 
+				<a class="blue block" href="/register/region/tourn_entries.mhtml?region_id=<% $entry->school->region->id %>&event_id=<% $event->id %>">
+					<% $entry->school->region->name %> entry in <% $event->abbr %>
+				</a>
+%			} 
+			<a class="blue block" href="/register/school/entries.mhtml?school_id=<% $entry->school->id %>&event_id=<% $event->id %>">
+				<% $entry->school->short_name %> entry in <% $event->abbr %>
+			</a>
+
+			<a class="blue block" href="/register/event/roster.mhtml?event_id=<% $event->id %>&sort=school">
+				<% $event->abbr %> full roster
+			</a>
+
+%			if ($event->judge_group->setting("prefs")) { 
+				<a class="martop blue block" href="/register/entry/prefs.mhtml?entry_id=<% $entry->id %>&sort=school">
+					<% $entry->code %> Pref Sheet
+				</a>
+%			}
+
+		<h4>Print</h4>
+
+			<a class="blue block nowrap" href="print.mhtml?entry_id=<% $entry->id %>">
+				Print <% $entry->code %> Info Sheet
+			</a>
+
+% 		if ($ncfl) { 
+			<a class="blue block" href="/funclib/ncfl/print_entry_card.mhtml?entry_id=<% $entry->id %>">
+				Print <% $entry->code %> Card
+			</a>
+%		}
+
+%		foreach my $student (@students) { 
+
+			<a class="blue block nowrap" href="student_print.mhtml?student_id=<% $student->id %>">
+				Student <% $student->first." ".$student->last %> Info Sheet
+			</a>
+%		}
+
+% 		if ( $event->setting("waitlist") || $event->setting("waitlist_all") ) { 
+		
+			<h4>Entry Status</h4>
+
+%			if ($entry->waitlist) { 
+
+				<a class="dkred block">
+					Waitlisted
+				</a>
+
+%				my $warnno = "This will admit the entry off the waitlist.  It will NOT notify the coaches.";
+%				my $warnyep = "This will admit the entry off the waitlist.  It will notify coaches by email.";
+
+				<a class="blue block" <& "/funclib/confirm.mas", warn => $warnno &> href="unwaitlist.mhtml?entry_id=<% $entry->id %>">Admit off waitlist</a>
+				<a class="blue block" <& "/funclib/confirm.mas", warn => $warnyep &> href="unwaitlist.mhtml?notify=yessir&entry_id=<% $entry->id %>">Admit & notify coaches</a>
+
+%			} else { 
+				<a class="yellow block" href="waitlist.mhtml?entry_id=<% $entry->id %>">Place on waitlist</a>
+%			}
+
+%		}
+
+		<h4>Wreak Havoc</h4>
+
+%		if ($entry->dropped) { 
+
+			<a class="dkgreen block" href="undrop.mhtml?entry_id=<% $entry->id %>">
+				Un-Drop
+			</a>
+
+			<a class="dkred block" href="delete.mhtml?entry_id=<% $entry->id %>">
+				Completely Delete
+			</a>
+
+%		} else { 
+
+			<a class="yellow block" href="drop.mhtml?entry_id=<% $entry->id %>">Drop</a>
+%		}
+
+%		if ($entry->dq) { 
+
+			<a class="dkred block" href="undq.mhtml?entry_id=<% $entry->id %>">Un-Disqualify</a>
+			
+%		} else { 
+
+%			my $warn = "You are about to disqualify this entry.  In IEs, other entries in the same section as this one will be promoted one rank if they scored below this entry in all rounds.  In debate no results changes will be made.  You can undo this if you change your mind.";
+
+			<a class="yellow block" <& "/funclib/confirm.mas", warn => $warn &>  href="dq.mhtml?entry_id=<% $entry->id %>">Disqualify</a>
+%		}
+
+			<a class="yellow block" href="/tabbing/entry/card.mhtml?entry_id=<% $entry->id %>">View/Change Results</a>
+
+			
+%			if ($max_flights > 1 ) { 
+
+				<h4>Flight</h4>
+
+				<form action="flight_save.mhtml" method="post">
+
+				<div class="evenrow centeralign visible">
+					<input type="hidden" name="entry_id" value="<% $entry_id %>">
+					<select name="flight" class="chosen fixedsmall" onchange='this.form.submit()' >  
+						<option value="">None</option>
+%					  	foreach my $flight ( 1 .. $max_flights) { 
+							<option value="<% $flight %>" <% $flight == $entry->flight ? "selected" : "" %>> 
+								<% $flight %>
+							</option>
+%				   		}   
+					</select>
+				</div>
+				</form>
+%			}
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Swap Students</h4>
+
+			<form action="change.mhtml" method="post">
+			<input type="hidden" name="entry_id" value="<% $entry_id %>">
+			<input type="hidden" name="school_id" value="<% $entry->school->id %>">
+
+<%perl>
+			 my @clean_students = $m->comp("/funclib/students_evententer.mas",
+				tourn  => $tourn,
+				event  => $event,
+				school => $entry->school
+			);
+
+			my $count = 1;
+
+</%perl>
+
+%			foreach my $student (@students) { 
+
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> visible">
+		
+					<span class="sixth nospace">
+						<% $count++ %>
+					</span>
+
+					<span class="fivesixth nospace">
+			
+						<select name="<% $student->id %>" onchange='this.form.submit()' class="chosen fixedmedsmall">
+
+							<option value="<%	$student->id %>"><% $student->last.", ".$student->first %></option>
+
+							<option value="0">No Partner/Maverick</option>
+
+%							foreach my $other_student (sort { ucfirst($a->last) cmp ucfirst($b->last)} @clean_students) {
+% 				  				next if $entry_students{$other_student->id};
+								<option value="<% $other_student->id %>"> <% $other_student->last.", ".$other_student->first %> </option>
+%							}
+
+						</select> 
+					</span> 
+
+				</div>
+
+%			} 
+
+%			if ( scalar @students < $event->setting("max_entry") ) { 
+
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %> visible">
+
+					<span class="sixth nospace">
+						<% $count++ %>:
+					</span>
+			
+					<span class="fivesixth nospace">
+						<select name="new" onchange='this.form.submit()' class="chosen fixedsmall">
+							<option value="">
+								Add student
+							</option>
+
+							<option value="0">No Partner/Maverick</option>
+
+%							foreach my $other_student (sort { ucfirst($a->last) cmp ucfirst($b->last)} @clean_students) {
+% 		  						next if $entry_students{$other_student->id};
+								<option value="<% $other_student->id %>">
+									<% substr($other_student->last.", ".$other_student->first,0,15) %>
+								</option>
+%							}
+						</select> 
+					</span>
+				</div>
+%			}
+
+			<noscript>
+				<div class="liblrow rightalign">
+					<input type="submit" class="thin" value="  Save Changes  ">
+				</div>
+			</noscript>
+
+			</form>
+
+% 			if ($ncfl) { 
+
+				<h4>School</h4>
+
+				<form action="school.mhtml" method="post">
+				<input type="hidden" name="entry_id" value="<% $entry->id %>">
+
+				<div class="block <% ($switch++ % 2) ? "oddrow" : "evenrow" %> rightalign">
+					<select name="school_id" class="fixedsmall" onchange='this.form.submit()'>
+%						foreach my $school (sort {$a->name cmp $b->name} Tab::School->search( region => $entry->school->region, tourn => $tourn->id)) { 
+							<option value="<% $school->id %>" <% $school->id == $entry->school->id ? "selected" : "" %>>
+								<% substr($school->name,0,32) %>
+							</option>
+%						}
+
+					</select>
+
+				<noscript>
+					<div class="liblrow rightalign">
+						<input type="submit" class="thin" value="  Save Changes  ">
+					</div>
+				</noscript>
+
+%			}
+
+		</div>
+
+	</div>
+
+	<br style="clear: both;" />

@@ -1,0 +1,359 @@
+<%args>
+	$judge_id
+	$school_id
+</%args>
+<%init>
+
+	my $judge = Tab::Judge->retrieve($judge_id);
+	my $school = Tab::School->retrieve($school_id);
+
+	unless ($judge && $school ) { 
+		$m->print("I have no judge or school.  Hit back and try again");
+		$m->abort();
+	}
+
+	my $group = $judge->judge_group;
+	my $tourn = $group->tourn;
+
+	my $rounds_per = $group->setting("rounds_per") if $group;
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge"> 
+
+		<h2>Additional details needed</h2> 
+
+		<form action="judge_details_save.mhtml" method="post">
+		<input type="hidden" name="judge_id" value="<% $judge->id %>">
+		<input type="hidden" name="school_id" value="<% $school->id %>">
+
+%		if ($group->setting("coach_ratings")) { 
+
+			<h4>Rate this judge</h4>
+
+			<table cellpadding="3" cellspacing="1" width="97%" align="right">
+
+%			if ($group->rating_subsets) { 
+
+%				foreach my $subset ($group->rating_subsets) { 
+
+%					my $rating = $judge->ratings( rating_subset => $subset->id )->first;
+%					my $tier = $rating->rating_tier if $rating;
+	
+					<tr class="yellowrow">
+	
+						<td colspan="3">
+
+							<span class="medbigspan">
+								<h4>
+									<% $subset->name %> 
+								</h4>
+							</span>
+
+							<span class="biggerspan rightalign">
+								<h5>
+%									my $notfirst;
+%									foreach my $event ($subset->events) { 
+										<% ($notfirst) ? ", " : "" %>
+										<% $event->name %>
+%										$notfirst++;
+%									}
+								</h5>
+							</span>
+						</td>
+
+					</tr>
+
+%					foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) {
+
+						<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+
+							<td align="center">
+								<input type="radio" name="<% $subset %>" value="<% $tier->id %>" id="<% $subset->id."-".$tier->id %>" 
+									<% ($rating && $rating->rating_tier && $rating->rating_tier->id == $tier->id) ? "checked" : "" %>>
+							</td>
+
+							<td align="center">
+								<label for="<% $subset->id."-".$tier->id %>">
+									<% $tier->name %>
+								</label>
+							</td>
+
+							<td>
+								<label for="<% $subset->id."-".$tier->id %>">
+									<% $tier->description %>
+								</label>
+							</td>
+
+						</tr>
+
+%					} 
+
+%				}
+
+%			} else { 
+
+%				my $rating = $judge->ratings->first;
+%				my $judge_tier = $rating->rating_tier if $rating;
+
+%				foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) {
+				
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+
+						<td class="rightalign">
+							<input type="radio" name="rating_id" value="<% $tier->id %>" id="<% $tier->id %>"
+								<% ($judge_tier && $tier->id == $judge_tier->id) ? "checked" : "" %>>
+						</td>
+
+						<td class="leftalign">
+							<label for="<% $tier->id %>">
+								<% $tier->name %>
+							</label>
+						</td>
+
+						<td class="leftalign">
+							<label for="<% $tier->id %>">
+								<% $tier->description %>
+							</label>
+						</td>
+					</tr>
+
+%				} 
+
+%			}
+
+		</table>
+
+		<br style="clear: both;">
+
+%	}
+
+%	if ($group->setting("ask_alts")) { 
+	
+		<table cellpadding="5" cellspacing="1" width="97%" align="right">
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+				
+				<td>
+					Also judges group:
+				</td> 
+				
+				<td>
+					<select name="alt_id">
+					
+						<option value="">
+							None Selected
+						</option>
+
+%						foreach my $ogroup (sort {$a->name cmp $b->name} $tourn->groups) { 
+
+%						   next if $group->id == $ogroup->id;
+%						   next if $group->setting("tab_room");
+
+							<option value="<% $ogroup->id %>" <% ($ogroup->id eq $judge->alt_group->id) ? 'selected' : '' %> >
+								<% $ogroup->name %>
+							</option>
+%					   }
+
+					</select>
+
+				</td>
+
+			</tr>
+
+		</table>
+		
+		<br style="clear: both;" />
+
+%	}
+
+%	if ($group->setting("diversity_selfie")) { 
+
+		<h4>Judge Diversity</h4>
+
+		<div class='block exwhite'>
+			<% $group->setting("diversity_notice") %>
+		</div>
+	
+		<table cellpadding="5" cellspacing="1" width="97%" align="right">
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+				
+				<td>
+					Diversity-enhancing judge
+				</td> 
+				
+				<td>
+					<input type="checkbox" name="diverse" value="1" <% $judge->diverse ? 'checked="checked"' : "" %>>
+				</td>
+
+			</tr>
+
+		</table>
+		
+		<br style="clear: both;" />
+		
+%	}
+
+	
+	<h4>
+		Other Details
+	</h4>
+
+	<table cellpadding="8">
+
+%		if ($rounds_per) { 
+			
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="rightalign">
+					<input type="number" name="rounds" size="5" min="1" max="<% $group->setting("max_rounds") %>" value="<% $judge->obligation %>">
+				</td>
+			
+				<td>
+					Prelim round judging obligation
+				</td>
+
+			</tr>
+%		}
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td colspan="2">
+				<label for="ada">
+					ADA/Accessible Rooms Needed
+				</label>
+			</td>
+
+			<td class="rightalign">
+				<input type="checkbox" id="ada" name="ada" value="1" <% $judge->ada ? "checked" : "" %>> 
+			</td>
+
+		</tr>
+
+%		if ($group->setting("first_year_outs")) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td colspan="2">
+					<label for="fyo">
+						Judge is a first-year graduate <% $group->setting("fyo_free_strikes") ? "(automatic free strike)" : "" %>
+					</label>
+				</td>
+
+				<td class="rightalign">
+					<input type="checkbox" id="fyo" name="fyo" value="1" <% $judge->setting("first_year") ? "checked" : "" %>> 
+				</td>
+
+			</tr>
+
+%		}
+
+%		if ($group->setting("free_strikes_dont_count")) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+
+				<td colspan="2">
+					<label for="free_strike">
+						Judge is a free strike <% $group->setting("free_strikes_dont_count") > 0 ? "(rounds will not count towards obligation)" : "" %>
+					</label>
+				</td>
+				<td class="rightalign">
+					<input type="checkbox" id="free_strike" name="free_strike" value="1" <% $judge->setting("free_strike") ? "checked" : "" %>> 
+				</td>
+
+			</tr>
+%		}
+
+%		if ($group->setting("judge_contacts")) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td colspan="2" class="rightalign">
+					Judge Phone Number
+				</td>
+
+				<td>
+					<input type="tel" name="phone" size="50" value="<% $judge ? $judge->setting("phone") : "" %>">
+				</td>
+
+			</tr>
+
+%		}
+
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td class="rightalign">
+				Other Notes:
+			</td>
+
+			<td colspan="2" class="rightalign">
+				<input type="text" name="notes" size="50" value="<% $judge ? $judge->notes : "" %>">
+			</td>
+
+		</tr>
+
+%		my %strike_by_event = ();
+%		foreach my $strike (Tab::Strike->search( type => "event", judge => $judge->id, registrant => 1 )) { 
+%			$strike_by_event{$strike->event->id} = $strike;
+%		}
+
+%		foreach my $event ($m->comp("/funclib/event_selfstrike.mas", group => $group)) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="rightalign">
+					<input type="checkbox" id="<% $event->id %>" name="<% $event->id %>" value="1" 
+						<% $strike_by_event{$event->id} ? "checked" : "" %>> 
+				</td>
+
+				<td>
+					<label for="<% $event->id %>">
+						Judge should not judge <% $event->name %>
+					</label>
+				</td>
+
+			</tr>
+
+%		}
+
+
+	</table>
+
+	<table width="100%">
+			
+		<tr class="liblrow">
+
+			<td align="right">
+				<input type="submit" value="  Save Details   ">
+				</form>
+			</td>
+
+		</tr>
+
+	</table>
+			
+</div>
+
+<div class="right small">
+
+	<div class="sidenote">
+		
+		<h4>Judge</h4>
+
+		<p style="text-align: right;">
+			<% $judge->first." ".$judge->last %>
+		<br />
+			<% $judge->judge_group->name %>
+		<br />
+			<% $judge->school ? $judge->school->short_name : "Hired Judge" %>
+		</p>
+
+	</div>
+
+</div>
+

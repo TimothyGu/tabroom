@@ -1,0 +1,106 @@
+<%args>
+	$tourn
+	$account
+	$timeslot_id => undef
+</%args>
+<%init>
+
+	my $timeslot = Tab::Timeslot->retrieve($timeslot_id);
+	my @rounds = $timeslot->rounds if $timeslot;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my @panels = $m->comp("/funclib/timeslot_panels.mas", sortby => "room", timeslot => $timeslot) if $timeslot;
+	my @rooms = $m->comp("/funclib/timeslot_rooms.mas", timeslot => $timeslot) if $timeslot;
+
+	@panels = map  { $_->[0] } sort { $a->[1] <=> $b->[1] } map  { [$_, $_->room->name=~/(\d+)/] } @panels;
+	@panels = map  { $_->[0] } sort { $a->[1] cmp $b->[1] } map  { [$_, $_->room->name=~/(\D+)/] } @panels;
+
+	my %room_by_id = ();
+	foreach my $room (@rooms) { 
+		$room_by_id{$room->id} = $room;
+	}
+
+	my %panels_by_round = ();
+
+	foreach my $panel (@panels) { 
+		push(@{$panels_by_round{$panel->round->id}}, $panel);
+	}
+
+	my @strikes = $m->comp("/funclib/tourn_roomstrikes.mas", tourn => $tourn);
+	my %strikes_by_room = ();
+
+	foreach my $strike (@strikes) { 
+		push (@{$strikes_by_room{$strike->room->id}}, $strike);
+	}
+
+	my @clean_rooms = $m->comp("/funclib/timeslot_rooms.mas", timeslot => $timeslot, avail => 1);
+#	my @room_pools = $m->comp("/funclib/timeslot_room_pools.mas");
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, timeslot => $timeslot, clean_rooms => \@clean_rooms &>
+
+	<div class="left huge">
+
+		<h2>Rooms</h2>
+		
+		<& tabbar.mas, tourn => $tourn, timeslot => $timeslot,  whoami => "index" &>
+
+%		if ($timeslot) { 
+
+			<div>
+				<span class="half nospace">
+					<h4>Timeslot <% $timeslot ? $timeslot->name : "" %></h4>
+				</span>
+
+				<span class="half nospace rightalign">
+					<h5>
+						<% $timeslot->start->set_time_zone($tz)->day_name %>
+						<% Tab::nicetime($timeslot->start->set_time_zone($tz)) %> -
+						<% Tab::nicetime($timeslot->end->set_time_zone($tz)) %>
+						<% Tab::tzname($tz) %>
+					</h5>
+				</span>
+			</div>
+%		}
+
+
+%		my $current_event = $rounds[0]->event->id if @rounds;
+
+%		foreach my $round (@rounds) { 
+
+%			if ($current_event != $round->event->id) { 
+				<hr />
+%				$current_event = $round->event->id;
+
+%			}
+
+%			my @panels = @{$panels_by_round{$round->id}} if $round->id && $panels_by_round{$round->id};
+
+%			my $switch;
+%			my $counter = 1;
+%			my %used;
+
+%			foreach  my $panel (@panels) { 
+%				next if $used{$panel->room->id}++;
+				<span class="smallish third thin <% ($switch % 2) ? "odd" : "even" %>">
+					<span class="quarter padless">
+						<% $round->event->abbr %> <% $round->name%>
+					</span>
+					<span class="threequarter nowrap padless">
+						<% $room_by_id{$panel->room->id}? $room_by_id{$panel->room->id}->name : "None" %>
+					</span>
+				</span>
+
+%				$switch++ unless $counter++ % 3;
+%			}
+			
+%		}
+
+	</div>
+
+
+
+

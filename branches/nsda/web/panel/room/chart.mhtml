@@ -1,0 +1,135 @@
+<%args>
+	$tourn
+	$timeslot_id => undef
+	$site_id     => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $site = Tab::Site->retrieve($site_id);
+
+	unless ($site) { 
+		$site = $tourn->sites->first;
+	}
+
+	unless ($site) { 
+		my $msg = "You have no sites for your tournament; please add or create one to continue";
+		$m->redirect("/setup/rooms/list.mhtml?msg=$msg");
+	}
+
+	my $timeslot = Tab::Timeslot->retrieve($timeslot_id) if $timeslot_id;
+
+	my @panels;
+
+	if ($timeslot) { 
+		@panels = $m->comp("/funclib/panel_during.mas", timeslot => $timeslot);
+	} else { 
+		@panels = $m->comp("/funclib/tourn_panels.mas", timeslot => $timeslot, tourn => $tourn);
+	}
+
+	my %room_panels = ();
+
+	foreach my $panel (@panels) { 
+		next unless $panel->room->id;
+		push @{$room_panels{$panel->room->id}}, $panel;
+	}
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, timeslot => $timeslot, site => $site, whoami => "chart" &>
+
+	<div class="left huge">
+
+		<h2>Room Chart</h2>
+
+		<& tabbar.mas, tourn => $tourn, whoami => "chart" &>
+
+		<& "/funclib/tablesorter.mas", table => "screwyou" &>
+
+		<table cellpadding="4" cellspacing="1" id="screwyou">
+
+			<thead>
+
+				<tr class="yellowrow smaller">
+
+					<th>
+						Room
+					</th>
+
+					<th>
+						Qual
+					</th>
+
+					<th>
+						Cap
+					</th>
+
+					<th>
+						ADA
+					</th>
+
+					<th>
+						Rounds
+					</th>
+
+				</tr>
+
+			</thead>
+
+			<tbody>
+
+%			foreach my $room ($site->rooms) { 
+
+				<tr>
+
+					<td>
+						<a class='white hover' href="report.mhtml?room_id=<% $room->id %>">
+						<% $room->name %>
+						</a>
+					</td>
+
+					<td class="centeralign smallish">
+						<% $room->quality %>
+					</td>
+
+					<td class="centeralign smallish">
+						<% $room->capacity %>
+					</td>
+
+					<td class="centeralign smallish">
+						<% $room->ada ? "Y" : "N" %>
+					</td>
+
+					<td class="smallish">
+%						if ($room_panels{$room->id}) {
+%							foreach my $panel (@{$room_panels{$room->id}}) { 
+
+%								my $start = $panel->round->timeslot->start->set_time_zone($tz);
+%								my $end = $panel->round->timeslot->end->set_time_zone($tz);
+
+								<span class="half">
+									<a class="white hover" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+										<% $panel->round->event->abbr %> 
+										<% $panel->round->realname %> 
+										<% $panel->round->flighted > 1 ? "Flt ".$panel->flight : "" %> 
+									<div class="nospace smaller">
+										<% $start->day_abbr %>
+										<% Tab::shorttime($start) %> - <% Tab::shorttime($end) %> 
+									</div>
+									</a>
+								</span>
+%							}
+%						}
+					</td>
+
+				</tr>
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+

@@ -1,0 +1,318 @@
+<%args> 
+	$tourn
+	$judge_id => undef
+	$roster => undef
+</%args>
+<%init>
+
+	my $switch;
+	my $judge = Tab::Judge->retrieve($judge_id);
+	$m->abort unless $judge;
+
+	my $school = $judge->school;
+	my $diocese = $m->comp("/school_region.mas", school => $school) if $tourn->setting("ncfl");
+
+	my $group = $judge->judge_group;
+
+	my @schools = sort {$a->name cmp $b->name} $tourn->schools;
+	my @dioschools;
+	if ($diocese) { 
+		@dioschools = sort {$a->name cmp $b->name} $diocese->schools(tournament => $tourn->id);
+	}
+
+ 	my @panels = $m->comp('/funclib/judge_panels.mas', judge => $judge);
+
+	my $prefs = $group->setting("prefs");
+
+	my %tier_name = ();
+
+	foreach my $tier ($group->rating_tiers) { 
+		$tier_name{$tier->id} = $tier->name;
+	}
+
+	
+</%init>
+
+%	if ($roster) { 
+ 		<& "menu.mas", group => $group, tourn => $tourn &>
+		<div class="left huge">
+
+%	} else { 
+
+%		if ($judge->school > 0) { 
+    		<& "/register/menubar.mas", school => $school, whoami => "judges", tourn => $tourn &>
+%		} else {
+			<div class="left huge">
+%		}
+
+%	}
+
+		<h4>
+			<span class="bigspan" style="font-size: 100%; width: 440px;">
+				Pref Sheet for <% $judge->first." ".$judge->last %>
+			</span>
+			
+			<span class="rightalign medbigspan nowrap" style="font-size: 95%;">
+				Avg Rating: <% $m->comp('/funclib/judge_avg_rating.mas', judge => $judge) %>
+			</span>
+				
+		</h4>
+
+		<& /funclib/tablesorter.mas, table => 'sortme' &>
+
+		<table cellpadding="5" id="sortme">
+
+			<thead>
+
+			<tr class="yellowrow">
+
+				<th>
+					School
+				</th>
+
+				<th>
+					Name
+				</th>
+
+				<th>
+					Code
+				</th>
+
+				<th>
+					Rating
+				</th>
+
+			</tr>
+
+			</thead>
+
+			<tbody>
+
+%			foreach my $rating ($judge->ratings( type => "entry") ) { 
+
+				<tr>
+
+					<td class="smallish">
+						<% $rating->entry->school->name %>
+					</td>
+
+					<td class="smallish">
+						<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $rating->entry->id %>">
+						<% $rating->entry->name ? $rating->entry->name : $m->comp("/funclib/entry_students.mas", entry => $rating->entry, name => 1)%>
+						</a>
+					</td>
+
+					<td class="smallish nowrap">
+						<% $rating->entry->code %>
+					</td>
+
+					<td class="centeralign">
+						<% ($prefs eq "ordinals") ? $rating->ordinal : "" %>
+						<% ($prefs eq "tiered" || $prefs eq "tiered_round" || $prefs eq "caps" || $prefs eq "community") ? $tier_name{$rating->rating_tier->id} : "" %>
+					</td>
+
+				</tr>
+
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+
+%	unless ($roster) { 
+
+		<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Information</h4>
+
+%			if ($judge->school && $group) { 
+
+				<a class="blue block" href="/register/school/judges.mhtml?school_id=<% $judge->school->id %>&judge_group=<% $group->id %>">
+					<% $judge->school->short_name %> Judges
+				</a>
+
+%      	 	}
+
+%          	if ($group) { 
+           	    <a class="blue block" href="/register/judge/roster.mhtml?group_id=<% $group->id %>">
+           	        <% $group->name %> judges roster
+           	    </a>
+%      	 	}
+
+            <br />
+    
+            <a href="print.mhtml?judge_id=<% $judge->id %>" class="blue block">
+                Print <% $judge->first %>'s info sheet
+            </a> 
+
+
+			<h4>Wreak Havoc</h4>
+
+				<a href="drop.mhtml?judge_id=<% $judge->id %>&school_id=<% ($judge->school) ? $judge->school->id : "" %>" class="yellow block">
+					Drop Judge
+				</a>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Strikes & Prefs</h4>
+
+			<a class="dkblue block" href="prefs.mhtml?judge_id=<% $judge->id %>">
+				Pref Sheets
+			</a>
+
+			<a class="yellow block" href="judge_strikes.mhtml?judge_id=<% $judge->id %>">
+				Add Strike
+			</a>
+
+%			if ($judge->strikes) { 
+				<p class="smaller">Click to delete</p>
+%			}
+
+%  			foreach my $strike (sort {$a->type cmp $b->type} $judge->strikes) {
+				<a class="nowrap blue block" href="strike_rm.mhtml?from=edit&strike_id=<% $strike->id %>">
+					<% $strike->name %>
+				</a>
+%			}
+
+			<br />
+
+		</div> 
+
+% 		if ($group->setting("coach_ratings")) { 
+
+			<div class="sidenote">
+
+% 			my $switch;
+
+			<h4>Ratings</h4>
+			
+			<table cellpadding="4" width="100%" cellspacing="1">  
+
+			<form action="rating_save.mhtml" method="post">
+			<input type="hidden" value="<%$judge->id%>" name="judge_id">
+
+%			if ($group->rating_subsets) { 
+
+% 				foreach my $subset ($group->rating_subsets) { 
+
+%					my $rating = $m->comp("/funclib/judge_rating.mas", judge => $judge, subset => $subset);
+
+					<tr <% ($switch++% 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<td class="smaller">
+							<% $subset->name %>
+						</td>
+						
+						<td class="centeralign">
+
+							<select name="<% $subset->id %>_rating" onchange='this.form.submit()'>
+
+								<option value="">Unrated Judge</option>
+
+%								foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) { 
+
+									<option value="<% $tier->id %>"
+										<% ($rating && $rating->rating_tier && ($tier->id == $rating->rating_tier->id)) ? "selected" : "" %>>
+										<% $tier->name %> - <% substr($tier->description,0,15) %>
+									</option>
+%								}
+
+							</select>
+						</td>
+
+					</tr>
+
+%				} 
+
+%			}  else { 
+
+%				my $rating = $m->comp("/funclib/judge_rating.mas", judge => $judge);
+
+				<tr <% ($switch++% 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<td class="smaller">
+						<% $group->abbr %>
+					</td>
+						
+					<td align="center">
+
+						<select name="rating" onchange='this.form.submit()'>
+
+							<option value="">
+								Unrated
+							</option>
+
+%							foreach my $tier (sort {$a->name cmp $b->name} $group->rating_tiers(type => "coach")) { 
+								<option value="<% $tier->id %>" 
+									<% ($rating && ($tier->id == $rating->rating_tier->id)) ? "selected" : "" %>>
+									<% $tier->name %> - <% substr($tier->description,0,15) %>
+								</option>
+%							}
+
+						</select>
+					</td>
+
+				</tr>
+
+%			}
+
+			<noscript>
+			<tr class="liblrow"> 
+				<td colspan="2" align="right">
+					<input class="skinny" type="submit" value="Save Ratings">
+				</td> 
+			</tr>
+			</noscript>
+
+			</form>
+			</table>
+
+			</div>
+
+% 		} 
+
+% 		if (@panels) { 
+
+			<div class="sidenote">
+
+%			my $switch;
+
+			<h4>Assignments:</h4> 
+				
+%			foreach my $panel (sort {$a->round->timeslot->start <=> $b->round->timeslot->start} $m->comp("/funclib/judge_panels.mas", judge => $judge)) { 
+
+%				my $panel_start = $panel->round->timeslot->start;
+%				$panel_start->set_time_zone($tourn->tz);
+
+				<a class="green block" href="/panel/panel_view.mhtml?panel_id=<% $panel->id %>">
+					<span style="width: 35px; display: inline-block;" class="nowrap">
+						<% $panel_start->hour_12.':'.$panel_start->strftime('%M') %>
+					</span>
+					<span style="width: 25px; display: inline-block;" class="nowrap">
+						<% $panel->round->event->abbr %>
+					</span>
+					<span style="width: 30px; display: inline-block;" class="nowrap">
+						<% ($panel->round->label) ? $panel->round->label : "Rnd ". $panel->round->name %>
+					</span>
+					<span style="width: 75px; display: inline-block;" class="nowrap">
+						<% ($panel->room) ?  substr($panel->room->name,0,15) : "" %>
+					</span>
+				</a>
+				
+% 			} 
+
+			</div>
+
+% 		} 
+
+	</div> 
+
+	<br style="clear:both"/>
+	
+%	}

@@ -1,0 +1,19 @@
+<%args>
+	$table
+</%args>
+
+	<script type="text/javascript">
+
+        $(document).ready(function() 
+            { 
+                $("#<% $table %>").tablesorter({
+					cssAsc    : "sortup",
+					cssDesc   : "sortdown",
+					cssHeader : "sortable",
+					widgets   : ['zebra']
+				}); 
+            } 
+        ); 
+
+	</script>
+

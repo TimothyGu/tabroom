@@ -1,0 +1,119 @@
+<%args>
+	$account
+	$session
+</%args>
+
+	<& /user/menu.mas, account => $account &>
+
+	<div class="huge left">
+
+		<h2>
+			Welcome to Tabroom
+		</h2>
+
+%		my $switch;
+
+		<h4>
+			Coaches
+		</h4>
+
+			<table cellpadding="5" cellspacing="1">
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						To register online for tournaments, first:
+					</td>
+
+					<td class="centeralign" width="200px;">
+						<a class="dkgreen block" href="chapter/create.mhtml" style="text-decoration: none;">
+							Create your school
+						</a>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						To manage your own tournament with Tabroom, first:
+					</td>
+
+					<td class="centeralign">
+						<a class="dkgreen noline block" href="tourn/request.mhtml" style="text-decoration: none;">
+							Request a tournament
+						</a>
+					</td>
+
+				</tr>
+
+			</table>
+
+		<br />
+
+%		undef $switch;
+
+		<h4>
+			Judges
+		</h4>
+
+			<table cellpadding="5" cellspacing="1">
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						To enter online ballots and get emails or text pairings:
+					</td>
+
+					<td class="centeralign" width="200px;">
+						<a class="dkgreen noline block" href="judge/search.mhtml" style="text-decoration: none;">
+							Link your account
+						</a>
+					</td>
+
+				</tr>
+
+			</table>
+
+		<br />
+
+%		undef $switch;
+
+		<h4>
+			Students
+		</h4>
+
+			<table cellpadding="5" cellspacing="1">
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						To sign up for tournaments and get emails or text pairings:
+					</td>
+
+					<td class="centeralign" width="200px;">
+						<a class="dkgreen noline block" href="student/search.mhtml" style="text-decoration: none;">
+							Link your account
+						</a>
+					</td>
+
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td>
+						To follow a student entry (e.g., if you're a parent):
+					</td>
+
+					<td class="centeralign">
+						<a class="dkgreen noline block" href="student/follow.mhtml" style="text-decoration: none;">
+							Sign up for updates
+						</a>
+					</td>
+
+				</tr>
+
+			</table>
+
+	</div>
+

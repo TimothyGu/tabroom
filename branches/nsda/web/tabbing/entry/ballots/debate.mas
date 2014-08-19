@@ -1,0 +1,449 @@
+<%args>
+	$judge
+	$panel
+	$session
+	$account
+	$timeslot
+</%args>
+<%init>
+
+	my $session_group = $session->judge_group;
+	my $session_event = $session->event;
+
+	my $wins;
+	my $ranks;
+	my $points;
+
+	unless ($panel->round->tb_set) { 
+		my $err = "You have no tiebreakers set for this round, so I cannot know what scores to collect.  Please set up tiebreakers";
+		$m->redirect("/setup/schedule/event.mhtml?event_id=".$panel->round->event->id."&err=$err");
+	}
+
+	foreach my $tb ($panel->round->tb_set->tiebreaks) { 
+		$ranks++ if ($tb->name eq "ranks" || $tb->name eq "reciprocals" || $tb->name eq "opp_ranks");
+		$wins++ if ($tb->name eq "opp_wins" || $tb->name eq "winloss"); 
+		$points++ if ($tb->name eq "points" || $tb->name eq "opp_points");
+	}   
+
+	my @ballots = Tab::Ballot->search( judge => $judge->id, panel => $panel->id);
+
+	my $min = $panel->round->event->setting('min_points') if $panel;  
+	my $max = $panel->round->event->setting('max_points') if $panel;
+	$min = 0 unless $min;
+	$max = 100 unless $max;
+
+	my $pts = $panel->round->event->setting('point_increments');
+	my $point_step = 1;
+	my $digits = 2;
+
+	if ($points) {
+		$point_step = ".5" if $pts eq "half";
+		$point_step = ".25" if $pts eq "fourths";
+		$point_step = ".1" if $pts eq "tenths";
+
+		if ($max == 30) {
+			$digits = "3" if $pts eq "half";
+			$digits = "6" if $pts eq "fourths";
+			$digits = "9" if $pts eq "tenths";
+		} else {
+			$digits = "4" if $pts eq "half";
+			$digits = "5" if $pts eq "fourths";
+			$digits = "4" if $pts eq "tenths";
+		}
+	}
+
+	my $aff_string = "Aff";
+	my $neg_string = "Neg";
+
+	if ($panel && $panel->round->event->type eq "pf") {
+		$aff_string = "Pro";
+		$neg_string = "Con";
+	} elsif ($panel && $panel->round->event->type eq "parli") {
+		$aff_string = "Gov";
+		$neg_string = "Opp";
+	}
+
+</%init>
+
+	<div class="nopad">
+
+		<span class="half">
+			<a class="white" href="/panel/schemat/panel_view.mhtml?from=entry&judge_id=<% $judge->id %>&panel_id=<% $panel->id %>">
+				<h4>
+				<% ($judge->school && $judge->school->code) ? $judge->school->code : "" %> <% $judge->code %> 
+				<% ($judge) ? $judge->first." ".$judge->last : ""  %>
+				</h4>
+			</a>
+		</span>
+
+		<span class="quarter">
+			<a class="dkblue block" href="/panel/schemat/show.mhtml?from=entry&round_id=<% $panel->round->id %>">
+				<% $panel->round->event->abbr %>
+				<% ($panel->round->label) ? $panel->round->label : "Rnd ".$panel->round->name %>
+			</a>
+		</span>
+
+		<span class="quarter">
+			<a class="dkblue block" href="/panel/schemat/panel_view.mhtml?from=entry&judge_id=<% $judge->id %>&panel_id=<% $panel->id %>">
+				<% "Panel ". $panel->letter ." in ".$panel->room->name %>  
+			</a>
+		</span>
+	</div>
+
+	<script type="text/javascript">
+
+		function byeBye(input) { 
+
+			var byes = document.getElementsByClassName("bye");
+			var yup = 0;
+
+			for (var n = 0; n < byes.length; n++) { 
+				if (byes[n].checked == 1) yup = 1;
+			}
+
+			if (yup == 1) { 
+				$('.byebox').show();
+				$('#nopoints').value = 1;
+			}
+
+			if (!yup == 1) { 
+				$('.byebox').hide();
+				$('#nopoints').value = 0;
+			}
+
+		}
+
+		$(document).keydown(function(event) {
+			if ( !(event.which == 61) &&  !(event.which == 107) && !(event.which == 187)) return true;
+			event.preventDefault();
+			window.location.replace("switch_sides.mhtml?panel_id=<% $panel->id %>&judge_id=<% $judge->id %>");
+			return false;
+		});
+
+	</script>
+
+	<form action="ballots/debate_save.mas" method="post">
+	<input type="hidden" name="judge_id" value="<% $judge->id %>">
+	<input type="hidden" name="panel_id" value="<% $panel->id %>">
+
+	<table width="100%" cellpadding="4" cellspacing="1">
+
+		<tr class="yellowrow">
+
+			<th class="centeralign">
+				Side
+			</th>
+
+			<th class="centeralign">
+				Team
+			</th>
+
+%			if ($points || $ranks) { 
+
+				<th class="centeralign">
+
+%					if ($points) {
+						<span class="hundo" style="margin-left: 100px; margin-right: 0px;">
+							Points
+						</span>
+%					}
+
+%					if ($ranks) {
+						<span class="eighty">
+							Ranks
+						</span>
+%					}
+
+				</th>
+
+%			}
+
+			<th class="smallish">
+				Bye
+			</th>
+
+			<th class="smallish">
+				Fft
+			</th>
+
+		</tr>
+
+<%perl>
+
+		my $notfirst;
+		my $switch;
+		my $counter;
+
+		my $aff;
+		my $neg;
+
+		foreach my $ballot (sort {$a->side <=> $b->side} @ballots) {
+
+			my $entry = $ballot->entry;
+			next unless $entry;
+			next if $entry->dropped == 1;
+
+			$aff = $ballot if $ballot->side == 1;
+			$neg = $ballot if $ballot->side == 2;
+
+</%perl>
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="centeralign">
+					<% $ballot->side == 1 ? $aff_string : "" %>
+					<% $ballot->side == 2 ? $neg_string : "" %>
+				</th>
+
+				<th class="centeralign">
+					<% $entry->code %><% ($entry->dq) ? "-- DQ" : "" %>
+				</th>
+
+%				if ($points || $ranks) { 
+
+					<td class="centeralign">
+
+%						foreach my $student ($entry->students) { 
+
+							<div class="evenrowblock">
+
+								<span class="half nowrap rightalign">
+									<% $student->last.", ".$student->first %>
+								</span>
+
+%								if ($points) { 
+									<span class="quarter">
+										<input type="text" min="<% $min %>" max="<% $max %>" size="5" name="<% $student->id %>_points" step="<% $point_step %>" class="smaller points_<% $ballot->side %>" 
+											onKeyUp="return autoPoints(this, <% $digits %>, event, <% $ballot->side %>);" tabindex=<% $counter++ %>>
+									</span>
+%								}
+
+%								if ($ranks) { 
+									<span class="quarter">
+										<input type="number" min="1" max="9" size="3" name="<% $student->id %>_ranks" class="smaller ranks_<% $ballot->side %>"
+											onKeyUp="return autoPoints(this, 1, event, <% $ballot->side %>);" tabindex=<% $counter++ %>>
+									</span>
+%								}
+
+							</div>
+%						}
+
+					</td>
+%				} 
+
+				<td class="centeralign">
+					<input type="checkbox" class="notfirst bye" name="bye_<% $ballot->id %>" value="1" tabindex="-1" onclick="return byeBye(this)">
+				</td>
+
+				<td class="centeralign">
+					<input type="checkbox" class="notfirst bye" name="noshow_<% $ballot->id %>" value="1" tabindex="-1" onclick="return byeBye(this)">
+				</td>
+
+			</tr>
+
+%		} 
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td colspan="<% $panel->round->type eq "elim" || $panel->round->type eq "final" ? "2" : "3" %>" class="rightalign">
+
+				<span class="nowrap result aff top martop half" style="display: none;">
+					Winner: <% $aff_string %> <% $aff ? $aff->entry->code : "" %>
+				</span>
+
+				<span class="nowrap result neg top martop half " style="display: none;">
+					Winner: <% $neg_string %> <% $neg ? $neg->entry->code : "" %>
+				</span>
+
+				<span class="quarter bold" style="margin-right: 5px;">
+					Winner:
+				</span>
+
+				<span class="quarter rightalign">
+					<input type="text" name="winner_window" size="6" onKeyUp="return autoWin(this, event, '<% $aff_string %>', '<% $neg_string %>', <% $aff ? $aff->id : "" %>, <% $neg ? $neg->id : "" %>);">
+					<input type="hidden" id="winner" name="winner" value="">
+					<input type="hidden" id="points_1" name="aff_points" value="">
+					<input type="hidden" id="ranks_1" name="aff_ranks" value="">
+					<input type="hidden" id="points_2" name="neg_points" value="">
+					<input type="hidden" id="ranks_2" name="neg_ranks" value="">
+				</span>
+
+			</td>
+
+			<td>
+			</td>
+
+			<td>
+			</td>
+
+		</tr>
+
+		<tr class="lirdrow" style="display: none;">
+			<td class="centeralign" colspan="10" >
+				<h4>Low point win!</h4>
+			</td>
+		</tr>
+
+		<tr class="lowrank lirdrow" style="display: none;">
+			<td class="centeralign" colspan="10" >
+				<h4>Rank disagreement.  Please correct and try again.</h4>
+			</td>
+		</tr>
+
+		<tr class="byebox lirdrow" style="display: none;">
+			<td class="centeralign" colspan="10" >
+
+				<span class="halfspan centeralign" style="padding-right: 20px;">
+					<h5>Bye/forfeit speaker point options:</h5>
+				</span>
+
+				<p>Leave points blank, and the system will calculate average points for each debater in this round.</p>
+				<p>Enter points (including zero) and the system will use those points instead of averages</p>
+
+			</td>
+		</tr>
+
+%		unless ($panel->round->event->judge_group->setting('no_codes')) {
+
+			<tr class="liblrow">
+
+				<td class="rightalign" colspan="10">
+
+					<span class="bigspan centeralign">
+						<input type="submit"  value="   Save Scores  ">
+					</span>
+
+				</td>
+
+			</tr>
+
+%		} else { 
+
+			<tr class="liblrow submit">
+
+				<td class="centeralign">
+					<a class="dkblue block" href="switch_sides.mhtml?panel_id=<% $panel->id %>&judge_id=<% $judge->id %>">
+						Swap Sides
+					</a>
+				</td>
+
+				<td colspan="<% $panel->round->type eq "elim" || $panel->round->type eq "final" ? "1" : "2" %>" class="rightalign" style="padding-right: 10px;">
+					<input type="submit"  value="   Save Results	 " tabindex="20">
+					</form>
+				</td>
+				<td></td>
+				<td></td>
+			</tr>
+
+%		} 
+
+	</table>
+
+<%perl>
+
+	my $collected;
+	my $collected_by;
+	my $entered_by;
+
+	foreach my $ballot (@ballots) { 
+		$collected = $ballot->collected if $ballot->collected;
+		$collected_by = $ballot->collected_by if $ballot->collected_by;
+		$entered_by = $ballot->account if $ballot->account;
+	}
+
+</%perl>
+
+%	 if ($collected || $collected_by || $entered_by) { 
+
+		<div class="evenrow block centeralign padmore smallish" style="margin-top: 24px;">
+			<span class="medbigspan padmore">
+				<% $collected ? "Collected on ".Tab::niceshortdayt($collected) : "" %>
+			</span>
+			<span class="medbigspan padmore">
+				<% $collected_by > 0 ? "Collected by ".$collected_by->first." ".$collected_by->last : "" %>
+			</span>
+			<span class="medbigspan padmore">
+				<% $entered_by > 0 ? "1st Entry by ".$entered_by->first." ".$entered_by->last : "" %>
+			</span>
+			<br style="clear: both;" />
+		</div>
+
+%	 }
+
+	<h4>Hints & Shortcuts</h4>
+
+%		if ($point_step == ".5" && $max == 30) { 
+
+			<p>Point step is set to half points. Entering 0 as the third digit
+			after whole points advances the cursor to the next box.  Entering .
+			or 5 after adds .5 points to the total and advances the cursor. So
+			280 = 28 points, 28.  or 285 is 28.5.</p>
+
+
+%		} elsif ($point_step == ".25") {
+
+			<p>
+				Point step is set to quarter points.  Enter just the two final
+				digits of a score.  a 57 will become a 25.7; a 55 will become
+				a 25.5, a 52 will become a 25.25, and a 50 will become a 25.0.
+			</p>
+
+%		} elsif ($point_step == ".1" && $max == 30) {
+
+			<p>Point step is set to tenth points.  You should enter only the
+			last two digits of the score; 20 will be added to all scores.  So
+			if you want to enter a 28.8, just enter "88".  Enter "30" for a 30.</p>
+
+			<p>If you MUST give out a 23, type "t3".  Are you all happy now?</p>
+%		}
+
+%		undef $switch;
+
+		<table cellpadding="4" cellspacing="1">
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smallish rightalign">	
+					= , +
+				</th>
+
+				<td>
+					Switch Sides	
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smallish rightalign">	
+					a , p , g , 1
+				</td>
+
+				<td>
+					<% $aff_string %> win
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smallish rightalign">	
+					n , c , o , 3
+				</td>
+
+				<td>
+					<% $neg_string %> win
+				</td>
+
+			</tr>
+
+		</table>
+
+
+%	 if ($account->site_admin) { 
+
+		<br style="clear: both;">
+
+		<p style="text-align: center; padding: 10px; background: #dedeff; width: 96%;">
+			Timeslot #: <% $timeslot->id %>, Round #: <% $panel->round->id %>
+			Panel #: <% $panel->id %>, Judge #: <% $judge->id %>
+		</p>
+%	}

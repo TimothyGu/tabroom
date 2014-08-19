@@ -1,0 +1,535 @@
+<%args> 
+	$school
+	$account
+	$event_id => undef
+</%args>
+<%init>
+
+	my $tourn = $school->tourn;
+	my $event = Tab::Event->retrieve($event_id) if $event_id;	
+	my @events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+
+	$event = $events[0] if scalar @events == 1;
+	$event_id = $event->id if scalar @events == 1;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $cap;
+	my $tourn_cap;
+	my $school_cap;
+
+	my $drop_deadline = $tourn->setting("drop_deadline");
+	$drop_deadline = $tourn->reg_end unless $drop_deadline;
+	$drop_deadline->set_time_zone($tz);
+
+    my $now = DateTime->now;
+
+	if ($event) { 
+
+		my @already_entered = Tab::Entry->search( 
+			school => $school->id, 
+			event => $event_id, 
+			waitlist => 0
+		);
+
+		my @waitlist = Tab::Entry->search( 
+			school => $school->id, 
+			event => $event_id, 
+			waitlist => 1
+		);
+
+		my @hybrides = $m->comp("/funclib/school_hybrids.mas", event => $event, school => $school);
+		my $hybrids++ if @hybrides;
+
+		push (@already_entered, @hybrides); 
+
+		my %seen = (); 
+		@already_entered = grep { ! $seen{$_->id} ++ } @already_entered;
+
+		my $deadline = $event->setting("deadline");
+		$cap = $event->setting("cap");
+		$school_cap = $event->setting("school_cap");
+		$tourn_cap = $tourn->setting("overall_cap");
+
+</%init>
+
+	<div class="left huge">
+	
+		<h2><% $tourn->name %></h2>
+		
+		<& menu.mas, school => $school, whoami => "students" &>
+
+%		if ($drop_deadline && $now > $drop_deadline) { 
+
+			<h2>Change deadline has passed</h2>
+							
+			<p>
+				If you have additional changes, you can no longer enter them
+				online.  Please contact the tournament directly.
+			</p>
+
+%		}
+
+		<h4><% $event->name %> Entries</h4>
+
+%			if ($tourn->setting("ask_two_quals")) { 
+
+				<p>
+					Please enter the qualifying tournaments in the slots
+					providing, along with the student's placement at that
+					tournament and the size of the entry in that event.  
+				</p>
+
+%			}
+
+% 			my $count;
+
+
+			<table cellpadding="5" cellspacing="1"  width="100%">
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						Code
+					</th>
+
+					<th class="smallish">
+						Name
+					</th>
+
+					<th colspan="4">
+					</th>
+
+				</tr>
+				
+
+% 				my $waitlist_done;
+%				my %used;
+
+% 				foreach my $already (@already_entered, @waitlist) { 
+
+%					next if $used{$already->id};
+%					$used{$already->id}++;
+
+%					my $other;
+
+%					if ($hybrids) { 
+%						foreach my $student ($already->students) { 
+%							next if $student->chapter->id == $school->chapter->id;
+%							$other = Tab::School->search( chapter => $student->chapter->id, tourn => $tourn->id)->first;
+%						}
+%					}
+
+%					if ($already->waitlist &! $waitlist_done) { 
+
+						<tr>
+
+							<td colspan="8">
+								<h4>Waitlisted Entries</h4>
+							</td>
+
+						</tr>
+
+%						$waitlist_done++;
+	
+%					}
+
+					<tr <% ($count % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+			
+						<td class="leftalign">
+							<% $already->dropped ? "DROP" : $tourn->setting("hide_codes") ? "" : $already->code %>
+						</td>
+
+						<td class="leftalign <% $already->dropped ? "strike" : "" %> nowrap"> 
+							<a class="white" href="<% $already->tba ? "tba_assign" : "details" %>.mhtml?entry_id=<% $already->id %>&school_id=<% $school->id %>">
+							<% $already->name %>
+							</a>
+						</td>
+
+						<td>
+
+%							if ($event->setting("apda")) { 
+								<span class="inline white padno">
+									<a class="white padless" href="details.mhtml?entry_id=<% $already->id %>&school_id=<% $school->id %>">
+										<% $already->seed ? ucfirst($already->seed) : "No"  %> seed
+									</a>
+								</span>
+%							}
+
+%							if ($other) { 
+								<span class="inline white">
+								<% $other->short_name %> Hybrid		
+								</span>
+%							}
+
+%							if ($already->ada) { 
+								ADA/Access*
+%							} else { 
+%							}
+						</td>
+
+%						if ($now < $tourn->reg_end && ($now < $deadline || not defined $deadline)) { 
+							<td class="centeralign">
+								<a class="dkgreen block" href="<% $already->tba ? "tba_assign" : "details" %>.mhtml?entry_id=<% $already->id %>&school_id=<% $school->id %>">
+									EDIT
+								</a>
+							</td>
+%						}
+
+%						if ($now < $drop_deadline) { 
+
+%							if ($already->dropped) {
+
+%								my $warn = "This action adds the entry back to your registration.  Fees and judge burdens may change.  Continue?";
+
+								<td class="centeralign">
+									<a class="dkgreen block" <& "/funclib/confirm.mas", warn => $warn &>  href="entry_drop.mhtml?school_id=<% $school->id %>&entry_id=<% $already->id %>">
+										UNDROP
+									</a>
+								</td>
+
+%							} else  {
+
+%								my $warn = "Are you sure you want to drop that entry?";
+%								$warn = "This action drops your entry and loses the slot.  If instead you want to give the slot to one of your waitlisted entries, hit Cancel, then Edit instead and do a name change.  Otherwise, hit OK to confirm the drop." if @waitlist;
+%								$warn = "This entry is waitlisted and will lose its place in line if you drop.  Cancel, then edit and swap the entry to another student to keep the place in line.  Otherwise, hit OK to continue" if $already->waitlist;
+						
+								<td class="centeralign">
+									<a class="dkred block" <& "/funclib/confirm.mas", warn => $warn &> href="entry_drop.mhtml?school_id=<% $school->id %>&entry_id=<% $already->id %>">
+										DROP
+									</a>
+								</td>
+%							}
+
+%						} 
+
+						</td>
+
+					</tr>
+
+% 					if ($event->setting("ask_for_titles")) {
+
+						<tr <% ($count % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+							<th class="smallish rightalign">
+								Title/ISBN:
+							</th>
+
+							<td colspan="4" class="smaller">
+								<a class="white" href="details.mhtml?entry_id=<% $already->id %>&school_id=<% $school->id %>">
+									<% ($already->title) ? $already->title : "Click to Enter Title" %>
+								</a>
+							</td>
+
+						</tr>
+
+%					}
+
+%					my @qualifiers = $already->qualifiers;
+
+%					if (@qualifiers) { 
+
+						<tr <% ($count % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+							<td class="smallish rightalign" style="padding-left: 10px;" colspan="7">
+
+%								my $tick = 1;
+
+%								foreach my $qualifier (@qualifiers) { 
+									
+									<div class="qualspan inline">
+
+										<span class="smallspan padless">
+											Qual <% $tick++ %>:
+										</span>
+
+										<span class="third inline padless leftalign wrap">
+											<a class="padno white" href="details.mhtml?entry_id=<% $already->id %>&school_id=<% $school->id %>" placeholder="Name">
+												<% $qualifier ? $qualifier->result." at ".$qualifier->name : "" %>
+											</a>
+										</span>
+
+									</div>
+
+%								}	
+
+							</td>
+
+						</tr>
+	
+%					}
+
+%					$count++;
+
+					</tr>
+
+% 				} #end of foreach my already
+
+			</table>
+
+%			if (@waitlist) { 
+
+				<p class="exwhite">
+					You have waitlisted entries.  You will be notified by email
+					when (or if) the tournament accepts your entries off the
+					waitlist.  Until then, it's difficult to predict when and by
+					how much a waitlist is going to move.  
+				</p>
+
+%			}
+
+% 			if ($event->setting("description")) { 
+
+				<h4>Description and rules for <% $event->name %> </h4>
+
+				<p class="largeish">
+					<% $event->setting("description") %>
+				</p>
+% 			}
+	
+%		} else { 
+			
+			<div class="left huge">
+
+			<h2>Entries at <% $tourn->name %></h2>
+	
+			<& menu.mas, school => $school, whoami => "students" &>
+
+			<p>Choose an event at right to register entries</p>
+%		}
+
+	</div>
+
+	<div class="right small">
+	
+%		if ($event) {
+			
+			<div class="sidenote">
+
+			<h4>Stats & Deadlines</h4> 
+
+<%perl>
+			my $event_deadline = $event->setting("deadline");
+
+			my $caphit = "At school cap. " if (
+				 ((scalar Tab::Entry->search( school => $school->id, event => $event->id, unconfirmed => 0, waitlist => 0)) 
+					>= ($school_cap)) && ($school_cap > 0) 
+			);
+
+			$caphit = "Event is full." if (
+				((scalar Tab::Entry->search(event => $event->id, dropped => 0, waitlist => 0, unconfirmed => 0)) 
+					>= ($cap)) && ($cap > 0)
+			) ;
+
+			$caphit = "Tournament is full." if ( 
+				((scalar $m->comp('/funclib/tourn_entries.mas', tourn => $tourn)) >= ($tourn_cap)) && ($tourn_cap > 0)
+			) ;
+
+			$caphit.= " Waitlist open." if $caphit && $event->setting("waitlist");
+			$caphit .= "All entries waitlisted pending admission by director" if $event->setting("waitlist_all");
+
+			my $switch;
+
+</%perl>
+
+%			if ($event_deadline && $now > $event_deadline) { 
+				<div class="yellow full">
+					<span class="half">
+						Add Deadline 
+					</span>
+					<span class="half">
+						<% Tab::niceshortdt($event_deadline->set_time_zone($tz)) %>
+					</span>
+				</div>
+
+%			} else { 
+
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="half">
+						Add Deadline 
+					</span>
+					<span class="half">
+						<% Tab::niceshortdt($tourn->reg_end->set_time_zone($tz)) %>
+					</span>
+				</div>
+%			}
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="half">
+					Drop Deadline 
+				</span>
+				<span class="half">
+					<% Tab::niceshortdt($drop_deadline) %>
+				</span>
+			</div>
+
+%			if ($school_cap) {
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="half">
+						School cap
+					</span>
+					<span class="half">
+						<% $school_cap %>
+					</span>
+				</div>
+%			}
+
+%			if ($cap) {
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="half">
+						Event cap
+					</span>
+					<span class="half">
+						<% $cap %>
+					</span>
+				</div>
+%			}
+
+%			if ($tourn_cap) {
+				<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="half">
+						Tourn cap
+					</span>
+					<span class="half">
+ 						<% $tourn_cap %>
+					</span>
+				</div>
+%			}
+			
+
+%			if ($caphit) { 
+				<div class="centeralign dkred block">
+					<% $caphit %>
+				</div>
+%			}
+
+		</div>
+
+%		unless (  ( $now > $tourn->reg_end ) 
+%				    || ( $event_deadline && $now > $event_deadline  ) 
+%					|| ( $caphit && ($event->setting("waitlist") < 1 && $event->setting("waitlist_all") < 1) )
+%				) { 
+
+%		    my @clean_students = $m->comp("/funclib/students_evententer.mas", event => $event, school => $school);
+
+			<div class="sidenote">
+
+%				if ($event->setting("max_entry") > 2) {
+	
+					<a href="student_save.mhtml?school_id=<% $school->id %>&event_id=<% $event->id %>" class="dkgreen block">
+						Add <% $caphit ? "to Waitlist" : "Entry" %>
+					</a>
+
+%				} else { 
+
+					<h4 style="padding-bottom: 1px; margin-bottom: 1px;">
+						Add <% $caphit ? "to Waitlist" : "Entry" %>
+					</h4>
+
+					<table cellpadding="2" cellspacing="1" width="100%">
+				
+						<tr>
+							<td class="centeralign">
+								<form action="student_save.mhtml" method="post">
+								<input type="hidden" name="school_id" value="<% $school->id %>">
+								<input type="hidden" name="waitlist" value="<% ($caphit) ? 1 : 0 %>"> 
+								<input type="hidden" name="event_id" value="<% $event->id %>">
+
+								<select name="student_id" data-placeholder="Competitor..." class="fixedmedsmall chosen" >
+%									foreach my $student (@clean_students) { 
+										<option value="<% $student->id %>"> <% $student->last.", ".$student->first %> </option>
+%									}
+								</select>
+							</td>
+						</tr>
+
+%						if ($event->setting("max_entry") == 2) { 
+
+							<tr>
+								<td style="border-top: 1px solid #555;" class="centeralign">
+									<select name="partner_id" data-placeholder="Competitor..." class="fixedmedsmall chosen">
+%										if ($event->setting("min_entry") == 1) { 
+											<option value="">--Single/Maverick--</option>
+%										}
+%										foreach my $student (@clean_students) { 
+											<option value="<% $student->id %>"> <% $student->last.", ".$student->first %> </option>
+%										}
+									</select>
+								</td>
+							</tr>
+
+%						}
+
+						<tr class="liblrow">
+						
+							<td align="right" colspan="2">
+								<input type="submit"  value="  Add Entry  " class="thin">
+								</form>
+							</td>
+
+						</tr>
+
+					</table>
+
+%				} 
+
+%				if ($event->setting("hybrids")) { 
+%					my $waitlist++ if $caphit;
+					<a class="yellow block" href="hybrid_entry.mhtml?event_id=<% $event->id %>&school_id=<% $school->id %>&waitlist=<% $waitlist %>">
+						Enter Hybrid Team
+					</a>
+%				}
+
+				<a class="yellow block" href="/user/chapter/students.mhtml?chapter_id=<% $school->chapter->id %>">
+					Add Entrants to Roster
+				</a>
+
+%				if ($cap || $school_cap) { 
+
+					<h4 style="padding-bottom: 1px; margin-bottom: 1px;">TBA Slots</h4>
+						<form action="tba_save.mhtml">
+						<input type="hidden" name="school_id" value="<% $school->id %>">
+						<input type="hidden" name="event_id" value="<% $event->id %>">
+						<p class="evenrow block">
+						Claim <input type="number" min="1" max="20" size="2" name="slots"> slots 
+						<span style="display: inline-block; float: right; margin-top: -2px; margin-bottom: 7px;">
+							<input type="submit" class="thin" value="Go">
+						</span>
+						</p>
+						</form>
+
+%				}
+	
+				</div>
+
+%			}  else { 
+
+				<p class="exwhite">
+%					$m->print("Tournament registration deadline has passed") if ($now > $tourn->reg_end);
+%					$m->print("Event registration deadline has passed") if ($event_deadline && $now > $event_deadline);
+%					$m->print("Event wide limit has been reached") if ($caphit && ($event->setting("waitlist") < 1));
+				</p>
+
+%			}
+
+%		}
+
+		<div class="sidenote">
+
+		<h4>Events:</h4>
+
+%		foreach my $event (@events) { 
+
+			<a class="<% ($event->id == $event_id) ? "dk" : "" %>blue block"
+				href="students.mhtml?school_id=<% $school->id %>&event_id=<% $event->id %>">
+				<% scalar($school->entries(event => $event->id)) +
+				scalar $m->comp("/funclib/school_hybrids.mas", event => $event, school => $school)%> - <% $event->name %>
+			</a>
+
+%		}
+
+		</div>
+
+	</div>
+

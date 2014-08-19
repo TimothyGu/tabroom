@@ -1,0 +1,468 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my @types;
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+</%init>
+
+    <script>
+
+        function switchset(resultsetid,state){
+
+            $("#rs_"+resultsetid).iphoneSwitch(
+                state,
+                function() { $.post("rset_switch.mhtml",{ result_set_id: resultsetid, published: "1" }); },
+                function() { $.post("rset_switch.mhtml",{ result_set_id: resultsetid }); }
+            );
+        };  
+
+        function switchfile(fileid,state){
+
+            $("#file_"+fileid).iphoneSwitch(
+                state,
+                function() { $.post("file_switch.mhtml",{ file_id: fileid, published: "1" }); },
+                function() { $.post("file_switch.mhtml",{ file_id: fileid }); }
+            );
+        };  
+
+    </script>
+
+	<div class="left huge">
+
+		<h2>Web Publish Final Results</h2>
+
+		<& "/funclib/tablesorter.mas", table => "sortable" &>
+
+		<table cellpadding="4" id="sortable">
+
+			<thead>
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						Del
+					</th>
+
+					<th class="smallish">
+						Event
+					</th>
+
+					<th class="smallish">
+						Result Set
+					</th>
+
+					<th class="smallish">
+						Generated On
+					</th>
+
+					<th class="smallish">
+						Time
+					</th>
+
+					<th class="smallish">
+						Published
+					</th>
+
+				</tr>
+
+			</thead>
+
+			<tbody class="smallish">
+
+%				my @events = sort {$a->name cmp $b->name} $tourn->events;
+%				@events = sort {$a->type cmp $b->type} @events;
+
+%				foreach my $event (@events) { 
+
+%					push @types, $event->type;
+% 					my $published = $event->setting("results_published");
+%					foreach my $result_set ($event->result_sets) { 
+
+						<tr>
+
+							<td>
+%								my $warn = "This will delete the result set ".$event->abbr." ".$result_set->label." from all public postings.  Continue?";
+								<a class="dkred thin block" <& "/funclib/confirm.mas", warn => $warn &>  href="set_delete.mhtml?result_set_id=<% $result_set->id %>">
+									X
+								</a>
+							</td>
+
+							<td>
+								<% $event->abbr %>
+							</td>
+
+							<td>
+								<a href="display.mhtml?result_set_id=<% $result_set->id %>" class="white padno block">
+									<% $result_set->label %>
+								</a>
+							</td>
+
+							<td>
+%								my $generated = $result_set->generated;
+%								$generated->set_time_zone($tz);
+								<% $generated ? Tab::pickerdate($generated) : "" %>
+							</td>
+
+							<td>
+								<% $generated ? Tab::pickertime($generated) : "" %>
+							</td>
+
+							<td>
+								<span class="hidden">
+									<% $result_set->published ? "1" : "2" %>
+								</span>
+
+								<script type="text/javascript"> 
+									$(function() { switchset(<% $result_set->id %>,"<% ($result_set->published) ? "on" : "off" %>"); });
+								</script>
+
+								<div class="phoneswitch" id="rs_<% $result_set->id %>"></div>
+
+							</td>
+
+						</tr>
+
+%					}
+
+%					foreach my $file ($event->files( result => 1)) 	{ 
+
+						<tr>
+
+							<td>
+%								my $warn = "This will delete the file from ".$event->abbr." ".$file->label." from public postings.  Continue?";
+								<a class="dkred thin block" <& "/funclib/confirm.mas", warn => $warn &>  href="file_delete.mhtml?file_id=<% $file->id %>">
+									X
+								</a>
+							</td>
+
+							<td>
+								<% $event->abbr %>
+							</td>
+
+							<td>
+								<a href="<% $Tab::s3_url %>/<% $tourn->id %>/results/<% $file->id %>/<% $file->name %>" class="padno white">
+									<% $file->label %>
+								</a>
+							</td>
+
+							<td>
+%								my $uploaded = $file->uploaded;
+%								$uploaded->set_time_zone($tz);
+								<% Tab::pickerdate($uploaded) %>
+							</td>
+
+							<td>
+								<% Tab::pickertime($uploaded) %>
+							</td>
+
+							<td>
+								<span class="hidden">
+									<% $file->published ? "1" : "2" %>
+								</span>
+
+								<script type="text/javascript"> 
+									$(function() { switchfile(<% $file->id %>,"<% ($file->published) ? "on" : "off" %>"); });
+								</script>
+
+								<div class="phoneswitch" id="file_<% $file->id %>"></div>
+							</td>
+
+						</tr>
+
+%					}
+
+%				}
+
+%				foreach my $result_set ($tourn->result_sets) { 
+
+%					next if $result_set->event > 0;
+
+					<tr class="liblrow">
+
+						<td>
+%							my $warn = "This will delete the result set ".$result_set->label." from all public postings.  Continue?";
+							<a class="dkred thin block" <& "/funclib/confirm.mas", warn => $warn &>  href="set_delete.mhtml?result_set_id=<% $result_set->id %>">
+								X
+							</a>
+						</td>
+
+						<td>
+							Tourn Wide
+						</td>
+
+						<td>
+							<a href="display.mhtml?result_set_id=<% $result_set->id %>" class="white padno block">
+								<% $result_set->label %>
+							</a>
+						</td>
+
+						<td>
+%							my $generated = $result_set->generated;
+%							$generated->set_time_zone($tz) if $generated;
+							<% $generated ? Tab::pickerdate($generated) : "" %>
+						</td>
+
+						<td>
+							<% $generated ? Tab::pickertime($generated) : "" %>
+						</td>
+
+						<td>
+							<span class="hidden">
+								<% $result_set->published ? "1" : "2" %>
+							</span>
+
+							<script type="text/javascript"> 
+								$(function() { switchset(<% $result_set->id %>,"<% ($result_set->published) ? "on" : "off" %>"); });
+							</script>
+
+							<div class="phoneswitch" id="rs_<% $result_set->id %>"></div>
+						</td>
+
+					</tr>
+
+%				}
+
+%				foreach my $file ($tourn->files( result => 1 )) { 
+
+%					next if $file->event > 0;
+
+					<tr>
+
+						<td>
+%							my $warn = "This will delete the file ".$file->label." from public postings.  Continue?";
+							<a class="dkred thin block" <& "/funclib/confirm.mas", warn => $warn &>  href="file_delete.mhtml?file_id=<% $file->id %>">
+								X
+							</a>
+						</td>
+
+						<td>
+							Tourn Wide
+						</td>
+
+						<td>
+							<a href="<% $Tab::s3_url %>/<% $tourn->id %>/results/<% $file->id %>/<% $file->name %>" class="padno white">
+								<% $file->label %>
+							</a>
+						</td>
+
+						<td>
+%							my $uploaded = $file->uploaded;
+%							$uploaded->set_time_zone($tz);
+							<% Tab::pickerdate($uploaded) %>
+						</td>
+
+						<td>
+							<% Tab::pickertime($uploaded) %>
+						</td>
+
+						<td>
+							<span class="hidden">
+								<% $file->published ? "1" : "2" %>
+							</span>
+
+							<script type="text/javascript"> 
+								$(function() { switchfile(<% $file->id %>,"<% ($file->published) ? "on" : "off" %>"); });
+							</script>
+
+							<div class="phoneswitch" id="file_<% $file->id %>"></div>
+
+						</td>
+
+					</tr>
+
+%				}
+
+			</tbody>
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Calcuate results</h4>
+
+			<form action="generate_results.mhtml" method="post">
+
+			<div class="even">
+
+				<span class="quarter">
+					Event
+				</span>
+
+				<span class="threequarter rightalign">
+
+					<select name="event_id" class="fixedsmaller">
+
+						<option value="all">
+							All events
+						</option>
+
+%						my %used;
+%						foreach my $type (@types) { 
+%							next if $used{$type}++;
+							<option value="type_<% $type %>">
+								All <% ucfirst($type) %> events
+							</option>
+%						}
+
+%						foreach my $event (@events) { 
+							<option value="<% $event->id %>">
+								<% $event->abbr %>
+							</option>
+%						}
+
+
+
+					</select>
+				</span>
+		
+			</div>
+
+			<div class="odd">
+
+				<span class="quarter">
+					Type
+				</span>
+
+				<span class="threequarter rightalign">
+					<select name="result_type" class="fixedsmaller">
+						<option value="final">Final Places</option>
+						<option value="prelim_seed">Prelim Seeds</option>
+						<option value="speakers">Speakers</option>
+						<option value="cumesheet">Cume Sheet</option>
+					</select>
+				</span>
+		
+			</div>
+
+			<div class="even">
+
+				<span class="third">
+					Public?
+				</span>
+
+				<label for="oc">
+					<span class="third hover">
+						<input type="radio" name="publish" value="1" class="padno" id="oc"> Yep
+					</span>
+				</label>
+
+				<label for="no">
+					<span class="hover third">
+						<input type="radio" name="publish" value="0" class="padno" id="no"> Nope
+					</span>
+				</label>
+		
+			</div>
+
+			<div class="odd">
+
+				<span class="half">
+					Limit to the top
+				</span>
+
+				<span class="half">
+					<input type="number" size="4" class="smaller thin" min=0 max=999 name="limit">
+				</span>
+		
+			</div>
+
+			<div class="block liblrow rightalign">
+				<input type="submit" value="Calculate" class="thin">
+				</form>
+			</div>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Upload Result Files</h4>
+
+			<div class="even">
+			
+				<form enctype="multipart/form-data" action="upload_results.mhtml" method="post" onsubmit="return uploadThis()">
+
+				<span class="quarter">
+					Event
+				</span>
+
+				<span class="threequarter rightalign">
+
+					<select name="event_id" class="fixedsmaller">
+
+						<option value="type">
+							General
+						</option>
+
+%						foreach my $event (@events) { 
+							<option value="<% $event->id %>">
+								<% $event->abbr %>
+							</option>
+%						}
+
+					</select>
+				</span>
+			</div>
+
+			<div class="odd">
+			
+				<span class="quarter">
+					Label
+				</span>
+
+				<span class="threequarter rightalign">
+					<input type="text" name="label" size="16">
+				</span>
+
+			</div>
+
+			<div class="even">
+			
+				<span class="sixth">
+					File
+				</span>
+
+				<span class="fivesixth rightalign padless marno">
+					<input type="file" name="posting" value="Go" size="5" class="narrow">
+				</span>
+
+			</div>
+
+			<div class="odd">
+
+				<span class="third">
+					Public
+				</span>
+				
+				<label for="one">
+					<span class="hover third">
+						<input type="radio" name="publish" value="1" class="padno" id="one"> Yep
+					</span>
+				</label>
+
+				<label for="non">
+					<span class="hover third">
+						<input type="radio" name="publish" value="0" class="padno" id="non"> Nope
+					</span>
+				</label>
+		
+			</div>
+
+
+			<div class="block liblrow rightalign">
+				<input type="submit" value="Upload" class="thin">
+				</form>
+			</div>
+
+		</div>
+
+	</div>
+
+

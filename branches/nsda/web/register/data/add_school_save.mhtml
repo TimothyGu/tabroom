@@ -1,0 +1,46 @@
+<%args>
+	$tourn
+	$chapter_id => undef
+</%args>
+<%init>
+
+	my $chapter = Tab::Chapter->retrieve($chapter_id);
+	my @already = Tab::School->search( chapter => $chapter_id, tourn => $tourn->id);
+
+	if (@already) { 
+		my $err = $chapter->name." is already entered in your tournament.  Try again";
+		$m->redirect("add_school.mhtml?err=$err");
+	}
+
+	unless ($chapter) { 
+		my $err = "That chapter was not found for some reason.  Please try again";
+		$m->redirect("add_school.mhtml?err=$err");
+	}
+
+	my @circuits = $m->comp("/funclib/tourn_circuits.mas", tourn => $tourn);
+
+	my $msg;
+	my $school;
+
+
+	unless (@already) { 
+
+		my ($school_code, $school_region) = $m->comp("/funclib/chapter_code.mas", tourn => $tourn, chapter => $chapter);
+
+		$school = Tab::School->create({
+			chapter => $chapter->id,
+			tourn => $tourn->id,
+			name => $chapter->name,
+			region => $school_region,
+			code => $school_code,
+		});
+
+		$m->comp('/funclib/chapter_conflicts.mas', school => $school);
+		$msg = "School ".$chapter->name." has been added to your tournament entry";
+
+	}
+
+	$m->redirect("$Tab::url_prefix/register/data/add_school.mhtml?msg=$msg");
+
+
+</%init>

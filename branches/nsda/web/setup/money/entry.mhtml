@@ -1,0 +1,54 @@
+<%args>
+	$tourn
+	$err => undef
+</%args>
+
+%	my $switch;
+%	my $symbol = $tourn->setting('currency');
+
+	<& menu.mas, chosen => "entry", tourn => $tourn  &>
+
+	<div class="left huge">
+	
+		<h2>Entry Fees</h2>
+
+		<form action="entry_save.mhtml" method="post">
+
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			<label for="invoice_waitlist">
+			<span class="threequarters divider">
+				Include waitlisted entries on invoices
+			</span>
+
+			<span class="quarter centeralign">
+				<input type="checkbox" id="invoice_waitlist" name="invoice_waitlist" value="1" <% $tourn->setting("invoice_waitlist") ? 'checked="checked"' : "" %>>
+			</span>
+			</label>
+
+		</div>
+
+
+%		foreach my $event (sort {$a->name cmp $b->name} $m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="threequarters divider">
+					<% $event->name %>
+				</span>
+
+				<span class="quarter centeralign">
+					<% $symbol %>
+					<input type="number" name="<%$event->id %>" value="<%$event->fee %>" size="6">
+				</span>
+
+			</div>
+
+% 		}
+
+		<div class="liblrow rightalign">
+			<input  type="submit" value="  Save Entry Fees  ">
+			</form>
+		</div>
+
+	</div>
+

@@ -1,0 +1,18 @@
+<%args>
+	$name => "flurgle"
+	$time => undef 
+	$size => "10"
+</%args>
+
+	<script type="text/javascript">
+		 $(document).ready(function() {
+			 $('#<% $name %>').timepicker({
+				 showLeadingZero: false,
+				 showPeriod: true,
+				 periodSeparator: ' '
+			 });	
+		 });
+	 </script>
+
+	<input class="notfirst" id="<% $name %>" size="<% $size %>" type="text" name="<% $name %>" value="<% ($time) ? Tab::pickertime($time) : "" %>">  
+

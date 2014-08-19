@@ -1,0 +1,153 @@
+<%args>
+	$circuit
+	$group_id
+	$tourn
+	$tz => "UTC"
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "strikes", group => $group &>
+
+	<div class="left huge">
+
+		<h2><% $group->abbr %> Strikes</h2>
+	
+%	my $switch;
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+%		foreach my $judge (sort {$a->code <=> $b->code} $m->comp("/funclib/group_struck_judges.mas", group => $group)) { 
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td width="25%">
+					<a class="white" href="/register/judge_edit.mhtml?judge_id=<% $judge->id %>">
+						<% $judge->last.", ".$judge->first %>
+					</a>
+				</td>
+
+			<td>
+
+%				foreach my $strike ($judge->strikes) {
+
+%   				if ($strike->type eq "event" ) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							Event:
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->event->name %>
+						</span>
+
+%					}
+
+%  	 				if ($strike->type eq "elim" ) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							No Prelims:
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->event->name %>
+						</span>
+
+%   				}
+
+%   				if ($strike->type eq "school" ) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							<% ($strike->registrant) ? "Strike" : "Conflict" %>
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->school->name %>
+						</span>
+
+%   				}
+
+
+%   				if ($strike->type eq "region" ) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							Region
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->region->name %>
+						</span>
+
+%					}
+
+%   				if ($strike->type eq "diocese" ) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							Diocese
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->diocese->name %>
+						</span>
+
+%					}
+
+%   				if (($strike->type eq "entry" ) ||  ($strike->type eq "conflict" )) {
+
+    					<span style="display: inline-block;width: 110px;">
+							<% $strike->type eq "conflict" ? "Conflict" : "Strike" %>
+						</span>
+
+    					<span style="display: inline-block;width: 180px;">
+							<% ($strike->entry) ? $strike->entry->name : "" %>
+							<% ($strike->school) ? $strike->school->name : "" %>
+						</span>
+							<% $strike->entry ? substr($strike->entry->school->short_name,0,10) : "" %>
+
+%   				}
+
+%   				if ($strike->type eq "time" &! $strike->strike_time) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							Not between 
+						</span>
+
+    					<span style="display: inline-block;width: 120px;">
+							<% Tab::niceshortdt($strike->start->set_time_zone($tz)) %>
+						</span>
+
+    					<span style="display: inline-block;width: 120px;">
+							<% Tab::niceshortdt($strike->end->set_time_zone($tz)) %>
+						</span>
+
+%   				}
+
+%					if ($strike->strike_time) {
+
+    					<span style="display: inline-block;width: 110px; font-weight: bold;">
+							No rounds
+						</span>
+
+    					<span style="display: inline-block;width: 220px;">
+							<% $strike->strike_time->name %>
+						</span>
+
+%					}	
+
+					<br style="clear: both;">
+
+%				} #end of foreach strike
+
+			</td>
+
+			</tr>
+
+%		} #end of foreach judge
+
+		</table>
+
+	</div>
+

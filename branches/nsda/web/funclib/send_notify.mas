@@ -1,0 +1,45 @@
+<%args>
+	$body
+	$to
+	$from    => undef
+	$subject => undef
+</%args>
+<%init>
+
+    my $strip = HTML::Strip->new();
+    $body = $strip->parse($body);
+    $body =~ s/[^[:ascii:]]//g;
+    $body =~ s/^\s+//; 
+    $body =~ s/\s+$//;
+
+    use Text::Wrap
+    $Text::Wrap::columns = 72;
+	$body =  wrap('', '', $body);
+
+	$from = "live\@tabroom.com\n" unless $from;
+	$subject = "Tabroom Live Update\n" unless $subject;
+
+	next if $to eq '2084847889@vtext.com';
+
+    # creating new "base"-object for an email
+    my $msg = MIME::Lite->new(
+        From => $from,
+        To   => $to,
+        Subject => $subject,
+        Type    => "TEXT",
+        Data    => $body."\n\n"
+    );
+
+	if ($Tab::hostname eq "www.tabroom.com" || $to eq 'palmer@tabroom.com') {
+	    MIME::Lite->send('smtp', $Tab::smtp_server, Timeout=> 60);
+   		eval { $msg->send; };
+		Tab::log("Sending blast $subject to $to") if $subject;
+	} else { 
+		Tab::debuglog("Test sending $subject to $to") if $body;
+		Tab::debuglog("Body: $body") if $body;
+	}
+
+	return;
+
+</%init>
+

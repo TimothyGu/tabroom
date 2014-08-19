@@ -1,0 +1,184 @@
+<%args>
+	$account
+	$school
+	$group_id
+	$entry_id => undef
+	$prefs    => undef
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+	my $entry = Tab::Entry->retrieve($entry_id) if $entry_id;
+
+	use POSIX;
+
+	my $tourn = $group->tourn;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $strike_end = $group->setting("strike_end");
+	my $now = DateTime->now;
+	my $read_only++ if $strike_end < $now;
+
+	my $strike_start = $group->setting("strike_start");
+	$strike_start->set_time_zone($tz) if $strike_start;
+	$read_only++ if $strike_start > $now;
+
+	$strike_end->set_time_zone($tz) if $strike_end;
+
+	my @conflicts;
+	my @school_conflicts;
+	my %conflicts_by_id = ();
+	my %school_conflicts_by_id = ();
+
+	if ($entry) { 
+		# Get the list of existing strikes.
+		@conflicts = $m->comp("/funclib/entry_conflicts.mas", entry => $entry, group => $group);
+		foreach (@conflicts) { $conflicts_by_id{$_->judge->id} = $_; }
+
+		# Get the school specific strikes
+		@school_conflicts = $m->comp("/funclib/school_conflicts.mas", school => $school, group => $group);
+		foreach (@school_conflicts) { $school_conflicts_by_id{$_->judge->id} = $_; }
+	} else { 
+
+		# Get the list of existing strikes.
+		@conflicts = $m->comp("/funclib/school_conflicts.mas", school => $school, group => $group);
+		foreach (@conflicts) { $conflicts_by_id{$_->judge->id} = $_; }
+
+	}
+
+	my @judges = sort {$a->last cmp $b->last} $group->judges(active => 1);
+	@judges = sort {$a->school->name cmp $b->school->name} @judges;
+
+	@judges = sort {$conflicts_by_id{$b->id} <=> $conflicts_by_id{$a->id}} @judges;
+	@judges = sort {$school_conflicts_by_id{$b->id} <=> $school_conflicts_by_id{$a->id}} @judges;
+
+	my $switch;
+
+</%init>
+
+
+	<div class="right small">
+
+%		my $whoami = "conflicts";
+%		$whoami = "school_conflicts" unless $entry_id;
+
+		<div class="sidenote">
+
+			<p style="font-size: 80%; font-style: smaller;">
+				Conflicts are for judges who should not judge your program
+				because of lack of neutrality, such as alums of your school,
+				former coaches, etc.  These are not strikes, and are not
+				intended to be for judges you hate or think are terminally
+				stupid. 
+			</p>
+
+		</div>
+
+		<& menu.mas, account => $account, school => $school, whoami => $whoami, nodiv => 1, prefs => $prefs, entry_id => $entry_id &>
+
+
+
+	</div>
+
+	<div class="left huge"> 
+    
+%		unless ($prefs) {
+			<h2><% $school->name %> at the <% $tourn->name %></h2>
+			<& /user/enter/menu.mas, school => $school, whoami => "ratings" &>
+%		}
+
+		<& /funclib/tablesorter.mas, table => "conflicts" &>
+	
+		<h2>Judge Conflicts for <% $entry ? $entry->name : $school->short_name %></h2>
+
+%		if ($read_only && $now < $strike_start) { 
+			<p class="exwhite">Prefs open <% Tab::nicedt($strike_start) %> (Timezone: <% $tz %>)
+%		} elsif ($read_only) { 
+			<p class="exwhite">Pref deadline was <% Tab::nicedt($strike_end) %> (Timezone: <% $tz %>).  
+%		} else { 
+			<p>Click on "No Conflict" or "Conflicted" to change conflict status</p>
+%		} 
+
+		<table cellpadding="5" width="100%" id="conflicts">
+
+			<thead>
+
+			<tr class="yellowrow">
+
+				<th>
+					Judge
+				</th>
+
+				<th>
+					School
+				</th>
+
+
+				<th>
+					Conflict
+				</th>
+
+			</tr>
+
+			</thead>
+
+			<tbody>
+
+%			foreach my $judge (@judges) {
+
+%				next if $judge->school && $judge->school->id == $school->id;
+
+%				if ($conflicts_by_id{$judge->id}) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"redrow\"" : "class=\"lirdrow\"" %>>
+
+%				} elsif ($school_conflicts_by_id{$judge->id}) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"liblrow\"" : "class=\"liblrow\"" %>>
+
+%				} else { 
+
+					<tr>
+
+%				}
+
+					<td>
+						<% $judge->first." ".$judge->last %>
+					</td>
+					
+					<td>
+						<% ($judge->school->id) ? substr ($judge->school->name,0,30).", ".$judge->school->chapter->state : "Tournament Hire" %>
+					</td>
+					
+					<td align="center">
+
+%						if ($entry && $school_conflicts_by_id{$judge->id}) { 
+
+							<a class="dkrednohover block">School Conflict</a>
+
+%						} elsif ($read_only) { 
+							<span style="color: #006600; font-weight: bold; color: <% $conflicts_by_id{$judge->id} ? "#660000" : "#006600" %>">
+								<% ($conflicts_by_id{$judge->id}) ? "Conflicted" : "No Conflict" %>
+							</span>
+%						} else { 
+
+							<a class="<% $conflicts_by_id{$judge->id} ? "dkred" : "dkgreen" %> block"
+								href="conflict_switch.mhtml?judge_id=<% $judge->id %>&entry_id=<% $entry_id %>&school_id=<% $school->id %>">
+								<% ($conflicts_by_id{$judge->id}) ? "Conflicted" : "No Conflict" %>
+							</a>
+
+%						} 
+
+					</td>
+
+				</tr>
+
+%			}	
+
+			</tbody>
+
+		</table>
+
+	</div>
+

@@ -1,0 +1,63 @@
+<%args>
+	$account
+	$first
+	$last
+	$email
+	$phone    => undef
+	$provider => undef
+	$street   => undef
+	$city     => undef
+	$state    => undef
+	$no_email => undef
+	$zip      => undef
+	$timezone => undef
+</%args>
+<%init>
+
+	$m->abort unless $account;
+
+	$email =~ s/\s+//g;
+
+	unless ($email eq $account->email) { 
+
+		my @existing_emails = Tab::Account->search( email => $email);
+
+		if (@existing_emails) { 
+
+			my $err = "Email address $email already has an account: ".$existing_emails[0]->first." ".$existing_emails[0]->last;
+			$m->redirect("/user/login/profile.mhtml?err=$err");			
+
+		}
+
+	}
+
+	foreach my $login ($account->logins) { 
+		next unless $login->username eq $account->email;
+		$login->username($email);
+		$login->update;
+		$m->comp("/funclib/ldap_account.mas", login => $login);
+	}
+
+	$phone =~ s/[\D_]//g;
+	
+	$account->first($first);
+	$account->last($last);
+	$account->street($street);
+	$account->city($city);
+	$account->email($email);
+	$account->state($state);
+	$account->no_email($no_email);
+	$account->zip($zip);
+	$account->phone($phone);
+	$account->provider($provider);
+	$account->tz($timezone);
+	$account->update;
+
+
+	Tab::log("PROFILE CHANGE: Account ID ".$account->id." ($email) was modified from IP address ".$ENV{REMOTE_ADDR});
+	
+	my $msg = "Changes saved";
+	
+	$m->redirect("/user/login/profile.mhtml?msg=$msg");
+
+</%init>

@@ -1,0 +1,64 @@
+<%args>
+	$judge
+	$entry
+</%args>
+<%init>
+
+	my $prelim;
+	return unless $judge && $entry;
+
+	my $tourn = $entry->event->tourn;
+
+	return if ($judge->school->id == $entry->school->id)
+			&! (  $entry->event->setting("allow_judge_own")
+		          || ($judge->setting("neutral") && $judge->judge_group->tourn->setting("allow_neutral_judges"))  );
+
+	return if ($tourn->setting("ncfl") && $judge->school->region->id == $entry->school->region->id);
+
+	my @ballots = Tab::Ballot->search( judge => $judge->id, entry => $entry->id );
+
+	if (@ballots) { 
+		if ($entry->event->setting("repeat_judge_elims")) { 
+			foreach my $ballot (@ballots) { 
+				$prelim++ unless $ballot->panel->round->type eq "elim" || $ballot->panel->round->type eq "final";
+			}
+		} else { 
+			return;
+		}
+	}
+
+	Tab::Rating->set_sql( by_strike => "
+		select distinct rating.* 
+		from rating, rating_tier
+		where rating.judge = ? 
+		and rating.entry = ? 
+		and rating.rating_tier = rating_tier.id
+		and rating_tier.strike = 1
+	");
+
+	return if Tab::Rating->search_by_strike($judge->id, $entry->id);
+
+	foreach my $strike ($judge->strikes) { 
+
+		next if $strike->entry && $strike->entry->id && $strike->entry->id != $entry->id;
+		next if $strike->school && $strike->school->id && $strike->school->id != $entry->school->id;
+		next if $strike->event &&  $strike->event->id && $strike->event->id != $entry->event->id;
+
+		return if $strike->entry && $strike->entry->id == $entry->id && $strike->type eq "entry";
+		return if $strike->entry && $strike->entry->id == $entry->id && $strike->type eq "conflict";
+
+		return if $strike->school && $strike->school->id == $entry->school->id && $strike->type eq "school";
+		return if $strike->school && $strike->school->id == $entry->school->id && $strike->type eq "conflict";
+
+		return if $strike->region && $strike->region->id == $entry->school->region->id && $strike->type eq "region";
+
+		return if $strike->event && $strike->event->id == $entry->event->id && $strike->type eq "event";
+		$prelim++ if $strike->event && $strike->event->id == $entry->event->id && $strike->type eq "prelim";
+		
+	}
+
+
+	return "elim" if $prelim;
+	return 1;
+
+</%init> 

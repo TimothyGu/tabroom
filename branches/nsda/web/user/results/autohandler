@@ -1,0 +1,23 @@
+<%args>
+	$account
+	$school_id => undef
+	$chapter_id => undef
+</%args>
+<%init>
+
+	$m->call_next if $r->uri eq "/user/enter/create.mhtml";
+
+	my $school = Tab::School->retrieve($school_id) if $school_id;
+	my $chapter = $school->chapter if $school;
+	$chapter = Tab::Chapter->retrieve($chapter_id) if $chapter_id;
+
+	$m->redirect("/user/home.mhtml?err=That school does not exist") unless $chapter;
+
+	my $coach = Tab::ChapterAdmin->search( chapter => $chapter->id, account => $account->id )->first;
+
+	$m->redirect("/user/home.mhtml?err=You are not authorized to view that school") unless ($account->site_admin || $coach);
+	
+	$m->call_next( school => $school, chapter => $chapter );
+
+</%init>
+

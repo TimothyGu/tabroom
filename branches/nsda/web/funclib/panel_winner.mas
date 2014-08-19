@@ -1,0 +1,113 @@
+<%args>
+	$panel
+	$judge => undef
+	$noob => undef
+</%args>
+<%init>
+
+	if ($judge) { 
+
+		Tab::Entry->set_sql( and_the_winner_is => "
+			select entry.*
+			from entry, ballot, ballot_value
+			where ballot.judge = ? 
+			and ballot.panel = ? 
+			and ballot.audit = 1
+			and ballot.entry = entry.id
+			and ballot.id = ballot_value.ballot
+			and ballot_value.tag = \"ballot\"
+			and ballot_value.value = 1
+		");
+
+		Tab::Entry->set_sql( winning_side => "
+			select ballot.side
+			from entry, ballot, ballot_value
+			where ballot.judge = ? 
+			and ballot.panel = ? 
+			and ballot.audit = 1
+			and ballot.entry = entry.id
+			and ballot.id = ballot_value.ballot
+			and ballot_value.tag = \"ballot\"
+			and ballot_value.value = 1
+		");
+
+		my $winner = Tab::Entry->search_and_the_winner_is($judge->id, $panel->id)->first;
+		my $side = Tab::Entry->sql_winning_side->select_val($judge->id, $panel->id);
+
+		if ($noob) { 
+			my $id = $winner->id;
+			undef $winner;
+			return $id, $side;
+		}
+
+		return $winner, $side;
+
+	} else { 
+
+		Tab::Entry->set_sql( and_the_winner_is => "
+			select entry.*, ballot_side.side as side
+			from entry, panel, ballot ballot_side
+			where panel.id = ? 
+			and panel.id = ballot_side.panel
+			and ballot_side.entry = entry.id
+			and (select count(distinct winner.id) as winner
+				from ballot as winner, ballot_value
+				where winner.entry = entry.id
+				and winner.panel = panel.id
+				and winner.noshow = 0
+				and winner.bye = 0
+				and ballot_value.ballot = winner.id
+				and ballot_value.tag = \"ballot\"
+				and ballot_value.value = 1 ) 
+			>
+			 (select count(distinct loser.id) as loser
+				from ballot as loser, ballot_value
+				where loser.entry = entry.id
+				and loser.panel = panel.id
+				and loser.noshow = 0
+				and loser.bye = 0
+				and ballot_value.ballot = loser.id
+				and ballot_value.tag = \"ballot\"
+				and ballot_value.value = 0 ) 
+		");
+
+		Tab::Panel->set_sql( affwins => "
+			select count(aff.id) 
+				from ballot_value aff, ballot
+				where ballot.id = aff.ballot
+				and ballot.panel = ?
+				and ballot.side = 1
+				and aff.tag = \"ballot\"
+				and aff.value = 1
+		");
+
+		Tab::Panel->set_sql( negwins => "
+			select count(aff.id) 
+				from ballot_value aff, ballot
+				where ballot.id = aff.ballot
+				and ballot.panel = ?
+				and ballot.side = 2
+				and aff.tag = \"ballot\"
+				and aff.value = 1
+		");
+
+		my $winner = Tab::Entry->search_and_the_winner_is($panel->id)->first;
+		my $side = $winner->side if $winner;
+
+		my $affwins = Tab::Panel->sql_affwins->select_val($panel->id);
+		my $negwins = Tab::Panel->sql_negwins->select_val($panel->id);
+
+		my $record = $affwins."-".$negwins;
+		$record = $negwins."-".$affwins if $negwins > $affwins;
+
+		if ($noob && $winner) { 
+			my $id = $winner->id;
+			undef $winner;
+			return $id, $side;
+		}
+
+		return $winner, $side, $record;
+
+	}
+
+</%init>

@@ -1,0 +1,112 @@
+<%args>
+	$tourn
+	$account
+	$session
+</%args>
+<%init>
+
+	my $switch;
+
+	my $ok;
+	$ok++ if $account->site_admin;
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => 'import_xml', ok => $ok &>
+
+	<div class="left huge">
+
+		<h2><% $tourn->name %></h2>
+
+		<h4>Import Universal XML</h4>
+
+		<p>
+			Use this to upload data from "foreign" sources, such as TRPC, only.  Do
+			not use this screen to import data from the CAT; instead work directly
+			from within the CAT.
+		</p>
+
+		<h4>Events</h4>
+
+		<p>
+			Please select the event that corresponds to the event/divisions
+			within the XML import file.  If a event/division which exists in
+			the XML import file is not listed below, a new event/division will
+			be created on Tabroom.
+		</p>
+
+		<p>
+			Warning: all your events you upload at one time must be in the same
+			judges group.  Otherwise, The Strange and the Odd&#0153; will occur.
+		</p>
+
+		<table cellpadding="4" cellspacing="1">
+
+			<form name="trpc_xml" enctype="multipart/form-data" action="import_xml_save.mhtml" method="post" onsubmit="return uploadThis()">
+
+%			foreach my $div (1 .. 4) { 
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<th>
+						Division <% $div %>
+					</th>
+
+					<td>
+						<select name="event_id_<% $div %>" class="fixedmed">
+
+							<option value="">   -New Event- </option>
+%							foreach my $event ($tourn->events) {
+								<option value="<% $event->id %>">
+									<% $event->name %>
+								</option>
+%							}
+						</select>
+					</td>
+
+				</tr>
+
+%			}
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td>
+
+					Import new entries/judges/schools?
+
+					<br />
+
+					<span class="smaller">
+						By default, only rounds and results will be imported, not new entries & judges.
+					</span>
+				</td>
+
+				<td>
+					<input type="checkbox" value="1" name="add">
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td class="centeralign">
+					<div class="uploader">
+						<input type="file" name="trpc_xml"/ style="opacity: 0;" onchange="uploaderName()" id="upload">
+						<span id="filename" class="filename" style="-webkit-user-select: none;">No file selected</span>
+						<span class="action" style="-webkit-user-select: none;">Choose File</span>
+					</div>
+				</td>
+
+
+				<td class="centeralign">
+					<input type="submit" value="Upload Tournament">
+				</td>
+			</tr>
+
+		</table>
+
+		</form>
+
+	</div>
+
+

@@ -1,0 +1,208 @@
+<%args>
+	$tourn_id
+	$event_id => undef
+	$account => undef
+</%args>
+<%init>
+
+	$event_id =~ s/[\D_]//g;
+
+	my $tourn =  Tab::Tourn->retrieve($tourn_id);
+	my $event =  Tab::Event->retrieve($event_id);
+	
+		Tab::Event->set_sql( field_reports => "
+		select event.* from event, event_setting
+		where event.tourn = ?
+		and event.id = event_setting.event
+		and event_setting.tag = \"field_report\"
+		and event_setting.value = 1
+		order by event.name
+	");
+
+	my @events = Tab::Event->search_field_reports($tourn->id);
+
+	$event = $events[0] unless $event;
+	
+    my $webpage = Tab::Webpage->search( tourn => $tourn_id, special => "fields")->first;
+
+
+	my $ndt;
+
+	foreach my $circuit ($tourn->circuits) { 
+		$ndt++ if $circuit->id == 43;
+	}
+
+
+</%init>
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter top rightalign">
+			<h4>
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+        <& tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		if ($event) { 
+
+%			my @entries = sort {$a->school->name cmp $b->school->name} $event->entries(waitlist => 0, dropped => 0, unconfirmed => 0);
+%			@entries = sort {$a->school->name cmp $b->school->name} $event->entries(dropped => 0, unconfirmed => 0) if $event->setting("field_waitlist");
+
+			<h4>Field in <% $event->name %> (<% scalar @entries %> entries) </h4>
+
+			<& /funclib/tablesorter.mas, table => "sortme" &>
+
+			<table cellpadding="6" cellspacing="1" width="100%" id="sortme">
+
+				<thead>
+
+					<tr class="yellowrow">
+						
+						<th class="smallish">
+							School
+						</th>
+
+						<th class="smallish">
+							Locale
+						</th>
+
+						<th class="smallish">
+							Entry
+						</th>
+
+						<th class="smallish">
+							Code
+						</th>
+
+%						if ($event->setting("field_waitlist")) { 
+							<th class="smallish">
+								Status
+							</th>
+%						}
+
+%						if ($ndt) { 
+							<th class="smallish nosort">
+								Bid
+							</th>
+%						}
+
+% 						if ($tourn->setting("student_claim")==1 and $event->type eq "wudc") {
+							<th class="smallish">
+								Claim Spot
+							</th>
+%						}
+
+					</tr>
+
+				</thead>
+
+				<tbody>
+
+%				foreach my $entry (@entries) { 
+
+					<tr>
+			
+						<td>
+							<% substr($entry->school->name,0,35) %>
+						</td>
+
+						<td>
+							<% $entry->school->chapter ? $entry->school->chapter->location : "" %>
+						</td>
+
+						<td>
+							<% $entry->name %>
+						</td>
+
+						<td>
+							<% $entry->code %>
+						</td>
+
+%						if ($event->setting("field_waitlist")) { 
+							<td class="centeralign">
+								<% $entry->waitlist ? "WL" : "In" %>
+							</td>
+%						}
+
+%						if ($ndt) { 
+
+%							my ($student1, $student2, $crap) = $entry->students;
+
+%							if ($student1 && $student2) { 
+
+								<td>
+									<a href="/jbruschke/TeamBidSheet.php?id1=<% $student1->id %>&id2=<% $student2->id %>" class="dkgreen block smallish centeralign">
+										Bid Sheet
+									</a>
+								</td>
+%							}
+
+%						}
+
+% 						if ($tourn->setting("student_claim") && $event->type eq "wudc") {
+
+							<td class="centeralign">
+								<a href="/user/student/claim_entry?entry_id=<% $entry->id %>" class="dkgreen full block smallish">Claim</a>
+							</td>
+
+%						}						
+
+					</tr>
+
+%				}
+
+				</tbody>
+
+			</table>
+
+%		} elsif ($webpage) { 
+
+	        <p>
+				<% $webpage->content %>
+			</p>
+
+%		} else { 
+
+			<p>Choose an event at right to see the reported field.  You may not see all events
+			or divisions in the field report; the system only reports fields which the tournament
+			officials have released.</p>
+
+%		}
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>Events</h4>
+
+%			foreach my $oevent (sort {$a->name cmp $b->name} @events) { 
+
+				<a class="<% ($oevent->id == $event_id ) ? "dk" : "" %>blue block" 
+					href="/index/tourn/fields.mhtml?tourn_id=<% $tourn_id %>&event_id=<% $oevent->id %>">
+					<% $oevent->name %>
+				</a>
+
+%			}
+
+%			if ($ndt) { 
+				<a class="yellow block" href="/jbruschke/HeadToHead.php?tourn=<% $tourn->id %>&mode=WW">
+					Head to Head Comparisons
+				</a>
+%			}
+	
+		</div>
+
+	</div>
+

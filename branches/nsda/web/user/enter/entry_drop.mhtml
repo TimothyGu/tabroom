@@ -1,0 +1,132 @@
+<%args>
+	$entry_id
+	$school_id
+	$account
+	$from => undef
+</%args>
+<%init>
+
+	my $entry = Tab::Entry->retrieve($entry_id);
+	my $school = Tab::School->retrieve($school_id);
+
+
+
+	unless ($entry) { 
+		$m->redirect("onsite.mhtml?school_id=$school_id") if $from eq "onsite";
+		$m->redirect("students.mhtml?school_id=$school_id");
+	}
+
+	my $event = $entry->event;
+	my $tourn = $event->tourn;
+
+	my $drop_deadline = $tourn->setting("drop_deadline");
+	my $freeze_deadline = $tourn->setting("freeze_deadline");
+
+	$drop_deadline = $tourn->reg_end unless $drop_deadline;
+	$freeze_deadline = $tourn->reg_end unless $freeze_deadline;
+
+	my $now = DateTime->now;
+
+	if ($drop_deadline < $now) { 
+		my $err = "The online drop deadline for this tournament has passed.  Please contact the tournament directly";
+		$m->redirect("onsite.mhtml?entry_id=$entry_id&school_id=$school_id&err=$err") if $from eq "onsite";
+		$m->redirect("students.mhtml?entry_id=$entry_id&school_id=$school_id&err=$err");
+	}
+
+	if ($tourn->setting("track_reg_changes")) { 
+			
+		my $text = $account->first." ".$account->last." dropped ".$entry->event->abbr." entry ".$entry->code." ".$entry->name; 
+		$text = $account->first." ".$account->last." un-dropped ".$entry->event->abbr." entry ".$entry->code." ".$entry->name if $entry->dropped;
+	
+		my $change = Tab::TournChange->create({
+			tourn => $tourn->id,
+			school => $school_id,
+			type => "registration",
+			text => $text,
+			account => $account->id
+		}); 
+		
+	} 
+
+	my $stu_count;
+
+	STUDENT:
+	foreach my $student ($entry->students) { 
+
+		$stu_count++;
+
+		foreach my $other ($m->comp("/funclib/student_entries.mas", tourn => $tourn, student => $student)) { 
+			next STUDENT if $other->id != $entry->id;
+		}
+
+		foreach my $housing ($student->housing($tourn)) { 
+			$housing->delete if $housing;
+		}
+
+	}
+
+	my $name = $entry->name;
+	$name =~ s/\&/and/g;
+
+	my $msg = "Entry ".$name." dropped";
+
+	if ($freeze_deadline > $now) { 
+
+		if ($entry->dropped) { 
+
+			$entry->dropped(0);
+			$entry->drop_time("");
+			$entry->update;
+
+		} else {
+
+			$entry->delete();
+			$school->individuals( $school->individuals - $stu_count) if $school->individuals;
+			$school->update if $school->individuals;
+
+		}
+
+	} else {
+
+		if ($entry->dropped) { 
+
+			$entry->dropped(0);
+			$entry->drop_time("");
+			$entry->update;
+
+		} else {
+			$entry->dropped(1);
+			$entry->drop_time($now); 
+			$entry->update;
+		}
+		
+		my $drop_reason = "Dropped ". $entry->code ." by ".$account->last; 
+
+		if ($tourn->setting("fine_deadline") < $now && $entry->waitlist < 1) { 
+
+			if ($entry->dropped) { 
+		
+				my $fine = Tab::SchoolFine->create({
+					school => $entry->school->id,
+					amount => $tourn->setting("drop_fine"),
+					reason => $drop_reason,
+					levied_on => $now,
+					levied_by => $account->id
+				}) if $tourn->setting("drop_fine") > 0; 
+
+			} else { 
+
+				my $fine = Tab::SchoolFine->search( school => $entry->school->id, reason => $drop_reason )->first;
+				$fine->delete if $fine;
+
+			}
+			
+		} 
+		
+	}
+
+	$m->redirect("onsite.mhtml?event_id=".$event->id."&school_id=$school_id&msg=$msg") if $from eq "onsite";
+	$m->redirect("students.mhtml?event_id=".$event->id."&school_id=$school_id&msg=$msg");
+
+</%init>
+

@@ -1,0 +1,22 @@
+<%args>
+	$set_id
+	$account
+</%args>
+<%init>
+
+	my $set = Tab::TiebreakSet->retrieve($set_id);
+	my $msg;
+
+	if ($set) { 
+		foreach my $tb ($set->tiebreaks) { 
+			$tb->delete;
+		}
+
+		$msg = $account->first." uses TIEBREAK ATTACK.<br/><br/>  It's super effective! <br/><br/> Set ".$set->name." destroyed ";
+		$set->delete;
+
+	}
+
+	$m->redirect("tiebreaks.mhtml?msg=$msg");
+
+</%init>

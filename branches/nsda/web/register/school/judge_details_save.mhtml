@@ -1,0 +1,144 @@
+<%args>
+	$judge_id
+	$school_id
+	$alt_id => undef
+	$ada => undef
+	$fyo => 0
+	$phone => 0
+	$free_strike => 0
+	$notes => undef
+	$rounds => undef
+</%args>
+<%init>
+
+	my $judge = Tab::Judge->retrieve($judge_id);
+	my $group = $judge->judge_group;
+	my $tourn = $group->tourn;
+
+	my $rounds_per = $group->setting("rounds_per") if $group;
+
+	my $now = DateTime->now;
+
+	my $school = Tab::School->retrieve($school_id);
+
+	my $missing_rating;
+
+	if ($group->setting("coach_ratings")) { 
+
+		unless ($group->rating_subsets) { 
+
+			my $rating_id = $ARGS{"rating_id"};
+			my $rating = $judge->ratings->first;
+
+			$missing_rating .= "<br/> Missing ".$group->name." rating " unless $rating_id;
+
+			if ($rating) { 
+
+				$rating->rating_tier($rating_id);
+				$rating->update;
+
+			} else { 
+
+				$rating_id = 0 unless $rating_id;
+		
+				Tab::Rating->create({
+					type => "coach",
+					entered => $now,
+					tourn => $tourn->id,
+					judge => $judge->id,
+					rating_tier => $rating_id,
+				});
+			}
+
+		} else { 
+
+			foreach my $subset ($group->rating_subsets) { 
+
+				my $tier_id = $ARGS{$subset->id};
+
+				$missing_rating .= "<br/> Missing ".$subset->name." rating." unless $tier_id;
+
+				$tier_id = 0 unless $tier_id;
+
+				my $rating = $judge->ratings(rating_subset => $subset)->first;
+
+				if ($rating) {	 
+
+					$rating->rating_tier($tier_id);
+					$rating->update;
+
+				} else { 
+
+					Tab::Rating->create({
+						type => "coach",
+						tourn => $tourn->id,
+						judge => $judge->id,
+						rating_tier => $tier_id,
+						rating_subset => $subset->id
+					});
+
+				}
+			}
+		}
+
+		if ($missing_rating) { 
+
+			my $err = "You must rate the judge in every category. ".$missing_rating;
+			$m->redirect("judge_details.mhtml?school_id=$school_id&judge_id=$judge_id&err=$err");
+
+		}
+
+	}
+
+	$judge->obligation($rounds) if $rounds_per;
+
+	$judge->alt_group($alt_id) if $alt_id;
+	$judge->ada($ada);
+	$judge->notes($notes);
+
+	$judge->setting("phone", $phone);
+	$judge->setting("first_year", $fyo);
+
+	if ($fyo > 0 && $group->setting("fyo_free_strikes")) { 
+		$judge->setting("free_strike", 1);
+	} else { 
+		$judge->setting("free_strike", $free_strike);
+	} 
+
+	my %strike_by_event = ();
+	foreach my $strike (Tab::Strike->search( type => "event", judge => $judge->id, registrant => 1 )) { 
+		$strike_by_event{$strike->event->id} = $strike;
+	}
+
+	EVENT:
+	foreach my $event ($m->comp("/funclib/event_selfstrike.mas", group => $group)) { 
+
+		if ($ARGS{$event->id}) { 
+
+			next EVENT if $strike_by_event{$event->id};
+
+			my $now = DateTime->now;
+
+			Tab::Strike->create({
+				judge      => $judge->id,
+				event      => $event->id,
+				tourn      => $tourn->id,
+				type       => "event",
+				registrant => 1
+			});
+
+		} else {
+
+			my $strike = $strike_by_event{$event->id};
+			$strike->delete if $strike;
+		}
+
+	}
+
+	$judge->update;
+
+	my $msg = "Judge ".$judge->first." ".$judge->last." entered";
+
+	$m->redirect("judges.mhtml?school_id=$school_id&group_id=".$group->id."&msg=$msg");
+
+</%init>

@@ -1,0 +1,71 @@
+<%args>
+	$group_id => undef
+	$tourn_id => undef
+	$account => undef
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id) if $group_id;  
+	my $tourn = $group->tourn if $group;
+	$tourn = Tab::Tourn->retrieve($tourn_id) unless $tourn;
+
+	my $switch;
+
+	use POSIX;
+
+</%init>
+
+	<& menu.mas, tourn_id => $tourn->id, group_id => $group_id &>
+
+	<div class="left huge">
+
+		<span class="threequarter">
+			<h2>
+				<% $tourn->name %> 
+			</h2>
+		</span>
+
+		<span class="quarter" style="vertical-align: top;">
+			<h4 style="text-align: right;">
+				<% $tourn->location %>  
+			</h4>
+		</span>
+
+		<br style="clear: both;">
+
+        <& ../tourn_header.mas, tourn => $tourn, account => $account &>
+
+%		my @judges = sort {$a->last cmp $b->last} $group->judges ( active => 1);
+%		my $total = scalar @judges;
+%		my $count;
+
+		<h4><% $group->abbr %> judge data</h4>
+
+		<div style="width: 13em; float: left; margin-left: 15px;">
+
+%			foreach my $judge (@judges) {
+
+%				next unless $judge->active;
+
+%				if ($count == ceil($total/3)) {
+%					undef $count;
+					</div>
+					<div style="width: 13em; float: left; margin-left: 15px;">
+%				}
+
+%				$count++;
+
+				<a class="smallish blue block nowrap white" href="judge.mhtml?judge_id=<% $judge->id %>&tourn_id=<% $tourn->id %>">
+					<span class="evensmallerspan padno">	
+						<% $judge->code %>
+					</span>
+					<% $judge->first." ".$judge->last %> 
+				</a>
+
+%			}
+
+		</div>
+
+	</div>
+
+

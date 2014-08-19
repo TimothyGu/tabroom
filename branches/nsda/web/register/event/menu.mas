@@ -1,0 +1,175 @@
+<%args>
+	$tourn
+	$event    => undef
+	$sort     => undef
+	$drops    => undef
+	$waitlist => undef
+	$at_large => undef
+	$supp     => undef
+	$seeds    => undef
+	$pods     => undef
+</%args>
+<%init>
+
+</%init>
+
+	<div class="right small">
+	
+%		if ($event) { 
+
+%			if ($event->setting("supp")) { 
+
+				<div class="sidenote">
+
+					<h4>Add Entry:</h4>
+
+					<form action="supp_enter.mhtml" method="post">
+					<input type="hidden" name="event_id" value="<% $event->id %>">
+
+					<div class="evenrow">
+
+						<span class="hundo smallish padmore">
+							Current Code:
+						</span>
+
+						<span class="smallishspan">
+							<input type="text" name="code" size="8" class="thin">
+						</span>
+
+					</div>
+
+					<div class="liblrow rightalign padless">
+						<input type="submit" class="thin" value="Enter Supp">
+						</form>
+					</div>
+
+				</div>
+
+%			}
+
+		
+			<div class="sidenote">
+
+				<h4>
+					<% substr($event->abbr,0,17) %> 
+				</h4>
+
+				<a class="<% ($at_large || $drops || $waitlist || $seeds || $pods) ? "blue" : "dkblue"%> block" href="roster.mhtml?event_id=<% $event->id %>">
+					Confirmed Entry
+				</a>
+
+				<a class="<% ($drops) ? "dkblue" : "blue" %> block" href="roster.mhtml?event_id=<% $event->id %>&drops=1">
+					Drops
+				</a>
+
+				<a class="<% ($waitlist) ? "dkblue" : "blue" %> block" href="roster.mhtml?event_id=<% $event->id %>&waitlist=1">
+					Waitlist
+				</a>
+
+%				if ($event->setting("at_larges")) { 
+					<a class="<% ($at_large) ? "dkblue" : "blue" %> block" href="roster.mhtml?event_id=<% $event->id %>&at_large=1">
+						At-Larges
+					</a>
+%				}
+
+%				if ($event->setting("apda")) { 
+					<a class="<% ($seeds) ? "dkblue" : "blue" %> block" href="seeds.mhtml?event_id=<% $event->id %>">
+						APDA Qualifying Seeds
+					</a>
+%				} elsif ($event->setting("pair_seeds") || $event->setting("seed_presets")) { 
+					<a class="<% ($seeds) ? "dkblue" : "blue" %> block" href="seeds.mhtml?event_id=<% $event->id %>">
+						Pairing Seeds
+					</a>
+%				}
+
+%				if ($event->setting("round_robin")) { 
+					<a class="<% ($pods) ? "dkblue" : "blue" %> block" href="pods.mhtml?event_id=<% $event->id %>">
+						Round Robin Pods
+					</a>
+%				}
+
+				<h4>
+					Print
+				</h4>
+
+				<a class="blue block" href="entries_print.mhtml?event_id=<% $event->id %>&drops=<% $drops %>&waitlist=<% $waitlist %>&at_large=<% $at_large%>">
+					PDF Printout
+				</a>
+
+				<a class="blue block" href="entries_csv.mhtml?event_id=<% $event->id %>&drops=<% $drops %>&waitlist=<% $waitlist %>&at_large=<% $at_large%>">
+					CSV Spreadsheet
+				</a>
+
+%				if ($tourn->setting("ncfl")) { 
+					<a class="blue block" href="entry_cards_print.mhtml?event_id=<% $event->id %>">
+						Print NCFL Entry cards
+					</a>
+%				}
+
+				<br />
+
+			</div>
+
+			<div class="sidenote">
+
+				<h4>Other Events</h4>
+
+%				foreach my $oevent (sort {$a->name cmp $b->name} $tourn->events) { 
+	
+					<a class="<% ($oevent->id == $event->id) ? "dkblue" : "blue" %> block" href="roster.mhtml?event_id=<% $oevent->id %>">
+						<% $oevent->name %>
+					</a>
+
+%				}
+
+			</div>
+%		} 
+
+		<div class="sidenote">
+
+			<h4>
+				All Entries
+			</h4>
+		
+%			if ($event) {
+				<a class="yellow block" href="index.mhtml">
+					Return to Event List
+				</a>
+%			}
+
+			<a class="yellow half divider" href="entries_csv.mhtml">
+				Entry CSV
+			</a><a class="yellow half" href="entries_print.mhtml">
+				Printout
+			</a>
+
+			<a class="yellow half divider" href="entries_csv.mhtml?drops=1">
+				Drops CSV
+			</a><a class="yellow half" href="entries_print.mhtml?drops=1">
+				Printout
+			</a>
+
+			<a class="yellow half divider" href="entries_csv.mhtml?waitlist=1">
+				Waitlist CSV
+			</a><a class="yellow half" href="entries_print.mhtml?waitlist=1">
+				Printout
+			</a>
+
+%			if ($event && $event->setting("at_larges")) { 
+				<a class="yellow half" href="entries_csv.mhtml?at_large=1">
+					At-Larges CSV
+				</a><a class="yellow half" href="entries_print.mhtml?at_large=1">
+					Printout
+				</a>
+%			}
+
+
+			<a class="blue full" href="schools.mhtml">
+				List Schools by Event
+			</a>
+
+		</div>
+
+	</div>
+
+

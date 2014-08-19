@@ -1,0 +1,26 @@
+<%args>
+	$tourn
+	$session
+	$student_id 
+	$debug => undef
+</%args>
+<%init>
+
+	my $student = Tab::Student->retrieve($student_id);
+
+    my $filename = "student-assign-".$student->id."-".$session->id;
+    my $filepath = $Tab::file_root."/tmp/$filename";
+
+	system "/bin/rm -rf $filepath.*";
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1);
+
+	$m->comp("/register/entry/print/card.mas", filename => $filename, student => $student, tourn => $tourn);
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1);
+
+</%init>
+
+<div id="content">
+
+<p><% $filename %></p>

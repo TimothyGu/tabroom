@@ -1,0 +1,101 @@
+<%args>
+	$session
+	$tourn
+	$sweep_set_id => undef
+</%args>
+<%init>
+
+	my @sweep_sets;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+	
+	my $master_set = Tab::SweepSet->retrieve($sweep_set_id);
+
+    $m->print("No sweepstakes set selected") unless $master_set;
+    $m->abort() unless $master_set;
+
+	my ($points_ref, $count_ref, $countstring_ref, $entries_ref) = $m->comp("/tabbing/results/sweep_schools.mas", sweep_set => $master_set);
+
+	my $print_limit = $master_set->rule("print_limit");
+
+	my $name = $master_set->name;
+	$name =~ s/[\W_]//g;
+
+	my $filename = "$name-".$session->id;
+	my $filepath = $Tab::file_root."tmp/".$filename;
+	`rm -f $filepath.*`; 
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1, array => "1.8" );
+	open (TEXOUT, ">>$filepath.tex");
+
+    print TEXOUT "\\noindent\n";
+	print TEXOUT "{\\Large \\bf ". Tab::texify($tourn->name) ."} \\hfill {\\Large \\bf ". $master_set->name." } \\\\ \n";
+    print TEXOUT "\\bigskip\n";
+	print TEXOUT "\\newline\n";
+
+	my $tabular = "\\begin{tabular}{p{.5in}p{2.25in}p{1.5in}p{.5in}p{.5in}p{.5in}}\n";
+
+	print TEXOUT $tabular;
+	print TEXOUT "\\rowcolor[rgb]{1,.95,.66}\[5.5pt\]\[5.5pt\]\n";
+	print TEXOUT "  & Name & Diocese & Entries & Counted & Points \\\\ \n " if $ncfl;
+	print TEXOUT "  & Name & State & Entries & Counted & Points \\\\ \n " unless $ncfl;
+	print TEXOUT "\\end{tabular}\n";
+	print TEXOUT "\\newline\n";
+
+	my $switch;
+	my $place;
+	my $last_points;
+	my $add_to_place;
+
+	foreach my $school (sort {${$points_ref}{$b->id} <=> ${$points_ref}{$a->id}} $tourn->schools) { 
+
+		my $tie;
+
+		if ($last_points == ${$points_ref}{$school->id}) { 
+			$add_to_place++;
+			$tie++;
+		} elsif ($add_to_place) { 
+			$place++;
+			$place += $add_to_place;
+			undef $add_to_place;
+		}  else { 
+			$place++;
+		}
+
+		$last_points = ${$points_ref}{$school->id};
+
+		last if $print_limit && $place > $print_limit;
+
+		next unless ${$points_ref}{$school->id};
+
+		print TEXOUT $tabular;
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+		if ($tie) { 
+			print TEXOUT "T - ".Tab::texify($place)." & ";
+		} else { 
+			print TEXOUT Tab::texify($place)." & ";
+		}
+		print TEXOUT Tab::texify($school->short_name)." & ";
+
+		if ($ncfl) { 
+			print TEXOUT Tab::texify(substr($school->region->name,0,30)) if $school->region;
+		} else { 
+			print TEXOUT Tab::texify($school->chapter->state) if $school->chapter;
+		}
+
+		print TEXOUT " & ";
+		print TEXOUT Tab::texify(${$entries_ref}{$school->id})." & "; 
+		print TEXOUT Tab::texify(${$count_ref}{$school->id})." & "; 
+		print TEXOUT Tab::texify(${$points_ref}{$school->id})." \\\\ \n "; 
+	
+		print TEXOUT "\\end{tabular}\n";
+		print TEXOUT "\\newline\n";
+
+	}
+
+	close TEXOUT;
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+</%init>
+

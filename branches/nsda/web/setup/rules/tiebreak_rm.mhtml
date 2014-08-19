@@ -1,0 +1,20 @@
+<%args>
+	$tiebreak_id
+</%args>
+<%init>
+
+	my $tiebreak = Tab::Tiebreak->retrieve($tiebreak_id);
+
+	my $msg = "Tiebreak ".$tiebreak->name." deleted" if $tiebreak;
+
+	my $err = "Tiebreaker did not exist, did you already delete it?" unless $tiebreak;
+
+	my $tb_set_id = $tiebreak->tb_set->id if $tiebreak;
+
+	$tiebreak->delete if $tiebreak;
+
+    $m->redirect("tiebreaks.mhtml?tb_set_id=$tb_set_id&msg=$msg&err=$err");
+
+</%init>
+
+

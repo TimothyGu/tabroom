@@ -1,0 +1,196 @@
+<%args>
+	$round => undef
+	$panel => undef
+</%args>
+<%init>
+
+	$round = $panel->round if $panel && $panel->round;
+	return unless $round;
+
+	unless ($round->site && $round->site->id > 0) { 
+
+		my @sites = $round->event->tourn->sites;
+
+		unless (@sites) { 
+
+			my $err = "Your tournament has no site/locations attached.  You must have a site before you can assign rooms.  Please create or import an existing site";
+			$m->redirect("/setup/rooms/manage_sites.mhtml?err=$err");
+
+		} elsif (scalar @sites == 1) { 
+
+			$round->site($sites[0]->id);
+			$round->update;
+
+		} else { 
+
+			my $err = "That round is not assigned to a site and you have more than one site in your tournament.  Please assign it to a site before proceeding.";
+			$m->redirect("/setup/schedule/event.mhtml?event_id=".$round->event->id."&err=$err");
+
+		}
+
+	}
+
+	my @raw_rooms;
+
+	my $limit = "";
+#	and not exists ( select judge_setting.id from judge, judge_setting, judge_group where judge.judge_group = judge_group.id and judge_group.tourn = tourn.id and judge.id = judge_setting.judge and judge_setting.tag = \"room_reserved\" and judge_setting.value = room.id) " if $round->type ne "elim" && $round->type ne "final";
+
+	if ($panel) { 
+
+		Tab::Room->set_sql(clean_rooms_by_panel => "
+		   select distinct room.* from room,round,tourn,timeslot, panel
+				where panel.id = ? 
+				and round.id = panel.round 
+				and round.site = room.site
+				and room.inactive != 1
+				and tourn.id = timeslot.tourn
+				and round.timeslot = timeslot.id
+				and not exists (
+					select p2.id 
+					from panel as p2,round as r2,timeslot as t2
+					where t2.start < timeslot.end
+					and t2.end > timeslot.start
+					and p2.room = room.id
+					and p2.round = r2.id
+					and p2.flight = panel.flight
+					and r2.timeslot  = t2.id 
+					and t2.tourn = tourn.id
+					)
+				and not exists (
+					select strike.id from room_strike as strike,timeslot as tb
+					where strike.room = room.id
+					and tb.id = strike.timeslot
+					and tb.start < timeslot.end
+					and tb.end > timeslot.start  )
+				and not exists (
+					select stime.id from room_strike as stime
+					where stime.room = room.id
+					and stime.start < timeslot.end 
+					and stime.end > timeslot.start
+				)
+				and not exists ( 
+					select sevent.id from room_strike as sevent
+					where sevent.event = round.event
+				)
+				and not exists (
+					select sjudge.id 
+					from room_strike as sjudge, ballot
+					where ballot.judge = sjudge.judge
+					and ballot.panel = panel.id
+				)
+
+				".$limit."
+		");
+
+		@raw_rooms =  Tab::Room->search_clean_rooms_by_panel($panel->id);
+
+	} else { 
+
+		Tab::Room->set_sql(clean_rooms_by_round => "
+		   select distinct room.* from room,round,tourn,timeslot
+				where round.id = ?
+				and round.site = room.site
+				and room.inactive != 1
+				and tourn.id = timeslot.tourn
+				and round.timeslot = timeslot.id
+				and not exists (
+					select p2.id from panel as p2,round as r2,timeslot as t2
+					where t2.start < timeslot.end
+					and t2.end > timeslot.start
+					and p2.room = room.id
+					and p2.round = r2.id
+					and r2.timeslot  = t2.id )
+				and not exists (
+					select strike.id from room_strike as strike,timeslot as tb
+					where strike.room = room.id
+					and tb.id = strike.timeslot
+					and tb.start < timeslot.end
+					and tb.end > timeslot.start  )
+				and not exists (
+					select stime.id from room_strike as stime
+					where stime.room = room.id
+					and stime.start < timeslot.end 
+					and stime.end > timeslot.start
+				)
+				and not exists ( 
+					select sevent.id from room_strike as sevent
+					where sevent.event = round.event
+				)
+
+				".$limit."
+		");
+
+		@raw_rooms =  Tab::Room->search_clean_rooms_by_round($round->id);
+
+	}
+
+	my @round_room_pools = $m->comp("/funclib/round_room_pools.mas", round => $round);
+
+	my %room_scores = ();
+	my %banned_rooms = ();
+	my %reserved_rooms = ();
+	my %only_rooms = ();
+	my @rooms;
+
+	if (@round_room_pools) { 
+
+		my @rooms;
+
+		foreach my $rp (@round_room_pools) { 
+			push @rooms, $m->comp("/funclib/pool_rooms.mas", pool => $rp);
+		}
+
+		my %seen = (); 
+		@rooms = grep { ! $seen{$_->id} ++ } @rooms;
+
+		%only_rooms = map {$_->id => 1} @rooms;
+
+	} else { 
+
+		my @room_pools = $m->comp("/funclib/site_room_pools.mas", site => $round->site, tourn => $round->event->tourn);
+
+		foreach my $pool (@room_pools) { 
+
+			if ($pool->event->id == $round->event->id) { 
+
+				if ($pool->reserved) { 
+					$reserved_rooms{$pool->room->id}++;
+					$room_scores{$pool->room->id} += 100;
+				} else { 
+					$room_scores{$pool->room->id} += 5;
+				}
+
+			} elsif ($pool->reserved) { 
+
+				$banned_rooms{$pool->room->id}++;
+				$room_scores{$pool->room->id} -= 10;
+
+			} else { 
+				$room_scores{$pool->room->id}--;
+			}
+		}
+
+	}
+
+	ROOM:
+	foreach my $room (sort {$a->name cmp $b->name} @raw_rooms) { 
+
+		if (@round_room_pools)  { 
+			next ROOM unless $only_rooms{$room->id};
+		} elsif ($banned_rooms{$room->id}) { 
+			next ROOM unless $reserved_rooms{$room->id};
+		}
+
+		push (@rooms, $room);
+	}
+
+
+	@rooms = map  { $_->[0] } sort { $a->[1] <=> $b->[1] } map  { [$_, $_->name=~/(\d+)/] } @rooms;
+	@rooms = map  { $_->[0] } sort { $a->[1] cmp $b->[1] } map  { [$_, $_->name=~/(\D+)/] } @rooms;
+
+	@rooms = sort {$a->quality <=> $b->quality} @rooms;
+	@rooms = sort {$room_scores{$b->id} <=> $room_scores{$a->id}} @rooms;
+
+	return @rooms;
+
+</%init>

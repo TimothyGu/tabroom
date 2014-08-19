@@ -1,0 +1,173 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	my $switch;
+
+	my @events = $tourn->events;
+
+	if (scalar @events == 1) { 
+		$m->redirect("roster.mhtml?event_id=".$events[0]->id);
+	}
+
+	my $at_larges;
+
+	foreach my $event (sort {$a->name cmp $b->name} @events) { 
+		$at_larges++ if $event->setting("at_larges");
+	}
+
+
+</%init>
+
+	<& menu.mas, tourn => $tourn &>
+
+	<& /funclib/tablesorter.mas, table => "sorter" &>
+
+	<div class="left huge">
+
+		<h2>Divisions at <% $tourn->name %></h2>
+
+		<table cellpadding="1" cellspacing="1" width="100%" id="sorter">
+
+			<thead>
+
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Event
+				</th>
+
+
+				<th class="smaller">
+					Active
+				</th>
+
+				<th class="smaller">
+					Drops
+				</th>
+
+				<th class="smaller">
+					Waitlist
+				</th>
+
+%				if ($at_larges) { 
+					<th class="smaller">
+						At Large
+					</th>
+%				}
+
+				<th class="smaller">
+					Total
+				</th>
+
+			</tr>
+			</thead>
+			<tbody>
+
+<%perl>
+
+			my $total;
+			my $total_waitlist;
+			my $total_atlarge;
+			my $total_dropped;
+			my $total_active;
+
+			foreach my $event (sort {$a->name cmp $b->name} @events) { 
+
+				my $at_large++ if $event->setting("at_larges");
+				my @entries = Tab::Entry->search( event => $event->id);
+				my @active_entries = Tab::Entry->search( event => $event->id, waitlist => 0, dropped => 0, dq => 0);
+				my @dropped_entries = Tab::Entry->search( event => $event->id, waitlist => 0, dropped => 1, dq => 0);
+				push (@dropped_entries, Tab::Entry->search( event => $event->id, waitlist => 0, dq => 1, dropped => 0));
+				my @waitlist_entries = Tab::Entry->search( event => $event->id, waitlist => 1 );
+				my @at_larges = Tab::Entry->search( event => $event->id, waitlist => 1, seed => "atlarge" ) if $at_large;
+
+				$total += scalar @entries;
+				$total_active += scalar @active_entries;
+				$total_dropped += scalar @dropped_entries;
+				$total_waitlist += scalar @waitlist_entries;
+				$total_atlarge += scalar @at_larges;
+
+</%perl>
+				<tr>
+
+					<td>
+						<a class="white" href="roster.mhtml?event_id=<% $event->id %>">
+							<% $event->name %>
+						</a>
+					</td>
+
+
+					<td class="smallish rightalign">
+						<% scalar @active_entries %>
+					</td>
+
+					<td class="smallish rightalign">
+						<% scalar @dropped_entries %>
+					</td>
+
+					<td class="rightalign">
+
+%						if ($event->setting("waitlist") || $event->setting("waitlist_all")) { 
+							<a class="white" href="roster.mhtml?waitlist=1&event_id=<% $event->id %>">
+								<% scalar @waitlist_entries %>
+							</a>
+%						}
+
+					</td>
+
+%					if ($at_larges) {
+						<td class="smallish rightalign">
+							<% scalar @at_larges %>
+						</td>
+
+%					}
+					<td class="smallish rightalign">
+						<% scalar @entries %>
+					</td>
+
+				</tr>
+
+%			}
+			
+			</tbody>
+
+			<tr class="liblrow">
+
+				<th>
+					<span class="white">
+					Total
+					</span>
+				</th>
+
+
+				<th class="rightalign">
+					<% $total_active %>
+				</th>
+
+				<th class="rightalign">
+					<% $total_dropped %>
+				</th>
+
+				<th class="rightalign">
+					<% $total_waitlist %>
+				</th>
+
+%				if ($at_larges) { 
+					<th class="rightalign">
+						<% $total_atlarge %>
+					</th>
+%				}
+
+				<th class="rightalign">
+					<% $total %>
+				</th>
+
+			</tr>
+
+		</table>
+
+	</div>
+
+

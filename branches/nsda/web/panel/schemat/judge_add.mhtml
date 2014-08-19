@@ -1,0 +1,152 @@
+<%args>
+	$tourn
+	$account
+	$panel_id 	    => undef
+	$judge_id       => undef
+	$code           => undef
+	$return         => undef
+	$steal          => undef
+	$judge_replaced => undef
+</%args>
+<%init>
+
+	Tab::Ballot->set_sql( update_ballot => "
+		update ballot
+		set judge = ?
+		where panel = ?
+		and judge = 0
+	");
+
+	Tab::Ballot->set_sql( make_chair => "
+		update ballot
+		set chair = 1 
+		where judge = ?
+		and panel = ?
+	");
+
+	my $panel = Tab::Panel->retrieve($panel_id);
+	my $judge = Tab::Judge->retrieve($judge_id);
+
+	$m->abort unless $panel;
+
+	my $wudc++ if $panel->round->event->type eq "wudc";
+
+	unless ($judge) { 
+
+		my @judges = $m->comp('/funclib/tourn_judges.mas', tourn => $tourn, code => $code) if $code;
+		$judge = shift @judges if @judges;
+
+		unless ($judge) {
+			my $err = "No judge found with code $code";
+			return if $return eq "shiiiiiny";
+			$m->redirect("panel_view.mhtml?panel_id=$panel_id&err=$err");
+		}
+
+	}
+
+	Tab::Ballot->set_sql( round_ballots => "
+		select distinct ballot.*
+		from ballot, panel
+		where ballot.judge = ? 
+		and ballot.panel = panel.id
+		and panel.round = ? 
+		and panel.flight = ? 
+	");
+
+	my @currents = Tab::Ballot->search_round_ballots( $judge_id, $panel->round->id, $panel->flight );
+
+	my @others = $m->comp("/funclib/panel_judges.mas", panel => $panel);
+
+	if (@others) { 
+
+		my $sample = shift @others;
+
+		my @already = Tab::Ballot->search( panel => $panel->id, judge => $judge->id);
+		my @ballots = Tab::Ballot->search( panel => $panel->id, judge => $sample->id);
+
+		my %done = map {$_->entry->id => 1} @already;
+
+		my $audit = 0;
+		$audit = 1 if $wudc;
+
+		foreach my $ballot (@ballots)  {
+
+			next if $done{$ballot->entry->id};
+
+			my $new = $ballot->copy({
+				judge        => $judge->id,
+				audit        => $audit,
+				collected    => "",
+				collected_by => 0,
+				account      => 0,
+				cat_id       => "",
+				chair        => 0
+			});
+		}
+	
+	} else { 
+
+		Tab::Ballot->sql_update_ballot->execute($judge->id, $panel->id);
+		Tab::Ballot->sql_make_chair->execute($judge->id, $panel->id) 
+			if ($panel->round->type eq "elim" || $panel->round->type eq "final" || $panel->round->event->type eq "wudc") && $panel->round->event->type ne "congress";
+	}
+
+	my $warn;
+
+	if ($steal && @currents) { 
+
+		my $current_panel = $currents[0]->panel;
+
+		my @usual = $m->comp("/funclib/panel_judges.mas", panel => $current_panel);
+
+		foreach my $current (@currents) { 
+			$current->judge("") if scalar @usual == 1;
+			$current->update if scalar @usual == 1;
+			$current->delete if scalar @usual > 1;
+		}
+	}
+
+	if ($tourn->setting('track_reg_changes')) { 
+
+		my $regline = $account->first." ".$account->last." (".$account->email.") moved judge ".$judge->code." ".$judge->last." into section ".$panel->letter." round ".$panel->round->realname." of ".$panel->round->event->abbr;
+
+		$regline .= $warn;
+
+		Tab::TournChange->create({
+			type      => "judge",
+			judge     => $judge->id,
+			tourn     => $tourn->id,
+			new_panel => $panel->id,
+			text      => $regline,
+			account   => $account->id
+		});
+
+	}
+	
+	$m->comp("/funclib/panel_dedupe.mas", panel => $panel);
+
+	my $msg = "Judge ".$judge->first." ".$judge->last." has been added. <br />";
+	$msg .= $warn;
+
+	print "Return value is $return<br>";
+	
+	return if $return eq "shiiiiiny";
+
+	if ( $return eq "manual_mjp" ) {
+		$m->redirect("/panel/schemat/manual_mjp_switch.mhtml?panel_id=$panel_id&msg=$msg");
+	}
+
+	if ( $return eq "judge_push" ) {
+		$m->redirect("/panel/schemat/judge_push.mhtml?panel_id=$panel_id&msg=$msg");
+	}
+
+	if ( $return eq "judge_fits" ) {
+		$m->redirect("/panel/schemat/panel_view.mhtml?panel_id=$panel_id&msg=$msg");
+	}
+	
+	if ($return) { return; }
+	
+	$m->redirect("/panel/schemat/panel_view.mhtml?panel_id=$panel_id&msg=$msg");
+
+
+</%init>

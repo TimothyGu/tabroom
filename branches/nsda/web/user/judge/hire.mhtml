@@ -1,0 +1,134 @@
+<%args>
+	$account
+</%args>
+<%init>
+
+	my @already = $m->comp("/funclib/account_judges.mas", account => $account);
+
+	my %judge_by_tourn = ();
+
+	foreach my $judge (@already) {
+		$judge_by_tourn{$judge->tourn} = $judge;
+	}
+
+</%init>
+
+	<& /funclib/tablesorter.mas, table => "sortme" &>
+
+	<& /user/menu.mas, account => $account &>
+
+	<div class="huge left">
+
+		<h2>
+			Offer Hired Rounds
+		</h2>
+
+		<table cellpadding="4" cellspacing="1" id="sortme">
+
+			<thead>
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Tournament
+				</th>
+
+				<th class="smaller">
+					Dates
+				</th>
+
+				<th class="smaller nosort tightline centeralign">
+					Rds for<br />
+					School
+				</th>
+
+				<th class="smaller nosort tightline centeralign">
+					Hire<br />Offer
+				</th>
+
+				<th class="smaller nosort tightline centeralign">
+					Tourn<br />
+					OK'd
+				</th>
+
+				<th class="smaller nosort tightline centeralign">
+					Rds<br />
+					Hired
+				</th>
+
+				<th class="smaller nosort">
+					Total
+				</td>
+
+				<th class="nosort">
+				</th>
+			
+			</thead>
+
+			<tbody>
+
+%			my %used = ();
+
+%			foreach my $tourn ($m->comp("/funclib/tourn_exchange.mas")) { 
+
+%				next if $used{$tourn->id};
+%				$used{$tourn->id}++;
+
+%				my $judge =  $judge_by_tourn{$tourn->id};
+
+				<tr>
+
+					<td class="smallish">
+%						if ($tourn->webname) {
+							<a class="small nowrap white" href="http://<% $tourn->webname %>.tabroom.com">
+%						} else { 
+							<a class="small nowrap white" href="/index/tourn/index.mhtml?tourn_id=<% $tourn->id %>">
+%						}
+							<% $tourn->name %>
+							(<% $tourn->location %>)
+						</a>
+					</td>
+
+					<td class="centeralign smaller">
+						<% Tab::niceshortdate($tourn->start) %>
+						<% $tourn->start->day != $tourn->end->day ? " - ".Tab::niceshortdate($tourn->end) : "" %>
+					</td>
+
+
+					<td class="centeralign">
+						<% $judge ? $judge->obligation : "" %>
+					</td>
+
+					<td class="centeralign">
+						<% $judge ? $judge->hire_offer : "" %>
+					</td>
+
+					<td class="centeralign">
+						<% $judge && $judge->hire_approved ? "Yes" : "No" %>
+					</td>
+
+					<td class="centeralign">
+						<% $judge ? $judge->hired : "" %>
+					</td>
+
+					<td class="centeralign">
+						<% $judge ? $judge->hired + $judge->obligation : "" %>
+					</td>
+
+					<td class="centeralign smaller">
+						<a class="dkgreen block" href="hire_edit.mhtml?tourn_id=<% $tourn->id %>">
+							OFFER
+						</a>
+					</td>
+
+				</tr>
+
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+
+
+

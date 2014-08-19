@@ -1,0 +1,105 @@
+<%args> 
+	$circuit
+	$account
+	$tourn
+	$group_id
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+    my @requests = $group->hires;
+
+	my $uncovered_fee = $group->setting("uncovered_entry_fee");
+	my $judge_per = $group->setting("judge_per");
+	my $rounds_per = $group->setting("rounds_per");
+
+	HIRE:
+	foreach my $hire (@requests) { 
+
+		my $msg;
+
+		if ($judge_per) { 
+
+			my $covers = $ARGS{$hire->id."_covers"};
+			my $accepted = $ARGS{$hire->id."_accepted"};
+
+			if ($uncovered_fee) { 
+
+				next HIRE if $hire->covers == $covers && $hire->accepted == $accepted;
+
+				$msg .= "The # of students covered by hires is reduced to $covers. " 	if $hire->covers > $covers;
+				$msg .= "The # of students covered by hires is increased to $covers. " 	if $hire->covers < $covers;
+				$msg .= "The tournament accepted your request to cover $accepted students with hired judging. " if $hire->accepted < $accepted;
+				$msg .= "The tournament reduced your hired judging coverage to $accepted students. " if $hire->accepted > $accepted;
+
+			} else { 
+
+				my $whole_judges_covers = $covers;
+				my $whole_judges_accepted = $accepted;
+
+				$covers = $covers * $hire->judge_group->setting("judge_per") if $hire->judge_group->setting("judge_per");
+				$accepted = $accepted * $hire->judge_group->setting("judge_per") if $hire->judge_group->setting("judge_per");
+
+				next HIRE if $hire->covers == $covers && $hire->accepted == $accepted;
+
+				$msg .= "Hired judges you requested is reduced to $whole_judges_covers."		if $hire->covers > $covers;
+				$msg .= "Hired judges you requested is increased to $whole_judges_covers." 	if $hire->covers < $covers;
+				$msg .= "The tournament accepted your request to hire $whole_judges_accepted judges." if $hire->accepted < $accepted;
+				$msg .= "The tournament reduced your hired judge coverage to $whole_judges_accepted. " if $hire->accepted > $accepted;
+
+			}
+
+			$hire->accepted($accepted);
+			$hire->covers($covers);
+
+		} elsif ($rounds_per) { 
+
+			my $rounds = $ARGS{$hire->id."_rounds"};
+			my $rounds_accepted = $ARGS{$hire->id."_rounds_accepted"};
+
+			next HIRE if $hire->rounds == $rounds && $hire->rounds_accepted == $rounds_accepted;
+
+			$msg .= "Your request to cover rounds with hires is reduced to $rounds. " 	if $hire->rounds > $rounds;
+			$msg .= "Your request to cover rounds with hires is increased to $rounds. " 	if $hire->rounds < $rounds;
+			$msg .= "The tournament accepted your request to cover $rounds_accepted rounds with hired judging. " if $hire->rounds_accepted < $rounds_accepted;
+			$msg .= "The tournament reduced your hired judging coverage to $rounds_accepted rounds. " if $hire->rounds_accepted > $rounds_accepted;
+
+			$hire->rounds_accepted($rounds_accepted);
+			$hire->rounds($rounds);
+		}
+
+		$hire->update;
+
+		#Send the email
+
+		my $subject = "Hired Judging Changes: ". $tourn->name;
+		my $message = "The ".$tourn->name." would like to notify you ";
+		$message .= "of changes made by the tournament to your requests to hire judging ";
+		$message .= "to cover entries in ".$hire->judge_group->name.".\n\n";
+
+		$message .= "The following changes have been made by the tournament directors:\n\n";
+
+		$message .= $msg."\n\n";
+
+		$message .= " You do not have to take further action; the changes are ";
+		$message .= " now fully entered and your online invoice changed to reflect them\n";
+
+		$message .= "\n\n";
+		$message .= " Cheers,\n\n";
+		$message .= " ".$account->first." ".$account->last."\n\n";
+		$message .= " ".$tourn->name."\n\n ";
+
+	    $message .= " \n\n --- \n\n";
+		$message .= "Tournament information is at http://".$tourn->webname.".tabroom.com\n" if $tourn->webname;
+		$message .= "Tournament information is at ".$Tab::url_prefix."/index/tourn/index.mhtml?tourn_id=".$tourn->id." \n" unless $tourn->webname;
+
+    	foreach my $sendto ($m->comp("/funclib/chapter_admins.mas", chapter => $hire->school->chapter) ) {
+			$m->comp( "/funclib/send_email.mas", from => $account, to => $sendto, subject => $subject, body => $message );
+	    }
+
+	}
+
+	my $msg = "Judging hire changes saved; schools with changed hires notified by email.";
+	$m->redirect("hire_requests.mhtml?group_id=$group_id&msg=$msg");
+
+</%init>

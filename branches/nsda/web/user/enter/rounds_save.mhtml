@@ -1,0 +1,34 @@
+<%args>
+	$judge_id
+	$rounds
+</%args>
+<%flags>
+	inherit => undef
+</%flags>
+<%init>
+
+	my $err;
+
+	my $judge = Tab::Judge->retrieve($judge_id);
+
+	return unless $judge;
+	return unless $judge->judge_group;
+	return unless $judge->judge_group->setting("rounds_per");
+
+	my $max_rounds = $judge->judge_group->setting("max_rounds");
+
+	if ($rounds > $max_rounds) { 
+		$err = "Maximum number of rounds a single judge can cover is $max_rounds";
+		$rounds = $max_rounds;
+	}
+
+	$judge->obligation($rounds);
+	$judge->update;
+
+	my $school_id = $judge->school->id if $judge->school;
+
+	my $msg = "Judge ".$judge->last." set for $rounds";
+
+	$m->redirect("judges.mhtml?group_id=".$judge->judge_group->id."&school_id=$school_id&err=$err&msg=$msg");
+		
+</%init>

@@ -1,0 +1,329 @@
+<%args>
+	$tourn
+	$account
+	$event_id => undef
+	$round_id => undef
+	$all      => undef
+	$certain  => undef
+</%args>
+<%init>
+
+	my $debug;
+#	$debug = 1;  #enable this to see the results of debugging output;
+
+	use POSIX;
+
+	my @events;
+	my @rounds;
+
+	my %num_panels_by_event = ();
+	my %num_panels_by_round = ();
+	
+
+	if ($all) { 
+
+        my $text = $account->first." ".$account->last." (".$account->email.") has repaneled all events";
+
+        Tab::TournChange->create({ 
+            type    => 'tabbing',
+            tourn   => $tourn->id,
+            account => $account->id,
+            text    => $text
+        });
+
+		foreach my $event ($tourn->events) { 
+			next unless $ARGS{"do_".$event->id};
+			push (@events, $event);
+			$num_panels_by_event{$event->id} = $ARGS{"num_panels_".$event->id};
+			$num_panels_by_event{$event->id} = $ARGS{"force_num_panels_".$event->id} if $ARGS{"force_num_panels_".$event->id};
+		}
+
+	} elsif ($round_id) { 
+
+		my $round = Tab::Round->retrieve($round_id);
+
+        my $text = $account->first." ".$account->last." (".$account->email.") has repaneled round ".$round->realname." of ".$round->event->abbr;
+
+        Tab::TournChange->create({ 
+            type    => 'tabbing',
+            event   => $round->event->id,
+            tourn   => $tourn->id,
+            account => $account->id,
+            text    => $text
+        });
+
+		$num_panels_by_round{$round->id} = scalar $round->panels;
+		push (@rounds, $round);
+		push (@events, $round->event);
+
+	} else { 
+
+		my $event = Tab::Event->retrieve($event_id);
+
+        my $text = $account->first." ".$account->last." (".$account->email.") has repaneled all of ".$event->abbr;
+
+        Tab::TournChange->create({ 
+            type => 'tabbing',
+            event => $event->id,
+            tourn => $tourn->id,
+            account => $account->id,
+            text => $text
+        });
+
+		push (@events, $event);
+
+		foreach my $round ($event->rounds) { 
+			next unless $ARGS{"do_".$round->id};
+			push (@rounds, $round);
+			$num_panels_by_round{$round->id} = $ARGS{"num_panels_".$round->id};
+			$num_panels_by_round{$round->id} = $ARGS{"force_num_panels_".$round->id} if $ARGS{"force_num_panels_".$round->id};
+		}
+
+	}
+
+	my $doom_and_destruction;
+	my $even_more_doom_and_destruction;
+
+	foreach my $round (@rounds) { 
+		$doom_and_destruction++ if $m->comp("/funclib/round_judges.mas", round => $round);
+		$even_more_doom_and_destruction++ if $m->comp("/funclib/round_values.mas", round => $round);
+	}
+
+</%init>
+	
+%	if ($doom_and_destruction && $certain ne "I am really certain") {   
+
+		<div class="padno blankfull centeralign" style="text-align: center !important; min-height: 650px; padding-top: 20px;"> 
+		
+			<div style="margin: auto; width: 700px; padding: none;">
+				<&  "/funclib/warning.mas", account => $account &>
+
+				<p class="warning centeralign">
+					This will delete and re-assign rounds:  
+%						foreach my $round (@rounds) { 
+							<% $round->realname %>
+%						}
+				</p>
+
+				<p class="warning centeralign">
+					You have assigned judges to those rounds!
+				</p>
+
+%				if ($even_more_doom_and_destruction) { 
+					<p class="warning centeralign" style="font-size: 180%">
+						AND YOU HAVE ENTERED BALLOTS!  YOU FOOL!
+					</p>
+%				}
+
+				<p class="centeralign">
+					All right.  Level with me here.  If you want to delete them
+					and re-assign them, I guess I'll let you.  I get it, things happen
+					at a tournament, you want to start from scratch. 
+				</p>
+
+				<p class="centeralign">
+					But you're not going to get these back.  There's no undo
+					here, there's no retreat; you're committing yourself.  I
+					don't want you to come crying to me as if it's my fault,
+					because it's not going to be.  
+				</p>
+
+				<p class="centeralign">
+					So if you do mean this, you have to type "I am really
+					certain" in the box below.  Not just "I am certain" like
+					usual.  I want to check to be sure you're actually paying
+					attention and not just going through the motions before,
+					y'know, blowing away entire rounds of your tournament.
+				</p>
+
+%       		if ($certain) { 
+					<p class="warning centeralign">
+						You did not type "I am really certain", exactly like that.  Try again
+					</p>
+%       		}
+
+				<form action="panel_master.mhtml" method="post">
+				<input type="hidden" value="<% $event_id %>" name="event_id">
+				<input type="hidden" value="<% $round_id %>" name="round_id">
+				<input type="hidden" value="<% $all %>" name="all">
+
+				<p class="centeralign">
+					<input type="text" name="certain" size="20">
+				</p>
+
+		        <p class="centeralign">
+					<input  type="submit" value="Re-Assign Rounds">
+					</form>
+				</p> 
+				
+			</div>
+		</div>
+
+<%perl>
+
+	} else { 
+	
+		$m->print('<div class="left huge">');
+		$m->print('<h2>Creating rounds:</h2>');
+
+		my @groups;
+
+		my $event_count;
+		my $round_count;
+
+		foreach my $event (@events) { 
+
+			$event_count++;
+			my $round_robin++ if $event->setting("round_robin");
+
+			my $num_panels = $num_panels_by_event{$event->id};
+
+
+			if ($event->type eq "speech") { 
+
+				my @event_rounds;
+				@event_rounds = @rounds if @rounds;
+
+				@event_rounds = Tab::Round->search( event => $event->id, type => "prelim") unless @event_rounds;
+
+				$m->print("<div class=\"block\"><h5>".$event->name."</h5>") unless $round_id;
+
+				foreach my $eround (@event_rounds) { 
+
+					$round_count++;
+
+					$m->flush_buffer unless $round_id;
+
+					$num_panels = $num_panels_by_round{$eround->id} if $num_panels_by_round{$eround->id};
+
+					unless ($num_panels) { 
+						my $defaultpanelsize = $event->setting("default_panel_size");
+						$defaultpanelsize = 6 unless $defaultpanelsize;
+						my $num_entries = scalar $event->entries( waitlist => 0, unconfirmed => 0, dropped => 0, dq => 0);
+						$num_panels = ceil($num_entries / $defaultpanelsize);
+					}
+
+					$m->print("Paneling ".$eround->realname." into ".$num_panels." sections") unless $round_id;
+
+					$m->comp("pair_speech.mas", round => $eround, num_panels => $num_panels) if $eround && $num_panels;
+
+					if ($ARGS{"room_".$event->id}) {
+					
+						$m->print("...and assigning rooms");
+
+						my @panels = sort {$a->letter cmp $b->letter} $eround->panels;
+
+						foreach my $panel (@panels) { 
+							my @rooms = $m->comp("/funclib/clean_rooms.mas", panel => $panel);
+							my $room = shift @rooms;
+							$panel->room($room->id) if $room;
+							$panel->update;
+						}
+
+					}
+
+				}
+
+				$m->print("....Done.</div>");
+
+			} elsif ($event->type eq "congress") { 
+
+				my @event_rounds = @rounds if @rounds;
+				@event_rounds = $event->rounds(type => "prelim") unless @event_rounds;
+
+				my $wipe;
+
+				foreach my $round (@event_rounds) { 
+					$wipe++ if $ARGS{"wipe_".$round->id};
+				}
+
+				my $already_wiped;
+
+				foreach my $round (@event_rounds) { 
+					undef $wipe if $already_wiped;	
+					$num_panels = $num_panels_by_round{$round->id} if $num_panels_by_round{$round->id};
+					$m->comp("pair_congress.mas", round => $round, num_panels => $num_panels, wipe => $wipe);
+					$already_wiped++ if $wipe;
+				}
+
+			} elsif ($event->type eq "wudc") { 
+
+				my @event_rounds = @rounds if @rounds;
+
+				foreach my $round (@event_rounds) { 
+					$m->comp("pair_wudc.mas", round => $round);
+				}
+
+			} else { 
+
+				my @event_rounds = @rounds if @rounds;
+
+				unless (@event_rounds) { 
+					@event_rounds = $event->rounds(type => "prelim");
+				}
+
+				my $done;
+				foreach my $round (@event_rounds) { 
+
+					next if $done;
+
+					$num_panels = $num_panels_by_round{$round->id} if $num_panels_by_round{$round->id};
+
+					if ($round->type eq "prelim") { 
+						$m->comp("pair_preset.mas", round => $round, debug => $debug);
+					} else { 
+						$m->comp("pair_debate.mas", round => $round, debug => $debug);
+					}
+
+					$done++ if $round_robin;
+
+				}
+
+			}
+
+		}
+
+		$m->redirect("/panel/schemat/show.mhtml?round_id=$round_id&disp=1") if $round_id;
+
+</%perl>
+
+		<div class="block">
+
+			<div class="half inline">
+
+				<h4>Entry assignment done</h4>
+
+				<a class="blue smallish block" href="/panel/report/disasters.mhtml">
+					Check for Disasters
+				</a>
+
+				<br />
+
+				<a class="yellow smallish block" href="/panel/judge/index.mhtml">
+					Panel Judges
+				</a>
+
+			</div>
+
+			<div class="half inline right">
+
+				<h4>Rounds schematics</h4>
+
+%				foreach my $round (@rounds) { 
+					<a class="blue smallish block" href="/panel/schemat/show.mhtml?round_id=<% $round->id %>">
+						<% $round->realname %> of <% $round->event->abbr %> Schematic
+					</a>
+
+					<br />
+%				}
+
+			</div>
+
+		</div>
+		</div>
+
+			<& menu.mas, tourn => $tourn, whoami => "mass" &>
+
+		</div>
+
+%	}

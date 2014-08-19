@@ -1,0 +1,96 @@
+<%args>
+	$panel    => undef
+	$judge    => undef
+	$judge_id => undef
+	$chair    => undef
+</%args>
+<%init> 
+
+	return unless ($judge || $judge_id) && $panel;
+
+	$judge_id = $judge->id unless $judge_id;
+
+	$chair = 1 if $chair > 0;
+
+	my @ballots = $panel->ballots;
+
+	my $wudc++ if $panel->round->event->type eq "wudc";
+
+	foreach ($m->comp("/funclib/panel_judges.mas", panel => $panel)) {
+		if ($_->id == $judge_id) {
+			return;
+		}	
+	}
+
+	if (@ballots && $ballots[0]->entry) { 
+
+		# Are these ballots without judges? 
+		my $alldone;
+
+		BALLOT:
+		foreach my $ballot (@ballots) { 
+			next BALLOT if $ballot->judge && $ballot->judge > 0;
+			$ballot->judge($judge_id);
+			$ballot->chair(1) if $panel->round->type eq "elim" || $panel->round->type eq "final" || $panel->round->judges > 1;
+			$ballot->chair($chair);
+			$ballot->audit(0);
+			$ballot->update;
+			$alldone++;
+		}
+
+
+		unless ($alldone) { 
+
+			my $audit = 1 if $wudc && $chair != 1;
+			$audit = 0 unless $audit;
+			$chair = 0 unless $chair;
+
+			my %done_entry = ();
+
+			foreach my $ballot (@ballots) { 
+
+				next if $done_entry{$ballot->entry->id}++;
+
+				my $newb = $ballot->copy({
+					judge        => $judge_id,
+					collected_by => "",
+					collected    => "",
+					chair        => $chair,
+					audit        => $audit,
+					tv           => 0,
+					noshow       => 0,
+				});
+			}
+
+		}
+
+	} else {
+
+		# If there are no ballots, or only ballots without any kids in them, we
+		# must be pre paneling a round.  Therefore, we create a single ballot
+		# with a judge but no kid. 
+
+		my @other_judges = $m->comp("/funclib/panel_judges.mas", panel => $panel);
+
+		$chair = 0 unless $chair;
+
+		my $ballot = Tab::Ballot->create({
+			judge        => $judge_id,
+			panel        => $panel->id,
+			speechnumber => 1,
+			chair        => $chair,
+			speakerorder => 0
+		});
+
+		unless (@other_judges) { 
+			$ballot->chair(1);
+			$ballot->update;
+		}
+
+	}	#end of if @ballots 
+
+	return;
+
+</%init> 
+
+

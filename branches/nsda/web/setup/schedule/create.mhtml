@@ -1,0 +1,43 @@
+<%args>
+	$tourn
+	$name
+	$date
+	$new_start => undef
+	$new_end => undef
+</%args>
+<%init>
+
+	my $start;
+	
+	my $end; 
+	
+	eval { 
+		$start = Tab::dtme($date, $new_start, $tourn->tz);
+	};
+
+	eval { 
+		$end = Tab::dtme($date, $new_end, $tourn->tz);
+	};
+
+
+	unless ($start) { 
+		my $err = "You did not enter a valid start time for your new timeslot.  Try again";
+		$m->redirect("$Tab::url_prefix/setup/schedule/sked.mhtml?date=<% $date %>&err=$err");
+	}
+
+	unless ($end) { 
+		my $err = "You did not enter a valid end time for your new timeslot.  Try again";
+		$m->redirect("$Tab::url_prefix/setup/schedule/sked.mhtml?date=<% $date %>&err=$err");
+	}
+
+	my $timeslot = Tab::Timeslot->create( { 
+		tourn => $tourn->id,
+		start => $start, 
+		end => $end, 
+		name => $name
+	});
+		
+	my $msg = "Timeslot $name saved";
+	$m->redirect("/setup/schedule/sked.mhtml?date=$date&msg=$msg");
+
+</%init>

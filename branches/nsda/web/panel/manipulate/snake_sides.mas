@@ -1,0 +1,95 @@
+<%args>
+	$round_id
+	$from => undef
+</%args>
+<%perl>
+
+#load current things
+
+	my ($entry_by_id_hash_ref, $precluded_hash_ref) = $m->comp("/funclib/make_pairing_hash.mas", round_id => $round_id);			
+	my %entry_by_id = %{$entry_by_id_hash_ref};
+
+#set to zero unless bye
+	foreach my $key ( keys %entry_by_id ) {
+		if ($entry_by_id{$key}{'opponent'} > -1 ) { $entry_by_id{$key}{'sidedue'} = 0; }
+	}
+
+#If one school dominates the bracket, put them all on the same side
+#count up max at same school
+
+	my %n_school_entries;
+	foreach my $key ( keys %entry_by_id ) {
+		$n_school_entries{$entry_by_id{$key}{'school'}} ++;
+	}
+	my $max_entries; my $hi_school;
+	foreach my $key ( keys %n_school_entries ) {
+		if ( $n_school_entries{$key} > $max_entries ) { $max_entries = $n_school_entries{$key}; $hi_school = $key; }
+	}
+	print "Max school entries is $max_entries<br>";
+	my $n_entries = scalar keys %entry_by_id;
+	my $pct_of_draw = $max_entries / ($n_entries/2) ;
+
+#put all of huge school on same side of the bracket if appropriate	
+	 if ( $pct_of_draw > .4 ) {
+		foreach my $key ( keys %entry_by_id ) {
+			if ($entry_by_id{$key}{'school'} == $hi_school) {
+				$entry_by_id{$key}{'sidedue'} = 1;
+				$entry_by_id{$entry_by_id{$key}{'opponent'}}{'sidedue'} = 2;				
+			}
+		}
+	 }
+	
+#set sides
+
+	my $switch = 0;
+	my $oppside = 1;
+	foreach my $key (sort {$entry_by_id{$a}->{'seed'} <=> $entry_by_id{$b}->{'seed'}} keys(%entry_by_id)) {
+		if ($key > 0 and $entry_by_id{$key}{'sidedue'} == 0 and $entry_by_id{$key}{'opponent'} != -1 ) {
+			$switch++;
+			if ( $switch > 2 ) { $switch = 1; }
+#			print "Team: ".$key." ".$entry_by_id{$key}{'code'}." seed: ".$entry_by_id{$key}{'seed'}." side set to: ".$switch."<br>";
+			$entry_by_id{$key}{'sidedue'} = $switch;
+			my $opponent = $entry_by_id{$key}{'opponent'};
+			$oppside = 1;
+			if ( $switch == 1 ) { $oppside = 2; }
+			$entry_by_id{$opponent}{'sidedue'} = $oppside;
+		}
+	}
+
+#save 'em
+
+	#pull current pairings
+	
+	Tab::Ballot->columns(TEMP => qw/bye/);
+	Tab::Ballot->set_sql(pull_current_ballots => "
+		select ballot.id, ballot.entry, ballot.panel, ballot.side, panel.bye as bye
+		from ballot, panel, round
+		where ballot.panel=panel.id
+		and panel.round=round.id
+		and round.id=$round_id
+		order by panel, side, entry
+	");
+	
+	my @pairings_current = Tab::Ballot->search_pull_current_ballots;
+
+	BALLOT:
+	foreach my $ballot (@pairings_current) {
+
+		if ($ballot->bye ==0) {
+			print $entry_by_id{$ballot->entry}{'sidedue'}."<br>";
+			my $ballot_obj = Tab::Ballot->retrieve( $ballot->id );
+			next BALLOT unless $ballot_obj;
+	 		$ballot_obj->side($entry_by_id{$ballot->entry}{'sidedue'});
+		 	$ballot_obj->update;
+		}
+	
+	}
+
+	my $round = Tab::Round->retrieve($round_id); 
+	$round->event->setting("sides_not_set", 0);
+
+	my $msg = "Round paired" if $from eq "autopair";
+	$m->redirect("/panel/schemat/show.mhtml?round_id=$round_id&msg=$msg") if $from eq "autopair";
+	$m->redirect("manual_powermatch.mhtml?round_id=$round_id&msg=Sides set for odd-numbered round");
+
+</%perl>

@@ -1,0 +1,62 @@
+<%args>
+	$event
+	$with_entries => undef
+	$by_results   => undef
+</%args>
+<%perl>
+
+	if ($with_entries) { 
+
+		my $dbh = Tab::DBI->db_Main();
+
+		my $sth = $dbh->prepare("
+			select distinct entry_student.id, entry.id, entry_student.student
+			from entry_student,entry
+			where entry.event = ".$event->id."
+			and entry.id = entry_student.entry
+			group by entry_student.id
+			order by entry.id
+		");
+
+		my %student_entries;
+
+		while (my ($id, $entry, $student)  = $sth->fetchrow_array() ) {
+			push @{$student_entries{$student}}, $entry;
+		}
+
+		return %student_entries;
+
+	} elsif ($by_results) { 
+	
+		Tab::Student->set_sql( by_result => "
+			select distinct student.*, entry.id as entry
+			from student, entry, ballot, ballot_value
+			where student.id = ballot_value.student
+			and ballot_value.ballot = ballot.id
+			and ballot.entry = entry.id
+			and entry.event = ? 
+			and entry.waitlist != 1
+			and entry.unconfirmed != 1
+			order by entry.school, student.last ");
+
+		return Tab::Student->search_by_result($event->id);
+
+	} else { 
+
+		Tab::Student->set_sql( by_event => "
+			select distinct student.*, entry.id as entry
+			from student, entry_student, entry
+			where student.id = entry_student.student
+			and entry_student.entry = entry.id
+			and entry.event = ? 
+			and entry.dropped != 1
+			and entry.waitlist != 1
+			and entry.unconfirmed != 1
+			order by entry.school, student.last ");
+
+		return Tab::Student->search_by_event($event->id);
+
+	}
+
+</%perl>
+

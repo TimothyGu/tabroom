@@ -1,0 +1,346 @@
+<%args>
+	$round_id
+	$flight => 1
+	$tourn
+</%args>
+<%init>
+
+	my $round = Tab::Round->retrieve($round_id);
+	my $event = $round->event;
+
+	my $flights = $round->flighted; 
+	my $group = $event->judge_group;
+
+	my $round_type = $round->type;
+	my $rounds_per = $group->setting("rounds_per");
+	my $no_codes = $group->setting("no_codes");
+	my $prefs = $group->setting("prefs");
+	my $diversity = $group->setting("track_diversity");
+
+	undef $prefs if $prefs eq "none";
+
+	my $debate++;
+	undef $debate if $event->type eq "speech";
+	undef $debate if $event->type eq "congress";
+
+	my $flight_limit = "and panel.flight = $flight" if $flights;
+
+	if ($event->setting("flight_rooms_only")) {
+		undef $flight_limit;
+		undef $flights;
+	}
+
+	my $mutuality = $group->setting("mutuality");
+	my $preference = $group->setting("preference");
+
+	my $pool_limit = "and pool_judge.judge = judge.id and pool_judge.pool = round.pool" if $round->pool > 0;
+	my $pool_table = "pool_judge," if $pool_limit;
+
+	my %judge_name = map {$_ => $_->last.", ".substr($_->first,0,1)} $group->judges;
+
+	my $judge_use_ref = $m->comp("/funclib/judge_use.mas", round_id => $round->id);
+	my %judge_use = %{$judge_use_ref} if $judge_use_ref;
+
+	my %school_name = map {$_->id => $_ }  $tourn->schools;
+
+	Tab::Judge->set_sql( available_judges => "
+		select distinct judge.id, judge.first, judge.last, judge.tab_rating, judge.obligation, judge.hired
+		from judge, event, round, $pool_table timeslot
+		where judge.judge_group = event.judge_group
+		and judge.active = 1
+		and event.id = round.event
+		and round.timeslot = timeslot.id
+		".$pool_limit."
+		and round.id = ? 
+
+		and not exists (
+			select strike.id from strike
+			where strike.type = \"event\"
+			and strike.event = event.id
+			and strike.judge = judge.id
+		)
+
+		and not exists ( 
+			select strike.id from strike
+			where strike.type = \"time\"
+			and strike.judge = judge.id
+			and strike.start <= timeslot.end
+			and strike.end >= timeslot.start
+		)
+
+		and not exists (
+			select panel.id
+			from panel, ballot, timeslot othertimeslot, round
+			where ballot.judge = judge.id
+			and ballot.panel = panel.id
+			".$flight_limit."
+			and panel.round = round.id
+			and round.timeslot = othertimeslot.id
+			and othertimeslot.start <= timeslot.end
+			and othertimeslot.end >= timeslot.start
+		)
+
+		order by judge.tab_rating, judge.last
+	");
+
+	my @all_judges = Tab::Judge->search_available_judges($round->id);
+
+	my @panels = Tab::Panel->search_like( round => $round->id, {order_by => 'bracket'});
+
+	my %panel_letter = map {$_->id => $_->letter} @panels;
+	my %panel_flight = map {$_->id => $_->flight} @panels;
+	my %panel_bye = map {$_->id => $_->bye} @panels;
+
+	my %entry_by_id = map {$_->id => $_} $round->event->entries;
+
+	my $dbh = Tab::DBI->db_Main();
+
+	my $this_round_sth = $dbh->prepare("
+		select distinct panel.id, ballot.chair, ballot.judge, ballot.entry, entry.code, ballot.side, ballot.speakerorder, panel.flight
+		from panel, ballot, entry
+		where panel.round = ".$round->id."
+		and panel.id = ballot.panel
+		and panel.flight = $flight
+		and ballot.entry = entry.id
+		group by ballot.id
+		order by ballot.side
+	");
+
+	my %panel_chair;
+	my %panel_judge;
+	my %panel_entry;
+	my %entry_side;
+	my %entry_order;
+	my %entry_code;
+	my %used_judge;
+
+	$this_round_sth->execute;
+
+	while (my ($panel, $chair, $judge, $entry, $code, $side, $order)  = $this_round_sth->fetchrow_array() ) {
+		push @{$panel_judge{$panel}}, $judge;
+		$used_judge{$judge}++;
+		push @{$panel_entry{$panel}}, $entry;
+		$entry_side{$entry} = $side;
+		$entry_order{$entry} = $order;
+		$entry_code{$entry} = $code;
+	}
+
+	my %judge_constraints = $m->comp("/funclib/judge_cannotsee.mas", group => $group, round => $round);
+	my %judge_ratings = $m->comp("/funclib/event_judgeprefs.mas", event => $event, style => "individual");
+
+</%init>
+
+	<div class="left huge">
+
+		<h2><% $round->realname %> Unused Judges</h2>
+
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<table cellpadding="4" cellspacing="1" id="sortme">
+
+			<thead>
+				<tr class="yellowrow">
+
+%					unless ($no_codes) { 
+						<th class="smaller">
+							Code
+						</th>
+%					}
+
+					<th class="smaller">
+						Judge
+					</th>
+
+					<th class="smaller">
+						School
+					</th>
+
+%					if ($diversity) { 
+						<th class="smaller" title="Diversity-enhancing judge">
+							Div
+						</th>
+%					}
+
+					<th class="smaller">
+						Rds
+					</th>
+
+					<th class="smallish">
+						Fits
+					</th>
+
+					<th class="nosort smallish">
+					</th>
+				</tr>
+			</thead>
+
+			<tbody>
+
+%			foreach my $judge (@all_judges) { 
+
+				<tr>
+%					unless ($no_codes) { 
+						<td class=" smallish">
+							<% $judge->code %>
+						</td>
+%					}
+
+					<td class=" smallish">
+						<% $judge_name{$judge} %>
+					</td>
+
+					<td class=" smallish">
+						<% $judge->school->id ? $school_name{$judge->school->id} : "Hired" %>
+					</td>
+
+%					if ($diversity) { 
+						<td class=" smallish">
+							<% $judge->diverse ? "D" : "" %>
+						</td>
+%					}
+
+					<td class="centeralign smallish nowrap">
+						<% $rounds_per ? ($judge->obligation + $judge->hired) - $judge->tmp." /" : "" %>
+						<% $judge->tmp %>
+						<% $rounds_per ? "/ ".($judge->obligation + $judge->hired) : "" %>
+					</td>
+
+					<td class="centeralign smallish">
+<%perl>
+							my %entry_string;
+							my %rating_string;
+							my %judge_string;
+							my @judge_panels;
+
+							my %pref_score;
+							my %done;
+							my $judge_id = $judge->id;
+
+							PANEL:
+							foreach my $panel (keys %panel_letter) { 
+
+								next if $panel_flight{$panel} != $flight;
+								next if $panel_bye{$panel};
+								my $diff;
+
+								next if $done{$panel."p"}++;
+
+								foreach my $entry (@{$panel_entry{$panel}}) { 
+
+									next PANEL if $judge_constraints{$judge_id."-".$entry};
+									next if $done{$entry."e"}++;
+
+									if ($debate) { 
+										$entry_string{$panel} .= " vs " if $entry_string{$panel};
+										$entry_string{$panel} .= $entry_code{$entry}." ";
+									} else { 
+										$entry_string{$panel} = "Section ".$panel_letter{$panel};
+									}
+
+									if ($prefs) { 
+										$rating_string{$panel} .= "-" if $rating_string{$panel};
+										$rating_string{$panel} .= $judge_ratings{$entry."-".$judge_id};
+										$rating_string{$panel} .= "x" unless $judge_ratings{$entry."-".$judge_id};
+										$pref_score{$panel} += $judge_ratings{$entry."-".$judge_id};
+										$diff = abs( $judge_ratings{$entry."-".$judge_id} - $pref_score{$panel} )
+											if $pref_score{$panel} && $judge_ratings{$entry."-".$judge_id};
+									}
+
+								}
+
+								my %done;
+
+								if ($prefs) { 
+									$pref_score{$panel} = $pref_score{$panel} * $preference;
+									$pref_score{$panel} += $diff * $mutuality;
+								}
+
+								push @judge_panels, $panel;
+
+							}
+
+							@judge_panels = sort {$pref_score{$a} <=> $pref_score{$b}} @judge_panels if ($prefs);
+</%perl>
+	
+						<form action="replace_judge.mhtml">
+						<input type="hidden" name="judge_id" value="<% $judge->id %>">
+
+						<select name="swap_with" class="fixedbig larger">
+
+%							foreach my $panel (@judge_panels) { 
+
+%								foreach my $judge_id (@{$panel_judge{$panel}}) { 
+
+<%perl>
+									next if $done{$judge_id."-".$panel}++;
+
+									my $judge_string .= substr($judge_name{$judge_id},0,11);
+									foreach (length($judge_string) .. 12 ) {
+	                                   	$judge_string .= "&nbsp;";
+									}
+
+									my $avail_string;
+
+									unless ($round_type eq "elim" || $round_type eq "final") { 
+										if ($rounds_per) { 
+											$avail_string = $judge_use{$judge_id}{'left'}."/".($judge_use{$judge_id}{'judged_already'} + $judge_use{$judge_id}{'will_judge'})."/".$judge_use{$judge_id}{'oblig'};
+	       	 		                   } else { 
+											$avail_string = ($judge_use{$judge_id}{'judged_already'} + $judge_use{$judge_id}{'will_judge'});
+		        	                   }
+	        	                   }
+
+									my $rated;
+									foreach my $entry (@{$panel_entry{$panel}}) { 
+										next if $done{$judge_id."-".$entry."-".$panel}++;
+										$judge_string .= "-" if $rated++;
+										$judge_string .= $judge_ratings{$entry."-".$judge_id};
+										$judge_string .= "x" unless $judge_ratings{$entry."-".$judge_id};
+									}
+</%perl>
+
+									<option value="<% $panel %>-<% $judge_id %>"><% $rating_string{$panel} %> [<% $avail_string %> <% $judge_string %>] <% $entry_string{$panel} %> </option>
+%								}
+%							}
+						</select>
+
+					</td>
+
+					<td>
+						<input type="submit" value="Swap" class="thin">
+						</form>
+					</td>
+
+				</tr>
+%			}
+
+			</tbody>
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Round</h4>
+
+			<a class="blue block" href="/panel/schemat/show.mhtml?round_id=<% $round_id %>">
+				Return to <% $round->realname %> pairing
+			</a>
+
+%			if ($flights > 1) { 
+				<h4>Flights</h4>
+
+%				foreach my $aflight (1 .. $flights) { 
+					<a class="<% $aflight == $flight ? "dk" : "" %>yellow block" href="free_judges.mhtml?round_id=<% $round->id %>&flight=<% $aflight %>"> 
+						Flight <% $aflight %> 
+					</a>
+%				}
+
+%			}
+
+		</div>
+
+	</div>
+

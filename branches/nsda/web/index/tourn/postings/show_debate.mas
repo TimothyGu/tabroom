@@ -1,0 +1,274 @@
+<%args>
+	$round
+	$debug => undef
+	$sort_by => "letter"
+</%args>
+<%init>
+
+	my $event = $round->event;
+	my $tourn = $event->tourn;
+
+	my $codes = $tourn->setting("schemat_display");
+	my $round_robin++ if $event->setting("round_robin");
+	
+	Tab::Panel->columns(TEMP => "roomname");
+
+	Tab::Panel->set_sql( schemat => "
+		select panel.*, room.name as roomname
+		from panel, room
+		where panel.round = ? 
+		and panel.room = room.id
+		order by roomname, panel.flight");
+
+	Tab::Panel->set_sql( schemat_roomless => "
+        select panel.*, \"None\" as roomname
+        from panel
+        where panel.round = ? 
+        and panel.room = 0
+        order by roomname, panel.flight");
+
+	my @panels = Tab::Panel->search_schemat($round->id);
+
+	push (@panels, Tab::Panel->search_schemat_roomless($round->id));
+
+	my @entries = $m->comp("/funclib/round_entries.mas", round => $round);
+	my @judges = $m->comp("/funclib/round_judges.mas", round => $round);
+	my @ballots = $m->comp("/funclib/round_ballots.mas", round => $round);
+
+    my %pod_name;
+
+    if ($round_robin) { 
+        foreach my $entry (@entries) { 
+            next if $pod_name{$entry->pair_seed};
+            $pod_name{$entry->pair_seed} = $event->setting("pod_".$entry->pair_seed);
+            $pod_name{$entry->pair_seed} = "Pod ".$entry->pair_seed unless $pod_name{$entry->pair_seed};
+        }   
+    }   
+
+    my %judge_by_id = (); 
+    foreach my $judge (@judges) { 
+        $judge_by_id{$judge->id} = $judge;
+    }   
+
+	my %entries_by_panel = ();
+
+	foreach my $entry (@entries) { 
+		next if $entry->dq;
+		push (@{$entries_by_panel{$entry->panelid}}, $entry);
+	}
+
+	my %ballots_by_entry = ();
+	my %panel_undone = ();
+    my %judges_by_panel = ();
+
+	my %used;
+
+	foreach my $ballot (@ballots) { 
+		push (@{$ballots_by_entry{$ballot->entry->id}}, $ballot) if $ballot->entry;
+		$panel_undone{$ballot->panel->id}++ unless $ballot->audit;
+		push (@{$judges_by_panel{$ballot->panel->id}}, $judge_by_id{$ballot->judge->id}) if $judge_by_id{$ballot->judge->id} && $round->published != 2;
+	}
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $start = $round->start_time;
+	$start = $round->timeslot->start unless $start;
+	$start->set_time_zone($tz);
+
+    my $no_side_constraints++ if $event->setting('no_side_constraints');
+    my $sidelocks++ if ($round->type eq "elim" || $round->type eq "final") && not defined $no_side_constraints;
+
+</%init>
+
+	<div>
+		<span class="third">
+			<h4><% $round->realname %> <% $event->abbr %></h4>
+		</span>
+		<span class="twothird rightalign">
+			<h4>Start time: <% Tab::nicetime($start) %> <% Tab::tzname($tz) %></h4>
+		</span>
+	</div>
+
+	<& /funclib/tablesorter.mas, table => "sort" &> 
+
+%	my $some_locked;
+%	my %sidelock_panel;
+
+%	if ($sidelocks) { 
+% 		foreach my $panel (@panels) { 
+%			$sidelock_panel{$panel->id}++ if $m->comp("/funclib/round_elim_dueaff.mas", panel => $panel);
+%		}
+%	}
+
+%	if ($no_side_constraints || ($sidelocks && scalar keys %sidelock_panel < 1) ) { 
+%		undef $sidelocks;
+%		$no_side_constraints++;
+		<div class="padless centeralign smallish marbottom">
+			Flip for sides in all debates
+		</div>
+%	} elsif ($sidelocks) { 
+		<div class="padless centeralign smallish marbottom">
+			Flip for sides unless indicated
+		</div>
+
+%	}
+
+	<table cellpadding="1" cellspacing="1" width="100%" id="sort"> 
+
+		<thead>
+		
+		<tr class="yellowrow smallish">
+
+            <th class="centeralign <% $round_robin ? "" : "smallcell" %>">
+                <% $round_robin ? "Pod" : ""%>
+            </td>
+
+%			if ($round->flighted > 1) { 
+				<th class="centeralign ">
+					Flt
+				</th>
+%			}
+			
+			<th class="centeralign ">
+				Room
+			</th>
+
+%			if ($no_side_constraints || $sidelocks) { 
+
+				<th class="centeralign ">
+					Entry 1
+				</th>
+				<th class="centeralign ">
+					Entry 2
+				</th>
+
+%			} else { 
+
+				<th class="centeralign ">
+					Aff
+				</th>
+
+				<th class="centeralign ">
+					Neg
+				</th>
+
+%			} 
+
+
+%			unless ($round->published == 2) { 
+				<th class="centeralign smallish">
+					<span class="block">
+					Judge<% $round->judges > 1 ? "s" : "" %>
+				</th>
+%			}
+
+		</tr>
+
+		</thead>
+
+		<tbody>
+
+% 		foreach my $panel (@panels) { 
+
+<%perl>
+			my $aff;
+			my $neg;
+			my $bye;
+
+			foreach my $pc (@{$entries_by_panel{$panel->id}}) { 
+				if ($ballots_by_entry{$pc->id}) { 
+					$aff = $pc if ${$ballots_by_entry{$pc->id}}[0]->side == "1";
+					$neg = $pc if ${$ballots_by_entry{$pc->id}}[0]->side == "2";
+				}
+			}
+
+			foreach my $pc (@{$entries_by_panel{$panel->id}}) { 
+				if ($ballots_by_entry{$pc->id}) { 
+					unless ($aff) {
+						$aff = $pc unless ($neg && $pc->id == $neg->id);
+					} else { 
+						$neg = $pc unless ($aff && $pc->id == $aff->id);
+					}
+				}
+			}
+
+</%perl>
+			<tr class="smallish">
+
+            	<td class="centeralign <% $round_robin ? "" : "smallcell" %>">
+					<% $round_robin && $aff ? $pod_name{$aff->pair_seed} : $round_robin && $bye ? $pod_name{$bye->pair_seed} : "" %>
+				</td>
+			
+%				if ($round->flighted > 1) { 
+					<td class="centeralign">
+						<% $panel->flight %>
+					</td>	
+%				}
+
+				<td>
+%					if ($panel->bye) { 
+						BYE
+%					}  else { 
+						<% ($panel->roomname) ? $panel->roomname : " None " %>
+%					}  
+				</td>
+
+
+				<td>
+%					if ($aff) { 
+						<a class="white smallish" href="/index/tourn/postings/entry_record.mhtml?tourn_id=<% $tourn->id %>&entry_id=<% $aff->id %>">
+							<% ($codes eq "full_names") ? $aff->name : $aff->code %>
+						</a>
+%					} 
+
+%					if ($sidelocks && $sidelock_panel{$panel->id}) { 
+						<div class="smaller rightalign full padless" style="padding-right: 8px;">
+							Aff
+						</div>
+%					}
+				</td>
+
+				<td class="leftalign">
+%					if ($neg) { 
+						<a class="smallish white" href="/index/tourn/postings/entry_record.mhtml?tourn_id=<% $tourn->id %>&entry_id=<% $neg->id %>">
+							<% ($codes eq "full_names") ? $neg->name : $neg->code %>
+						</a>
+%					}
+%					if ($sidelocks && $sidelock_panel{$panel->id}) { 
+						<div class="smaller rightalign block padless" style="padding-right: 8px;">
+							Neg
+						</div>
+%					}
+				</td>
+
+%				unless ($round->published == 2) { 
+
+					<td class="smallish">
+
+%						if ($judges_by_panel{$panel->id}) { 
+
+%							my $notfirst;
+%							my %used;
+
+%							foreach my $judge (sort {$b->chair <=> $a->chair} @{$judges_by_panel{$panel->id}}) {
+%								next unless $judge;
+%								next if $used{$judge->id}++;
+
+								<a class="white smallish" href="/index/tourn/postings/judge.mhtml?judge_id=<% $judge->id %>&tourn_id=<% $tourn->id %>">
+									<% ($judge->chair) ? "*" : "" %><% $judge->last.", ".$judge->first %>
+								</a>
+%		 					} 
+%	 					} 
+
+					</td>
+% 				} 
+
+			</tr>
+			
+%		}
+		
+		</tbody>
+
+	</table>
+
+

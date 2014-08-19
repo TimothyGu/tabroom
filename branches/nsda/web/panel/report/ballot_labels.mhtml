@@ -1,0 +1,322 @@
+<%args>
+	$tourn
+	$session
+	$picker      => undef
+	$event_id    => undef
+	$timeslot_id => undef
+	$sort_by     => "event"
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $top_margin =  $tourn->setting("top_margin");
+	my $left_margin = $tourn->setting("left_margin");
+	my $col_space = $tourn->setting("col_space");
+	my $row_space = $tourn->setting("row_space");
+
+	$tourn->setting("top_margin", 12) unless $top_margin;
+	$tourn->setting("left_margin", 7) unless $left_margin;
+	$tourn->setting("col_space", 2) unless $col_space;
+	$tourn->setting("row_space", 0) unless $row_space;
+
+	$top_margin = "12" unless $top_margin;
+	$left_margin = "7" unless $left_margin;
+	$row_space = "2" unless $row_space;
+	$col_space = "0" unless $col_space;
+
+	$top_margin .= "mm";
+	$left_margin .= "mm";
+	$row_space .= "mm";
+	$col_space .= "mm";
+
+	my $timeslot = Tab::Timeslot->retrieve($timeslot_id) if $timeslot_id && $timeslot_id ne "all";
+	my $event = Tab::Event->retrieve($event_id) if $event_id && $event_id ne "all";
+
+	my $event_name = $event->name if $event;
+	my $timeslot_name = $timeslot->name if $timeslot;
+
+	$event_name = "AllEvents" unless $event_name;
+	$timeslot_name = "AllTimes" unless $timeslot_name;
+
+	$event_name =~ s/[^\w.]//g;
+	$timeslot_name =~ s/[^\w.]//g;
+
+	my $filename = "BallotLabels-$event_name-$timeslot_name-".$session->id;
+	$filename =~ s/\s+//g;
+
+    my $filepath = $Tab::file_root."/tmp/";
+    my $garbage = `rm -f $filepath.$filename.*`;
+	Tab::debuglog($garbage);
+
+	open (TEXOUT, ">>$filepath"."$filename.tex");
+
+	print TEXOUT <<"EOF";
+\\documentclass[letterpaper,10pt]{article}
+\\usepackage[newdimens]{labels}
+\\usepackage{helvet}
+\\usepackage{setspace}
+\\usepackage[breakall]{truncate}
+
+\\LabelCols=3       % Number of columns of labels per page
+\\LabelRows=10      % Number of rows of labels per page
+
+\\LeftPageMargin=$left_margin	% These four parameters give the
+\\TopPageMargin=$top_margin  	% the outer labels are the specified
+\\RightPageMargin=7mm       	% page gutter sizes. The outer edges of
+\\BottomPageMargin=15mm     	% distances from the edge of the paper.
+
+\\InterLabelColumn=$col_space  	% Gap between columns of labels
+\\InterLabelRow=$row_space     	% Gap between rows of labels
+
+\\LeftLabelBorder=5mm   % These four parameters give the extra
+\\RightLabelBorder=5mm  % space used around the text on each
+\\TopLabelBorder=5mm    % actual label.
+
+\\renewcommand{\\baselinestretch}{1.2}
+\\renewcommand{\\familydefault}{\\sfdefault}
+\\begin{document}
+\\begin{labels}
+EOF
+
+	my $timeslot_limit = "and timeslot.id = $timeslot_id" unless $timeslot_id eq "all" || $timeslot_id < 1;
+	my $event_limit = "and event.id = $event_id" unless $event_id eq "all" || $picker || $event_id < 1;
+	my $picker_limit;
+
+	if ($picker) { 
+
+		$picker_limit = " and event.id in ( ";
+
+		my $notfirst;
+		foreach my $event ($tourn->events) { 
+			next unless $ARGS{$event->id};
+			$picker_limit .= ", " if $notfirst++;
+			$picker_limit .= $event->id;
+		}
+		$picker_limit .= " ) \n";
+	}
+
+	my $dbh = Tab::DBI->db_Main();
+
+	my $labels_sth = $dbh->prepare("
+	    select distinct judge.id judge, panel.id panel, panel.flight, panel.letter, event.type, event.abbr, 
+		room.name, judge.first, judge.code, judge.last, entry.id, entry.code, ballot.chair, ballot.side, ballot.speakerorder, 
+		round.start_time, round.label, round.name, round.id, timeslot.start
+        from panel, event, round, ballot, judge, entry, room, timeslot
+        where event.tourn = ".$tourn->id."
+		".$timeslot_limit."
+        and round.event = event.id  
+		".$event_limit."
+		".$picker_limit."
+        and round.id = panel.round  
+        and panel.id = ballot.panel    
+        and ballot.judge = judge.id     
+        and ballot.entry = entry.id
+		and entry.dropped = 0
+		and panel.room = room.id
+		and timeslot.id = round.timeslot
+	");
+
+	my @labels;
+	my %label_judge_name;
+	my %label_judge_chair;
+	my %label_judge_last;
+	my %label_judge_code;
+	my %label_room;
+	my %label_event;
+	my %label_entries;
+	my %entry_code;
+	my %entry_order;
+	my %label_type;
+	my %label_letter;
+	my %label_start;
+	my %label_round;
+	my %label_round_id;
+	my %label_aff;
+	my %label_neg;
+	my %label_done;
+	my %label_affstring;
+	my %label_negstring;
+	my %label_flight;
+	my $max_flight;
+
+	$labels_sth->execute();
+
+	while( my ( $judge, $panel, $flight, $letter, $type, $abbr, $room, $jfirst, $jcode, $jlast, $entry, $code, $chair, $side, $speaks, $rstart, $rlabel, $rname, $round, $tstart ) = $labels_sth->fetchrow_array() ) {
+
+		my $key = $judge."-".$panel;
+
+		$jlast =~ s/\^//g;
+
+		push @{$label_entries{$key}}, $entry;
+		$entry_code{$entry} = $code;
+		$entry_order{$entry} = $speaks;
+		$max_flight = $flight if $flight > $max_flight;
+		$label_aff{$key} = $entry if $side == 1 && $type ne "speech" && $type ne "congress";
+		$label_neg{$key} = $entry if $side == 2 && $type ne "speech" && $type ne "congress";
+
+		next if $label_done{$key}++;
+
+		push @labels, $key;
+		$label_judge_last{$key} = $jlast;
+		$label_judge_code{$key} = $jcode;
+		$label_judge_chair{$key} = $chair;
+		$label_judge_name{$key} = $jfirst." ".$jlast if $type ne "speech" && $type ne "congress";
+		$label_judge_name{$key} = $jlast.", ".$jfirst if $type eq "speech" || $type eq "congress";
+		$label_room{$key} = $room;
+		$label_event{$key} = $abbr;
+		$label_flight{$key} = $flight;
+		$label_type{$key} = $type;
+		$label_letter{$key} = $letter;
+		$label_type{$key} = "debate" if $type ne "speech" && $type ne "congress";
+
+		$label_affstring{$key} = "Aff";
+		$label_affstring{$key} = "Gov" if $type eq "parli";
+		$label_affstring{$key} = "Team 1:" if $type eq "pf";
+
+		$label_negstring{$key} = "Neg";
+		$label_negstring{$key} = "Opp" if $type eq "parli";
+		$label_negstring{$key} = "Team 2:" if $type eq "pf";
+
+		$label_round_id{$key} = $round;
+		$label_round{$key} = substr($rlabel,0,4);
+		$label_round{$key} = "Rnd ".$rname unless $rlabel;
+
+		my $start = DateTime::Format::MySQL->parse_datetime($rstart) if $rstart;
+		$start = DateTime::Format::MySQL->parse_datetime($tstart) unless $start;
+		$start->set_time_zone("UTC") if $start;
+		$start->set_time_zone($tz) if $start;
+		$label_start{$key} = Tab::nicetime($start) if $start; 
+
+	}
+
+	$labels_sth = $dbh->prepare("
+	    select distinct 
+			judge.id judge, 
+			panel.id panel, panel.flight, panel.letter, 
+			event.type, event.abbr, 
+			room.name, 
+			judge.first, judge.code, judge.last, 
+			ballot.chair, 
+			round.start_time, round.label, round.name, round.id, 
+			timeslot.start
+        from panel, event, round, ballot, judge, room, timeslot
+        where event.tourn = ".$tourn->id."
+		".$timeslot_limit."
+        and round.event = event.id  
+		".$event_limit."
+		".$picker_limit."
+        and round.id = panel.round  
+        and panel.id = ballot.panel    
+        and ballot.judge = judge.id     
+		and panel.room = room.id
+		and timeslot.id = round.timeslot
+	");
+
+	$labels_sth->execute();
+
+	while( my ( $judge, $panel, $flight, $letter, $type, $abbr, $room, $jfirst, $jcode, $jlast, $chair, $rstart, $rlabel, $rname, $round, $tstart ) = $labels_sth->fetchrow_array() ) {
+
+		my $key = $judge."-".$panel;
+
+		$jlast =~ s/\^//g;
+		$max_flight = $flight if $flight > $max_flight;
+
+		next if $label_done{$key}++;
+
+		push @labels, $key;
+		$label_judge_last{$key} = $jlast;
+		$label_judge_code{$key} = $jcode;
+		$label_judge_chair{$key} = $chair;
+		$label_judge_name{$key} = $jfirst." ".$jlast if $type ne "speech" && $type ne "congress";
+		$label_judge_name{$key} = $jlast.", ".$jfirst if $type eq "speech" || $type eq "congress";
+		$label_room{$key} = $room;
+		$label_event{$key} = $abbr;
+		$label_flight{$key} = $flight;
+		$label_type{$key} = $type;
+		$label_letter{$key} = $letter;
+		$label_type{$key} = "debate" if $type ne "speech" && $type ne "congress";
+
+		$label_round_id{$key} = $round;
+		$label_round{$key} = substr($rlabel,0,4);
+		$label_round{$key} = "Rnd ".$rname unless $rlabel;
+
+		my $start = DateTime::Format::MySQL->parse_datetime($rstart) if $rstart;
+		$start = DateTime::Format::MySQL->parse_datetime($tstart) unless $start;
+		$start->set_time_zone("UTC") if $start;
+		$start->set_time_zone($tz) if $start;
+		$label_start{$key} = Tab::nicetime($start) if $start; 
+	}
+
+	@labels = sort {$label_judge_last{$a} cmp $label_judge_last{$b}} @labels;
+	@labels = sort {$label_judge_code{$a} cmp $label_judge_code{$b}} @labels unless $sort_by eq "names";
+	@labels = sort {$label_event{$a} cmp $label_event{$b}} @labels if $sort_by eq "event";
+	@labels = sort {$label_flight{$a} <=> $label_flight{$b}} @labels;
+
+	foreach my $key (@labels) { 
+
+		if ($label_type{$key} eq "speech") { 
+			print TEXOUT "\\truncate{2.4in}{\\underline{\\textbf{";
+			print TEXOUT "*" if $label_judge_chair{$key};
+			print TEXOUT Tab::texify($label_judge_code{$key})." -- " if $label_judge_code{$key};
+			print TEXOUT Tab::texify($label_judge_name{$key});
+			print TEXOUT "}}} \n";
+			print TEXOUT Tab::texify($label_event{$key})." ".$label_letter{$key};
+			print TEXOUT " -- ";
+			print TEXOUT $label_start{$key};
+			print TEXOUT " -- ";
+			print TEXOUT Tab::texify($label_round{$key});
+			print TEXOUT " \n";
+			print TEXOUT "Room: ". Tab::texify($label_room{$key}) ." \n";
+
+			print TEXOUT "\\truncate{2.4in}{\\footnotesize ";
+
+			if ($label_entries{$key}) {
+				foreach my $entry (sort {$entry_order{$a} <=> $entry_order{$b}} @{$label_entries{$key}}) { 
+					print TEXOUT Tab::texify($entry_code{$entry});
+
+					foreach (1 .. scalar $m->comp("/funclib/entry_double.mas", entry => $entry, round => $label_round_id{$key})) {
+						print TEXOUT "*";
+					}
+					print TEXOUT " ";
+				}		
+			}
+		
+			print TEXOUT "} \n\n";	
+
+		} else { 
+
+			print TEXOUT "\\truncate{2.4in}{\\underline{\\textbf{ ";
+			print TEXOUT "*" if $label_judge_chair{$key};
+			print TEXOUT Tab::texify($label_judge_code{$key})." -- " if $label_judge_code{$key};
+			print TEXOUT Tab::texify($label_judge_name{$key});
+			print TEXOUT " }}} \n";
+			print TEXOUT Tab::texify($label_event{$key})." -- ";
+			print TEXOUT "Flt ".$label_flight{$key}." -- " if $max_flight > 1;
+			print TEXOUT "Room: ". Tab::texify($label_room{$key}) ." \n";
+
+			print TEXOUT "\\truncate{2.4in}{";
+			print TEXOUT Tab::texify($label_affstring{$key}).": ".Tab::texify($entry_code{$label_aff{$key}})." ";
+			print TEXOUT "} \n";
+			print TEXOUT "\\truncate{2.4in}{";
+			print TEXOUT Tab::texify($label_negstring{$key}).": ".Tab::texify($entry_code{$label_neg{$key}})." ";
+			print TEXOUT "} \n\n";
+		}
+
+	} # end of foreach label
+
+	print TEXOUT "\n";
+	
+	print TEXOUT "\\end{labels}\n";
+	print TEXOUT "\\end{document}\n";
+
+	close TEXOUT;
+
+	`cd $filepath; $Tab::pdflatex_path $filename.tex`;
+	`cd $Tab::file_root/tmp; rm -f $filename.tex $filename.log $filename.dvi $filename.aux` if $Tab::hostname eq "www.tabroom.com"; 
+
+	$m->redirect("$Tab::url_prefix/tmp/$filename.pdf");
+
+
+</%init>

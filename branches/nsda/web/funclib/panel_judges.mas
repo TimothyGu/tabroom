@@ -1,0 +1,20 @@
+<%args>
+	$panel
+</%args>
+<%init>
+
+	return unless $panel;
+
+	Tab::Judge->set_sql( judges_by_panel => "
+		select distinct judge.*, ballot.chair as chair
+		from judge, ballot
+		where ballot.judge = judge.id
+		and ballot.panel = ?
+		group by judge.id
+		order by ballot.chair DESC, judge.last
+	");
+
+	return Tab::Judge->search_judges_by_panel( $panel->id );
+
+</%init>
+

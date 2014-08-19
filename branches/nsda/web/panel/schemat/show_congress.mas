@@ -1,0 +1,178 @@
+<%args>
+	$round
+	$sort_by => "letter"
+	$show => undef
+	$seeds => undef
+	$admin => undef
+	$entry_only => undef
+</%args>
+<%init>
+
+	my $event = $round->event;
+	my $tourn = $event->tourn;
+
+    my $tz = $tourn->tz;
+    $tz = "UTC" unless $tz;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my @panels = sort {$a->letter cmp $b->letter} $round->panels;
+
+	@panels = sort {length($a->letter) <=> length($b->letter)} @panels;
+	@panels = sort {$a->room->name cmp $b->room->name} @panels if $sort_by eq "room";
+
+	my @entries = $m->comp('/funclib/round_entries.mas', round => $round);
+
+	my %entries_by_panel = ();
+
+	foreach my $entry (@entries) { 
+		next if $entry->dropped;
+		next if $entry->dq;
+		push (@{$entries_by_panel{$entry->panelid}}, $entry);
+	}
+
+	my @judges = $m->comp('/funclib/round_judges.mas', round => $round);
+
+	my %judges_by_panel = ();
+
+	foreach my $judge (@judges) { 
+		push (@{$judges_by_panel{$judge->panelid}}, $judge);
+	}
+
+	my @rooms = $m->comp('/funclib/round_rooms.mas', round => $round);
+
+	my %room_by_id = ();
+
+	foreach my $room (@rooms) { 
+		$room_by_id{$room->id} = $room;
+	}
+
+	my $no_judge_codes++ if $event->judge_group->setting('no_codes');
+	my $no_codes++ if $event->setting('code_style') eq "names" || $event->setting('code_style') eq "last_names" || $event->setting('code_style') eq "names_lastfirst";
+	my $big_codes++ unless $event->setting('code_style') eq "numbers";
+
+	my @ballots = $m->comp("/funclib/round_ballots.mas", round => $round);
+	my %panel_undone = ();
+	foreach my $ballot (@ballots) { 
+		$panel_undone{$ballot->panel->id}++ unless $ballot->audit;
+	}
+
+</%init>
+
+	<table cellpadding="0" cellspacing="1" width="100%"> 
+		
+		<tr class="yellowrow">
+
+			<th class="smaller padmore">
+				Room
+			</td>
+			
+			<th class="smaller padmore">
+				Judges
+			</td>
+
+			<th class="smaller padmore">
+				Entries
+			</td>
+
+			<th class="smaller">
+			</th>
+
+%			if ($admin && $round->type ne "final") { 
+				<th class="smaller">
+					Sc
+				</th>
+%			}
+
+		</tr>
+		
+%		my $switch;
+
+% 		foreach my $panel (@panels) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smaller <% $panel->room->id ? "" : "red centeralign padno" %>">
+%					unless ($entry_only) { 
+					<a class="white" href="panel_view.mhtml?panel_id=<% $panel->id %>">
+%					}
+						<% ($panel->room->id && $room_by_id{$panel->room->id}) ? $room_by_id{$panel->room->id}->name : "None" %>
+					</a>
+				</td>	
+
+%				my @panel_judges = @{$judges_by_panel{$panel->id}} if $judges_by_panel{$panel->id};
+%				@panel_judges = sort {$b->chair <=> $a->chair} @panel_judges;
+				
+				<td class="smallish">
+%					foreach my $judge (@panel_judges) { 
+%						unless ($entry_only) { 
+							<a class="white nospace" href="panel_view.mhtml?panel_id=<% $panel->id %>" title="<% $judge->code %> <% $judge->last %>">
+%						}
+
+						<span class="half">
+						<% ($no_judge_codes) ? $judge->first  : $judge->school->code." ".$judge->code %>
+						</span><span class="half padno nowrap">
+							<% $judge->last %>
+							<% ($judge->chair) ? "*" : "" %>
+						</span>
+						</a>
+% 					} 
+%					unless (@panel_judges) { 
+						<a class="red nowrap" href="panel_view.mhtml?panel_id=<% $panel->id %>">
+							None
+						</a>
+% 					} 
+				</td>
+
+%				my @panel_entries = sort {$a->code <=> $b->code} @{$entries_by_panel{$panel->id}} if $entries_by_panel{$panel->id};
+%				@panel_entries = sort {$a->pair_seed <=> $b->pair_seed} @{$entries_by_panel{$panel->id}} if $entries_by_panel{$panel->id} && $seeds;
+
+				<td class="smallish">
+			
+%					unless (@panel_entries) { 
+%						my $warn = "You are about to delete this panel.  Granted, it has no entries, but are you sure?";
+						<a class="smallish centeralign dkred block" <& "/funclib/confirm.mas", warn => $warn &>  href="rm_panel.mhtml?panel_id=<% $panel->id %>">
+							Delete Empty Panel
+						</a>
+%					}
+
+%					my $seed_total;
+
+% 					foreach my $entry (@panel_entries) { 
+
+%						$seed_total += $entry->pair_seed if $seeds;
+
+						<span class="nospace <% $big_codes ? "third" : $show ? "quarter" : "sixth" %>" >
+%					unless ($entry_only) { 
+							<a class="white" href="/panel/manipulate/entry_edit.mhtml?round_id=<% $round->id %>&entry_id=<%$entry->id%>">
+%					}
+								<% $seeds ? '<span class="padno tinyspan">'.$entry->pair_seed.'</span>' : "" %>
+								<% ($show) ? ($ncfl) ? '<span class="padno tinyspan">'.$entry->school->region->code.'</span>' : '<span class="smallerspan altop padno">'.$entry->school->code."</span>" : "" %>
+								<% $entry->code %>
+							</a>
+						</span>
+
+%					} # end of foreach entry
+
+%					$panel->score($seed_total) if $seeds;
+
+				</td>
+
+				<th class="smaller centeralign" style="padding-left: 5px; padding-right: 5px;">
+%					unless ($panel_undone{$panel->id}) { 
+						IN
+%					} elsif ($panel->started) { 
+						<% Tab::shorttime($panel->started->set_time_zone($tz)) %>
+%					}
+
+%					if ($seeds) { 
+							<% $panel->score %>
+%					}
+				</th>
+
+
+			</tr>
+
+%		} #end of foreach panel  
+
+	</table>

@@ -1,0 +1,189 @@
+<%args>
+	$event_id
+	$tourn
+</%args>
+<%init>
+
+	my $event = Tab::Event->retrieve($event_id);
+
+	my @entries = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, waitlist => 0 );
+
+	my $no_codes++ if $event->setting("code_style") eq "names";
+	my $apda++ if $event->setting("apda");
+	my $seed_protect = $event->setting("seed_protect");
+
+	@entries = sort {$a->name <=> $b->name} @entries;
+	@entries = sort {$a->code <=> $b->code} @entries unless $no_codes;
+	@entries = sort {$a->pair_seed <=> $b->pair_seed} @entries;
+	my %entry_student;
+	my $x;
+	foreach my $entry (@entries) {
+		my @students = Tab::EntryStudent->search( entry => $entry->id );
+		$x=0;
+		foreach my $student (@students) {
+			$x++;
+			$entry_student{$entry->id}{$x}=$student->student;
+		}
+	}
+	
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, event => $event, seeds => "yup" &>
+
+	<div class="left huge">
+
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+
+		<form action="seeds_save.mhtml" method="post">
+		<input type="hidden" name="event_id" value="<% $event->id %>">
+
+		<h4>Seedings used for presets in <% $event->abbr %></h4>
+
+%		if ($apda) { 
+			<p>APDA:  1 is a Full seed, 2 is a Half seed, 3 is a Free seed, and 4 is no seed</p>
+%		} 
+
+%		if ($seed_protect eq "all") { 
+
+			<p>
+				To the extent possible, the system will attempt to assign each
+				entry to debate opponents with every seed in presets.  Use the
+				same number of seed categories as you have preset rounds.
+			</p>
+
+%		} elsif ($seed_protect eq "inverse") { 
+
+			<p>
+				Use only with 2 preset rounds and 4 tiers.  The 1 and 4 seeds
+				will debate 2s and 3s; 2s and 3s will debate 1s and 2s in
+				presets.
+			</p>
+
+%		} elsif ($seed_protect eq "protect") { 
+
+			<p>
+				The paneler will power protect preset round(s); the best
+				debaters will debate the worst debaters.
+			</p>
+
+%		} 
+
+		<table cellpadding="3" cellspacing="1" width="100%" id="sortme">
+
+			<thead>
+
+				<tr class="yellowrow">
+
+					<th class="smaller">
+					</th>
+
+%					unless ($no_codes) { 
+						<th class="smaller">
+							Code
+						</th>
+%					}
+
+					<th class="smaller">
+						Entry Name
+					</th>
+
+					<th class="smaller">
+						Results
+					</th>
+
+					<th class="smaller">
+						School
+					</th>
+
+					<th class="smaller">
+						Seed
+					</th>
+
+				</tr>
+			</thead>
+
+			<tbody>
+
+%				my $count = 1;
+
+%				foreach my $entry (@entries) { 
+
+					<tr>
+
+						<td class="centeralign smallish">
+							<% $count++ %>
+						</td>
+
+%						unless ($no_codes) { 
+							<td class="smallish">
+								<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>" tabindex=-1>
+									<% $entry->code %>
+								</a>
+							</td>
+%						}
+
+						<td class="smallish">
+							<a class="white" href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>" tabindex=-1 >
+								<% $entry->name %>
+							</a>
+						</td>
+
+					<td class="centeralign">
+						<a  class="dkgreen block" href="https://www.tabroom.com/jbruschke/TeamBidSheet.php?id1=<% $entry_student{$entry->id}{1} %>&id2=<% $entry_student{$entry->id}{2} %>" target="_blank">
+							Record
+						</a>
+					</td>
+
+						<td class="smallish">
+							<a class="white" href="/register/school/entries.mhtml?event_id=<% $entry->event->id %>&school_id=<% $entry->school->id %>" tabindex=-1>
+								<% $entry->school->short_name %> 
+							</a>
+						</td>
+					</td>
+
+
+					<td class="smallish">
+						<span class="hidden"> <% $entry->pair_seed %> </span>
+						<input type="number" name="<% $entry->id %>" value="<% $entry->pair_seed %>" size="5" min=0 max=999>
+					</td>
+
+				</tr>
+%			}
+
+			</tbody>
+
+			<tr class="liblrow">
+
+				<td colspan="6" class="rightalign">
+					<input type="submit" value="Save Seeds">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+%		if (scalar $tourn->circuits == 1) { 
+
+%			my @circuits = $tourn->circuits;
+%			my $circuit = shift @circuits;
+
+			<h4>Auto-generate seedings</h4>
+
+			<p>
+				Create ratings based on other tournaments in the <% $circuit->abbr %> circuit these competitors
+				have attended: 
+			</p>
+
+			<div class="liblrow rightalign">
+				<form action="auto_team_seeds.mas" method="post">
+				<input type="hidden" name="event_id" value="<% $event->id %>">
+				<input type="submit" value="Auto Fill">
+				</form>
+			</div>
+
+%		}
+
+	</div>
+

@@ -1,0 +1,57 @@
+<%args>
+	$circuit
+	$group_id
+	$codestart
+	$sort_by
+	$pool_id => undef
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	my @judges;
+
+	if ($pool_id) { 
+		my $pool = Tab::Pool->retrieve($pool_id);
+		@judges = $m->comp("/funclib/pool_judges.mas", pool => $pool);
+	} else { 
+		@judges = $group->judges;
+	}
+
+	@judges = sort {$a->last cmp $b->last} @judges;
+	@judges = sort {$a->school->name cmp $b->school->name} @judges if $sort_by eq "school" || $sort_by eq "diocese" || $sort_by eq "region";
+
+	@judges = sort {$a->school->region->code cmp $b->school->region->code} @judges if $sort_by eq "diocese";
+	@judges = sort {length($a->school->region->code) <=> length($b->school->region->code)} @judges if $sort_by eq "diocese";
+
+	@judges = sort {$a->school->region->code cmp $b->school->region->code} @judges if $sort_by eq "region";
+	@judges = sort {length($a->school->region->code) <=> length($b->school->region->code)} @judges if $sort_by eq "region";
+
+	if ($sort_by eq "Randomly") { 
+	    my $i = scalar(@judges);
+	    my $j;
+	    foreach my $item (@judges)
+	    {	 --$i;
+	        $j = int rand ($i+1);
+	        next if $i == $j;
+	        @judges [$i,$j] = @judges[$j,$i];
+ 	   }
+	}
+
+	my $msg = "Codes for ".$group->name." reshuffled by $sort_by starting with $codestart";
+
+	foreach my $judge (@judges) { 
+
+		#Let's attempt for SOME maturity here
+		$codestart++ if $codestart == 69;
+		$codestart++ if $codestart == 666;
+
+		$judge->code($codestart);
+		$codestart++;
+		$judge->update;
+	}
+
+
+	$m->redirect("$Tab::url_prefix/register/data/judge_recode.mhtml?msg=$msg");
+
+</%init>

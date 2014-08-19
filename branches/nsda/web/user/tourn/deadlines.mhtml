@@ -1,0 +1,401 @@
+<%args>
+	$account
+	$name      => undef
+	$webname   => undef
+	$start     => undef
+	$starttime => undef
+	$end       => undef
+	$endtime   => undef
+	$reg_start => undef
+	$reg_end   => undef
+	$judge     => undef
+	$drops     => undef
+	$frozen    => undef
+	$fines     => undef
+	$error     => undef
+	$clone     => undef
+	$tz        => "UTC"
+	$test      => undef
+</%args>
+<%init>
+
+	my $return;
+
+	$name =~ tr/a-zA-Z0-9 //cd;
+
+	my $now = DateTime->now;
+	my $year = $now->year;
+
+	unless ($name) { 
+		$return = "You must choose a tournament name <br />";
+	}
+	 
+	my $startdt;
+	my $enddt;
+	
+	eval{
+		$startdt = Tab::dtme($start, $starttime, $tz);
+		$enddt = Tab::dtme($end, $endtime, $tz);
+	};
+
+	unless ($startdt) { 
+		$return .= "You must enter a valid date for the start of your tournament: $start at $starttime<br />";
+	}
+
+	unless ($enddt) { 
+		$return .= "You must enter a valid date for the end of your tournament: $end at $endtime<br />";
+	}
+
+	#Default DT object for the other deadlines, which therefore must include times.
+	my $deadlinedt = $startdt->clone if $startdt;
+
+	$deadlinedt->set( hour => "17", minute => "00", second => "00") if $deadlinedt;
+
+	unless ($enddt) { 
+		$return .= "You must select a valid end date for your tournament:<br/>(For a one day tournament choose the same date as the start) $end <br />";
+	}
+
+	if ($webname) { 
+
+		#Remove all the whitespace
+		$webname =~ s/ //g;
+
+		#Remove all non-alphanumeric characters
+		$webname =~ s/[^\w]//g;
+
+		#Lowercase the whole thing
+		$webname = lc($webname);
+
+		#Remove the friggin year
+		$webname =~ s/$year//g;
+		$year++;
+		$webname =~ s/$year//g;
+
+		my @webname_tourns = Tab::Tourn->search( webname => $webname );
+		my $ok;
+
+		if (@webname_tourns) { 
+			CONFLICT:
+			foreach my $wt (@webname_tourns) { 
+				my @admins = Tab::TournAdmin->search( account => $account->id, tourn => $wt->id );
+				$ok++ if @admins;
+				last CONFLICT if @admins;
+			}
+			
+			$return = "The web name ".$webname." is taken by someone else.  Please choose another\n" unless $ok;
+		}
+
+	}
+
+	if ($return) { 
+		$m->redirect("request.mhtml?name=$name&webname=$webname&start=$start&end=$end&start=$starttime&end=$endtime&error=$return&tz=$tz");
+	}
+
+	Tab::debuglog("Yo!");
+
+	if ($clone) { 
+		Tab::debuglog("Sup!");
+		$m->comp("clone_tournament.mas", account => $account, clone => $clone, name => $name, start => $startdt, end => $enddt, webname => $webname, tz => $tz);
+	}
+
+	if ($reg_start) { 
+		$reg_start = Tab::DBI::date_inflate($reg_start);
+	} elsif (not defined $error) { 
+		$reg_start = $deadlinedt->clone;
+		$reg_start->subtract( months => 1);
+	}
+
+	if ($reg_end) { 
+		$reg_end = Tab::DBI::date_inflate($reg_end);
+	} elsif (not defined $error) { 
+		$reg_end = $deadlinedt->clone;
+		$reg_end->subtract( weeks => 1);
+	}
+
+	if ($frozen) { 
+		$frozen = Tab::DBI::date_inflate($frozen);
+	} elsif (not defined $error) { 
+		$frozen = $deadlinedt->clone;
+		$frozen->subtract( days => 3);
+	}
+
+	if ($judge) { 
+		$judge = Tab::DBI::date_inflate($judge);
+	} else { 
+		$judge = $deadlinedt->clone;
+		$judge->subtract( days => 3);
+	}
+
+	if ($drops) { 
+		$drops = Tab::DBI::date_inflate($drops);
+	} else { 
+		$drops = $deadlinedt->clone;
+		$drops->subtract( days => 3);
+	}
+
+	if ($fines) { 
+
+		$fines = Tab::DBI::date_inflate($fines);
+
+	} else { 
+
+		$fines = $deadlinedt->clone;
+		$fines->subtract( days => 3);
+
+	}
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge">
+
+		<form action="circuit.mhtml" method="post">
+		<input type="hidden" name="name" value="<% $name %>">
+		<input type="hidden" name="webname" value="<% $webname %>">
+		<input type="hidden" name="start" value="<% $start %>">
+		<input type="hidden" name="starttime" value="<% $starttime %>">
+		<input type="hidden" name="end" value="<% $end %>">
+		<input type="hidden" name="endtime" value="<% $endtime %>">
+		<input type="hidden" name="tz" value="<% $tz %>">
+		<input type="hidden" name="test" value="<% $test %>">
+
+		<h2>Set registration deadlines</h2>
+
+%       if ($error) { 
+			<p class="warning">
+				<% $error %>
+			</p>
+%       }
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<& /funclib/datepicker.mas, id => "reg_start", max => $start &> 
+
+			<tr <% ($reg_start || not defined $error) ? ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" : "class=\"lirdrow\""%> >
+
+				<th>
+					Online registration opens
+				</th>
+
+				<td class="rightalign">
+					<input type="text" name="reg_start" id="reg_start" size="10" value="<% ($reg_start) ? $reg_start->mdy('/') : "" %>">
+					at
+					<& /funclib/timepicker.mas, size => 6, name => "reg_starttime", time => $reg_start &>
+
+				</td>
+
+			</tr>
+
+			<& /funclib/datepicker.mas, id => "reg_end" , max => $start &> 
+
+			<tr <% ($reg_end || not defined $error) ? ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" : "class=\"lirdrow\""%> >
+
+				<th >
+					New entries due by
+				</th>
+
+				<td class="rightalign">
+					<input type="text" name="reg_end" id="reg_end" size="10" value="<% ($reg_end) ? $reg_end->mdy('/') : "" %>">
+					at
+					<& /funclib/timepicker.mas, size => 6, name => "reg_endtime", time => $reg_end &>
+				</td>
+
+			</tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+				
+				<td colspan="2" class="exwhite">
+					You can also later set up per-event deadlines once your tournament
+					is approved.  After this date, entries cannot be added, but can be
+					dropped, name-changed, or judges added. 
+				</td>
+
+			</tr>
+
+			<tr>
+				<td colspan="2">
+					<h4>Optional Deadlines:</h4>
+				</td>
+			</tr>
+
+
+			<& /funclib/datepicker.mas, id =>"frozen" , max => $start &> 
+
+            <tr <% ($switch % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<th >
+					Fees & judge obligations frozen on
+                </th>
+
+                <td class="rightalign">
+                    <input type="text" name="frozen" id="frozen" size="10" value="<% ($frozen) ? $frozen->mdy('/') : "" %>">
+					at
+					<& /funclib/timepicker.mas, size => 6, name => "frozentime", time => $frozen &>
+                </td>
+
+            </tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+				
+				<td colspan="2" class="exwhite">
+					After this date, drops will not delete the competitor from
+					the system, and schools will still be charged entry fees
+					and still be on the hook for judging for those entries.
+				</td>
+
+			</tr>
+
+			<& /funclib/datepicker.mas, id =>"judge" , max => $start &> 
+
+            <tr <% ($switch % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<th>
+					Judge registration deadline
+                </th>
+
+                <td class="rightalign">
+                    <input type="text" name="judge" id="judge" size="10" value="<% ($judge) ? $judge->mdy('/') : "" %>">
+					at
+					<& /funclib/timepicker.mas, size => 6, name => "judgetime", time => $judge &>
+                </td>
+
+            </tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+				
+				<td colspan="2" class="exwhite">
+					Deadline for judge adds, alterations and drops online.
+				</td>
+
+			</tr>
+
+			<& /funclib/datepicker.mas, id =>"drops" , max => $start &> 
+
+            <tr <% ($switch % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<th>
+					Registrants can drop & namechange online until
+                </th>
+
+                <td class="rightalign">
+                    <input type="text" name="drops" id="drops" size="10" value="<% ($drops) ? $drops->mdy('/') : "" %>">
+					at
+					<& /funclib/timepicker.mas, size => 6, name => "dropstime", time => $drops &>
+                </td>
+
+            </tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+				
+				<td colspan="2" class="exwhite">
+
+					Allow coaches to drop students and change names on their
+					own.  I recommend you set this to just before you expect to
+					panel or export the data to TRPC.  It'll reduce the hassle
+					you have to deal with. 
+
+				</td>
+
+			</tr>
+
+			<& /funclib/datepicker.mas, id =>"fines", max => $start &> 
+
+            <tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+				<th>
+					Automatically levy drop fines after
+                </th>
+
+                <td class="rightalign">
+
+                    <input type="text" name="fines" id="fines" size="10" value="<% ($fines) ? $fines->mdy('/') : "" %>">
+					at 
+					<& /funclib/timepicker.mas, size => 6, name => "finestime", time => $fines &>
+
+                </td>
+
+            </tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+				
+				<td colspan="2" class="exwhite">
+					After this point, additional drop fines (in addition to
+					registration fees) apply to dropped students.  You can set
+					drop fine amounts once your tournament is approved.
+					Recommend you set this for after you'll have paneled, to
+					encourage people to report drops early.
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input  type="submit" value="  Next: Tournament Circuits">
+					</form>
+				</td>
+
+			</tr>
+		
+		</table>
+
+	</div>
+
+	<% undef($switch) %>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Tournament Setup</h4>
+
+			<table cellpadding="5" cellspacing="1" width="100%">
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<td class="smaller" colspan="2"> 
+						<% $name %>
+					</td>
+				</tr>
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<th class="smaller"> 
+						Web Name
+					</td>
+
+					<td class="smaller"> 
+						<% $webname %>
+					</td>
+				</tr>
+			
+	
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<th class="smaller"> 
+						Start
+					</td>
+
+					<td class="smaller"> 
+						<% Tab::niceshortdt($startdt) %>
+					</td>
+				</tr>
+			
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\""%> >
+
+					<th class="smaller"> 
+						End
+					</td>
+				
+					<td class="smaller"> 
+						<% Tab::niceshortdt($enddt) %>
+					</td>
+				</tr>
+
+			</table>
+
+		</div>
+
+	</div>
+

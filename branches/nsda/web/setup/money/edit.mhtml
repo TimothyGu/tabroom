@@ -1,0 +1,14 @@
+<%args>
+	$tourn
+</%args>
+
+%	my $switch;
+
+	<& menu.mas, chosen => "none", tourn => $tourn &>
+
+	<div class="left huge">
+	
+		<h2>Financials for <% $tourn->name %> </h2>
+
+
+	</div>

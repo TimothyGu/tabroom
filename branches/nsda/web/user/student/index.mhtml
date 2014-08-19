@@ -1,0 +1,519 @@
+<%args>
+	$account
+	$student_id => undef
+</%args>
+<%init>
+
+	my @students;
+	my @panels;
+	my @done_panels;
+
+	if ($student_id) { 
+
+		my $student = Tab::Student->retrieve($student_id);
+		push @students, $student;
+		@panels = $m->comp("/funclib/student_panels.mas", student => $student);
+		@done_panels = $m->comp("/funclib/student_panels.mas", student => $student, done => 1);
+
+		my $ok;
+
+		$ok++ if $account->site_admin;
+
+		$ok++ if $student->account && $student->account->id == $account->id;
+
+		foreach my $admin ($m->comp("/funclib/chapter_admins.mas", chapter => $student->chapter)) { 
+			$ok++ if $admin->id == $account->id;
+		} 
+
+		unless ($ok) { 
+			my $err = "You do not have access to that debater record.";
+			$m->redirect("/user/home.mhtml?err=$err");
+		}
+
+	} else { 
+		@students = Tab::Student->search( account => $account->id );
+		@panels = $m->comp("/funclib/account_student_panels.mas", account => $account, student => 1);
+		@done_panels = $m->comp("/funclib/account_student_panels.mas", account => $account, done => 1, student => 1);
+	} 
+
+
+	my $now = DateTime->now;
+
+</%init>
+
+	<& /user/menu.mas, whoami => "student", account => $account &>
+
+	<div class="left huge">
+
+%		if ($student_id) { 
+
+%			my $student = $students[0];
+
+			<h2><% $student->chapter->name %></h2>
+			
+			<& /user/chapter/tabbar.mas, chapter => $student->chapter, whoami => "students" &> 
+
+			<div class="block padno">
+
+				<span class="twothird">
+					<h3><% $student->first." ".$student->last %></h3>
+				</span>
+
+				<span class="third rightalign smallish">
+					<a class="dkgreen centeralign" href="/user/chapter/students.mhtml?chapter_id=<% $student->chapter->id %>">
+						Return to Debater Roster
+					</a>
+				</span>
+			</div>
+%		}
+
+%		if (@panels) { 
+
+			<h4>Upcoming Rounds</h4>
+
+			<table cellpadding="4" cellspacing="1">
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						Round
+					</th>
+
+					<th class="smallish">
+						Start
+					</th>
+
+					<th class="smallish">
+						Room
+					</th>
+
+					<th class="smallish">
+						Pos
+					</th>
+						
+					<th class="smallish">
+						Judging
+					</th>
+
+				</tr>
+
+%				my $switch;
+
+%				foreach my $panel (@panels) { 
+
+%					my $tz = $panel->round->event->tourn->tz;
+%					$tz = "UTC" unless $tz;
+%					my $tzname = Tab::tzname($tz);
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td>
+							<% $panel->round->realname %>
+						</td>
+
+						<td>
+							<% Tab::niceshortdt($panel->round->timeslot->start) %> <% $tzname %>
+						</td>
+
+						<td>
+							<% $panel->room ? $panel->room->name : "No Room" %>
+						</td>
+
+						<td>
+%							if ($panel->round->event->type eq "debate" 
+%									|| $panel->round->event->type eq "policy" 
+%									|| $panel->round->event->type eq "ld") { 
+
+								<% $panel->bye ? "Bye" : $panel->side == 1 ? "Aff" : "Neg" %>
+
+%							} elsif ($panel->round->event->type eq "pf") { 
+
+								<% $panel->bye ? "Bye" : $panel->side == 1 ? "Pro" : "Con" %>
+
+%							} elsif ($panel->round->event->type eq "wudc") { 
+
+								<% $panel->pos == 1 ? "1st Gov" : "" %>
+								<% $panel->pos == 2 ? "1st Opp" : "" %>
+								<% $panel->pos == 3 ? "2nd Gov" : "" %>
+								<% $panel->pos == 4 ? "2nd Opp" : "" %>
+
+%							} elsif ($panel->round->event->type eq "speech") { 
+								<% Lingua::EN::Numbers::Ordinate::ordinate($panel->pos) %>
+%							} 
+
+						</td>
+
+						<td>
+%							foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) { 
+%								if ($judge->account && $judge->account > 0) {
+									<a href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>" class="white">
+%								}
+								<% $judge->first." ".$judge->last %> 
+								(<% $judge->school ? $judge->school->short_name : "Hire" %>)
+%								if ($judge->account && $judge->account > 0) {
+									</a>
+%								}
+%							}
+						</td>
+
+					</tr>
+
+%				}
+
+			</table>
+			
+			<br />
+
+%		}
+
+%		if (@done_panels) { 
+
+			<h4>Current Results</h4>
+
+			<table cellpadding="4" cellspacing="1">
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						Round
+					</th>
+
+					<th class="smallish">
+						Pos
+					</th>
+						
+					<th class="smallish">
+						Judging
+					</th>
+
+					<th class="smallish">
+						Result
+					</th>
+
+				</tr>
+
+%				my $switch;
+
+%				foreach my $panel (@done_panels) { 
+
+%					my $entry = Tab::Entry->retrieve($panel->entryid);
+%					my %student_by_id = ();
+%					foreach my $student ($entry->students) { 
+%						$student_by_id{$student->id} = $student;
+%					}
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<td class="smallish">
+							<% $panel->round->realname %>
+						</td>
+
+						<td class="smallish">
+%							if ($panel->round->event->type eq "debate" 
+%									|| $panel->round->event->type eq "policy" 
+%									|| $panel->round->event->type eq "ld") { 
+
+								<% $panel->bye ? "Bye" : $panel->side == 1 ? "Aff" : "Neg" %>
+
+%							} elsif ($panel->round->event->type eq "pf") { 
+
+								<% $panel->bye ? "Bye" : $panel->side == 1 ? "Pro" : "Con" %>
+
+%							} elsif ($panel->round->event->type eq "wudc") { 
+
+								<% $panel->pos == 1 ? "1st Gov" : "" %>
+								<% $panel->pos == 2 ? "1st Opp" : "" %>
+								<% $panel->pos == 3 ? "2nd Gov" : "" %>
+								<% $panel->pos == 4 ? "2nd Opp" : "" %>
+
+%							} elsif ($panel->round->event->type eq "speech") { 
+								<% Lingua::EN::Numbers::Ordinate::ordinate($panel->pos) %>
+%							} 
+
+						</td>
+
+						<td class='smallish'>
+%							foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) { 
+%								if ($judge->account && $judge->account > 0) {
+									<a href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>" class="white">
+%								}
+									<% $judge->first." ".$judge->last %> 
+									(<% $judge->school ? $judge->school->short_name : "Hire" %>)
+								</a>
+								<br />
+%							}
+						</td>
+
+						<td>
+%							foreach my $judge ($m->comp("/funclib/panel_judges.mas", panel => $panel)) { 
+
+%								my $rfd;
+%								my $comments;
+
+%								my @scores = $m->comp("/funclib/panel_scores.mas", panel => $panel, judge => $judge, entry_id => $panel->entryid);
+
+								<div class="smallish">
+
+%									if ($panel->round->post_results > 0) {
+										<span class="sixth">
+%											foreach my $score (@scores) { 
+												<% $score->tag eq "ballot" ? $score->value == 1 ? "W" : "L" : ""%>
+%											}
+										</span>
+%									}
+
+%									my @values;
+
+%									if ($panel->round->post_results == 2) {
+
+%										foreach my $student ($entry->students) { 
+
+											<span class="twothird">
+
+%												foreach my $score (@scores) { 
+
+%													my $rfd = $score->content if $score->tag eq "rfd";
+%													my $comments = $score->content if $score->tag eq "comments";
+
+%													next if $score->tag eq "ballot";
+%													next unless $score->studentid != $student->id;
+													<% $score->tag eq "points" ? $score->value : "" %>
+													<% $score->tag eq "rank" ? Lingua::EN::Numbers::Ordinate::ordinate($score->value) : "" %>
+%												}
+											
+												- <% $student->last %>
+
+											</span>
+%										}
+
+%										@values = $m->comp("/funclib/panel_ballot_values.mas", panel => $panel, judge => $judge, rfd => "rfd", entry => $entry);
+%									}
+
+
+%									if (@values) { 
+
+										<span class="sixth smallish">
+											<a target="_blank" class="dkgreen" href="rfd_view.mhtml?entry_id=<% $entry->id %>&panel_id=<% $panel->id %>&judge_id=<% $judge->id %>">
+												RFD
+											</a>
+										</span>
+%									}
+
+								</div>
+%							}
+
+						</td>
+
+					</tr>
+
+%				}
+
+			</table>
+			
+			<br />
+%		}
+
+%		foreach my $student (sort {$b->id <=> $a->id} @students) { 
+	
+%			my $ndt;
+
+%			if ($student->chapter) { 
+%				foreach my $circuit ($student->chapter->circuits) {
+%					$ndt++ if $circuit->id == 43;
+%				}
+%			}
+
+			<h4>Past Results at <% $student->chapter ? $student->chapter->short_name : "" %></h4>
+			
+				<& /funclib/tablesorter.mas, table => $student->id &>
+
+				<table cellpadding="4" cellspacing="1" id="<% $student->id %>">
+
+					<thead>
+
+					<tr class="yellowrow">
+
+						<th class="smaller">
+							Results
+						</th>
+
+						<th class="smaller">
+							Tourn
+						</th>
+
+						<th class="smaller">
+							Date
+						</th>
+
+						<th class="smaller">
+							Code
+						</th>
+
+						<th class="smaller">
+							Division
+						</th>
+						
+						<th class="smaller">
+							Drop
+						</th>
+						
+
+					</tr>
+
+					</thead>
+
+					<tbody>
+
+%					foreach my $entry (sort {$b <=> $a} $student->entries) { 
+
+%						next unless $entry->event && $entry->event->tourn;
+
+%						my $tourn = $entry->event->tourn;
+%						next if $tourn->end > $now;
+%						my $tz = $tourn->tz;
+%						$tz = "UTC" unless $tz;
+
+						<tr>
+
+							<td class="smaller centeralign">
+								<a class="dkgreen block" href="history.mhtml?tourn_id=<% $tourn->id %><% $student_id ? "&student_id=$student_id" : ""%>">
+									Results
+								</a>
+							</td>
+
+							<td class="smaller">
+								<% $tourn->name %>
+							</td>
+
+							<td class="smaller">
+								<% Tab::pickerdate($tourn->start->set_time_zone($tz)) %>
+							</td>
+
+							<td class="smaller nowrap">
+								<% $entry->code %>
+							</td>
+
+							<td class="smaller">
+								<% $entry->event->name %>
+							</td>
+
+							<td class="smaller centeralign nowrap">
+								<a class="dkred block" href="drop_entry_student.mhtml?student_id=<% $student->id %>&entry_id=<% $entry->id %>">
+									Not Me
+								</a>
+							</td>
+
+
+
+						</tr>
+%					}
+
+					</tbody>
+
+				</table>
+
+<%perl>
+
+				if ($ndt) { 
+
+					my $ok++ if $student->account && $student->account->id == $account->id;
+
+					foreach my $admin ($m->comp("/funclib/chapter_admins.mas", chapter => $student->chapter)) { 
+						$ok++ if $admin->id == $account->id;
+					} 
+
+					$ok++ if $account->site_admin;
+
+					unless ($ok) { 
+						my $err = "You do not have access to add honors to that debater record.";
+						$m->redirect("/user/home.mhtml?err=$err");
+					}
+
+					my $tz = $account->tz;
+					$tz = "UTC" unless $tz;
+
+					my $now = DateTime->now->set_time_zone($tz);
+
+					my $year = $now->year;
+					$year-- if $now->month < 8;
+					my $limit = $year."-07-01 00:00:00";
+
+					Tab::Student->set_sql( partners => "
+						select distinct student.*
+						from student, entry_student es1, entry_student es2
+						where es1.entry = es2.entry
+						and es1.student = ?
+						and es2.student = student.id
+						and student.id != es1.student
+						and es1.timestamp > ?
+					");
+</%perl>
+					<h4><% $student->first." ".$student->last %> honors</h4>
+
+					<div class="oddrow">
+
+						<span class="threequarter smallish">
+							NDT Bid Sheet Honors (Speaker awards, etc):
+						</span>
+
+						<span class="quarter rightalign">
+							<a class="dkgreen centeralign" href="/user/chapter/ndt_bid_honors.mhtml?student_id=<% $student->id %>&chapter_id=<% $student->chapter %>">
+								NDT Honors
+							</a>
+						</span>
+					</div>
+
+<%perl>
+					my @partners = Tab::Student->search_partners( $student->id, $limit );
+					my %partner_results = ();
+
+					my @used_partners;
+
+					foreach my $partner (@partners) { 
+
+						Tab::Result->set_sql( honors => "
+							select distinct result.*
+							from result
+							where honor is not null
+							and student = ?
+							and timestamp > ?
+						");
+
+						my @p_results = Tab::Result->search_honors( $partner->id, $limit );
+
+						if (@p_results) { 
+							push (@used_partners, $partner);
+							@{$partner_results{$partner->id}} = @p_results;
+						}
+					}
+</%perl>
+
+
+%					foreach my $other (@partners) { 
+
+						<br />
+
+						<div class="evenrow">
+
+							<span class="twothird">
+								<h4>Partner: <% $other->first." ".$other->last %></h4>
+							</span>
+
+							<span class="third rightalign smallish">
+								<a class="dkgreen centeralign" href="/jbruschke/TeamBidSheet.php?id1=<% $other->id %>&id2=<% $student->id %>">
+									NDT Bid Sheet w/<% $other->last %>
+								</a>
+							</span>
+
+						</div>
+
+%					}
+
+%				}
+
+		
+%			}
+
+	</div>
+
+

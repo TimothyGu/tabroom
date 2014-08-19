@@ -1,0 +1,208 @@
+<%args>
+	$tourn
+</%args>
+
+%	my $switch;
+%	my $tz = $tourn->tz;
+%	$tz = "UTC" unless $tz;
+%	my $symbol = $tourn->setting('currency');
+
+    <& menu.mas, chosen => "schools", tourn => $tourn  &>
+
+	<div class="left huge">
+
+		<h4>Overall Individual Fees</h4>
+
+		<form action="student_fee_save.mhtml" method="post">
+
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="twothirds">
+				Fee for each individual student
+			</span>
+
+			<span class="third">
+				<% $symbol ? $symbol : '$' %><input type="number" min=0 max=9999 size="6" class="smaller" name="per_student_fee" value="<% $tourn->setting("per_student_fee") %>">
+			</span>
+
+		</div>
+
+		<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<span class="twothirds">
+				<form action="student_fee_save.mhtml" method="post">
+				Fee for each individual person (incl judges, asks for coaches)
+			</span>
+
+			<span class="third">
+				<% $symbol ? $symbol : '$' %><input type="number" class="smaller" min=0 max=9999 size="6" name="per_person_fee" value="<% $tourn->setting("per_person_fee") %>">
+			</span>
+
+		</div>
+
+		<div class="liblrow rightalign">
+			<input  type="submit" value="  Save  ">
+			</form>
+		</div>
+
+	
+		<h4>Per-School Fees</h4>
+
+%			undef($switch);
+	
+			<table cellpadding="5" cellspacing="1" width="100%">
+
+				<tr class="yellowrow">
+
+					<th>
+						Description
+					</th>
+
+					<th>
+						Fee
+					</th>
+
+					<th>
+						Applies after
+					</th>
+
+					<th>
+						Applies before
+					</th>
+
+					<th>
+					</th>
+
+				</tr>
+
+%				my $finez;
+
+%				foreach my $fine ($tourn->tourn_fees) { 
+
+%					$finez++;
+	
+%					my $finestart = $fine->start;
+%					$finestart->set_time_zone($tz) if $finestart;
+
+%					my $fineend = $fine->end;
+%					$fineend->set_time_zone($tz) if $fineend;
+
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<td class="smaller">
+							<% $fine->reason %>
+						</td>
+
+						<td class="centeralign">
+							<% $symbol ? $symbol : '$' %><% $fine->amount %>
+						</td>
+
+						<td class="rightalign">
+							<% ($finestart) ? Tab::niceshortdt($finestart) : "" %>
+						</td>
+
+						<td class="rightalign">
+							<% ($fineend) ? Tab::niceshortdt($fineend) : "" %>
+						</td>
+
+						<td class="smaller centeralign">
+							<a class="dkred block" href="standing_fee_rm.mhtml?fee_id=<% $fine->id %>">Delete</a>
+						</td>
+
+					</tr>
+
+% 				}
+
+				<tr class="liblrow">
+
+					<td class="rightalign">
+						<form action="standing_fee_save.mhtml" method="post">
+						<input type="text" name="reason" size="15" placeholder="Add a fee:">
+					</td>
+
+					<td class="rightalign">
+						<% $symbol ? $symbol : '$' %><input type="number" class="smaller" name="amount" size="3" min=1 max=9999>
+					</td>
+
+%					my $reg_start = $tourn->reg_start->set_time_zone($tz);
+%					my $reg_end = $tourn->reg_end->set_time_zone($tz);
+
+            		<& /funclib/datepicker.mas, id => "startdate", min => $reg_start->mdy('/'), max => $reg_end->mdy('/') &>
+
+		    		<td class="rightalign">	
+						<input type="text" name="startdate" id="startdate" size="7" >
+						    @	
+						<& /funclib/timepicker.mas, name => "starttime", size => 5 &>
+
+					</td>
+
+        		    <& /funclib/datepicker.mas, id => "enddate",  min => $reg_start->mdy('/') &>
+	
+				    <td class="rightalign">	
+
+						<input type="text" name="enddate" id="enddate" size="7">
+							@	
+						<& /funclib/timepicker.mas, name => "endtime", size => 5 &>
+
+					</td>
+		
+					<td>
+						<input  type="submit" class="thin" value="Save">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+				
+
+	<h4>Add a universal fee</h4>
+
+		<p class="smaller">
+
+			This will add a uniform fee to every school in your tournament.
+			Right now, because I'm lazy, the only way to remove said fee is to
+			go into each school and manually delete it.  This will be, as they
+			say, a Royal Pain.  So make sure you mean it when you do this.
+
+		</p>	
+
+		<table cellpadding="6" cellspacing="1" width="100%">
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td class="smaller">
+					<form action="levy_fine_save.mhtml" method="post">
+					Description:
+				</td>
+
+				<td>
+					<input type="text" name="fine_reason" size="20">
+				</td>
+
+			</tr>
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<td class="smaller">
+					Fee Amount:
+				</td>
+
+				<td>
+					<% $symbol ? $symbol : '$' %><input type="number" class="smaller" name="fine_amount" size="8" min=0 max=99999>
+				</td>
+
+			</tr>
+
+			<tr class="liblrow">
+
+				<td colspan="2" class="rightalign">
+					<input  type="submit" value="Save School Fee">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>

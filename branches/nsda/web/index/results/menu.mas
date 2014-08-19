@@ -1,0 +1,177 @@
+<%args>
+	$circuit_id => undef
+	$whoami     => undef
+	$year       => undef
+	$event_type => undef
+	$level      => undef	
+	$min_rds    => undef		
+</%args>
+<%init>
+
+	unless ($circuit_id) { 
+		$circuit_id = 43; 
+	}
+
+	unless ($year) { 
+		my $this_year = Tab::school_year;
+		$year = $this_year->year;
+	}
+
+	unless ($min_rds) { $min_rds = 5; }
+	my $checked;
+	my $send_to;
+	if ($whoami eq "speaker_rank") { $send_to = "speaker_rankings_by_circuit.mhtml"; }
+	if ($whoami eq "team_success") { $send_to = "debate_stats2.mhtml"; }
+
+</%init>
+
+	<div class="right small">
+
+%			my $this_school_year = Tab::school_year;
+%			my $this_year = $this_school_year->year;
+
+%			my @circuits = sort {$a->name cmp $b->name} Tab::Circuit->search( active => 1 );
+
+%		if ($whoami eq "speaker_rank" or $whoami eq "team_success") {
+			<div class="sidenote"> 
+				<h4>Event selector:</h4>		
+
+				<form action="<% $send_to %>" method="post">
+				<input type="hidden" name="year" value=<% $year %> visible="false" >
+				<input type="hidden" name="circuit_id" value=<% $circuit_id %> >
+%				if ($whoami eq "speaker_rank") {				
+				<div class="evenrow block">
+%					$checked=""; if ($event_type eq "ie") { $checked = "checked"; }
+					<input type="radio" name="event_type" value="ie" <% $checked %>>Individual Events
+%					$checked=""; if ($event_type ne "ie") { $checked = "checked"; }
+					<input type="radio" name="event_type" value="debate" <% $checked %>>Debate
+				</div>
+%				}				
+				<div class="evenrow block">
+%					$checked = ""; if ($level eq "Open") { $checked = "checked"; }				
+					<input type="radio" name="level" value="Open" <% $checked %>>Open
+%					$checked = ""; if ($level eq "JV") { $checked = "checked"; }									
+					<input type="radio" name="level" value="JV" <% $checked %>>JV
+%					$checked = ""; if ($level eq "Novice") { $checked = "checked"; }									
+					<input type="radio" name="level" value="Novice" <% $checked %>>Novice
+				</div>
+				<div class="evenrow block">
+					Min rds: <input type="text" name="min_rds" size=3 value="<% $min_rds %>">
+					Show top: <input type="text" name="show_top" size=3 value="50">					
+				</div>
+				<div class="liblrow rightalign">
+						<input type="submit" name="Search">
+					</form>
+				</div>
+
+			</div>
+%		}
+
+			<div class="sidenote"> 
+
+				<h4>Circuit selector:</h4>
+
+				<form action="circuit_stats.mhtml" method="post">
+
+				<div class="evenrow block">
+					<span class="smallishspan">
+						Circuit:
+					</span>
+
+					<span class="huntwofive">
+						<select name="circuit_id" class="fixedsmaller">
+%							foreach my $circuit (@circuits) { 
+								<option value="<% $circuit->id %>" <% $circuit->id == $circuit_id ? "selected" : "" %>>
+									<% $circuit->name %>
+								</option>
+%							}
+						</select>
+					</span>
+				</div>
+
+				<div class="oddrow block">
+
+					<span class="smallishspan">
+						School Year
+					</span>
+
+					<span class="huntwofive">
+						<select name="year" class="fixedsmaller">
+%							foreach my $tick (2004 .. $this_year) { 
+								<option value="<% $tick %>" <% $tick == $year ? "selected" : "" %>>
+									<% $tick." - ".($tick + 1) %>
+								</option>
+%							}
+						</select>
+					</span>
+
+				</div>
+
+				<div class="liblrow rightalign">
+					<input type="submit" name="Search">
+					</form>
+				</div>
+
+			</div>
+
+
+		<div class="sidenote">
+
+			<h4>Circuit Stats</h4>
+
+			<a class="yellow block" href="circuit_stats.mhtml?circuit_id=<% $circuit_id %>">Circuit Totals</a>
+			<a class="yellow block" href="circuit_chapter.mhtml?circuit_id=<% $circuit_id %>">Chapter (school) Tables</a>
+			<a class="yellow block" href="circuit_tourney_portal.mhtml?circuit_id=<% $circuit_id %>&year=<% $year %>">Tourney results (cume sheets, elim bracket, speaker awards, etc.)</a>
+			<a class="yellow block" href="speaker_rankings_by_circuit.mhtml?circuit_id=<% $circuit_id %>&year=<% $year %>">Speaker Success</a>
+			<a class="yellow block" href="debate_stats2.mhtml?circuit_id=<% $circuit_id %>&year=<% $year %>">Team (entry) Success</a>
+
+		</div>
+
+%		if ($circuit_id == 50) {
+		
+		<div class="sidenote">
+
+			<h4>Global Rankings</h4>
+
+			<a class="blue block" href="wudc_standings.mhtml">WUDC Standings</a>
+			<a class="blue block" href="http://idebate.org/wudc/rankings/methodology">Methodology and calculations</a>
+			<a class="blue block" href="http://idebate.org/worlddebating">World Debate News</a>
+
+		</div>
+		
+%		}
+
+%		if ($circuit_id == 43) {
+		
+		<div class="sidenote">
+
+			<h4>National Rankings</h4>
+
+			<a class="blue block" href="https://www.tabroom.com/jbruschke/CEDAChecker.php">CEDA Points Results</a>
+			<a class="blue block" href="https://www.tabroom.com/jbruschke/NDTChecker.php">NDT Points Results</a>
+			
+		</div>
+		
+%		}
+		
+<!--		
+		<div class="sidenote">
+
+			<h4>iDebate Honors Points</h4>
+
+			<a class="yellow block" href="honors_standings.mhtml">Rankings</a>
+			<a class="yellow block" href="honors_description.mhtml">Description</a>
+
+		</div>
+-->
+
+		<div class="sidenote">
+
+			<h4>Logistics</h4>
+
+			<a class="blue block" href="https://www.tabroom.com//jbruschke/CATDownloads/UniversalDataStructure.rtf">About the Universal Data Structure</a>
+			<a class="yellow block" href="/user/tourn/upload_launch.mhtml">Upload tournament results</a>
+
+		</div>
+
+	</div>

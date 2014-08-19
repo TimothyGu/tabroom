@@ -1,0 +1,47 @@
+<%args>
+	$follower
+</%args>
+<%init>
+
+	my $body = "Tabroom Live Updates confirmation.\n";
+	$body .= "You have been registered to follow: \n";
+
+	my $entry = eval{$follower->entry if $follower->entry && $follower->entry->id;};
+	my $judge = eval{$follower->judge if $follower->judge && $follower->judge->id;};
+	my $school = eval{$follower->school if $follower->school && $follower->school->id;};
+	
+	my $tourn;
+		
+	if ($entry) { 
+		$body .= "   Entry ".$entry->name." \n";
+		$tourn = $entry->event->tourn;
+		$body .= "   at ".$tourn->name."\n\n";
+	} 
+
+	if ($judge) { 
+		$body .= "   Judge ".$judge->first." ".$judge->last." \n";
+		$tourn = $judge->judge_group->tourn;
+		$body .= "   at ".$tourn->name."\n\n";
+	} 
+
+	if ($school) { 
+		$body .= "   School ".$school->short_name." \n";
+		$tourn = $school->tourn;
+		$body .= "   at ".$tourn->name."\n\n";
+	}
+
+	return unless $tourn;
+
+	my $url = "http://".$tourn->webname.".tabroom.com" if $tourn->webname;
+	$url = "http://www.tabroom.com/index/tourn/index.mhtml?tourn_id=".$tourn->id unless $url;
+	$body .= "\nTo undo this, go to $url\n";
+
+	if ($follower->email) { 
+		$m->comp( "/funclib/send_notify.mas", body => $body, to => $follower->email);
+	}
+
+	if ($follower->cell) {
+		$m->comp( "/funclib/send_notify.mas", body => $body, to => $follower->cell."\@".$follower->domain );
+	}
+
+</%init>

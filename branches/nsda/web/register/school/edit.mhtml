@@ -1,0 +1,412 @@
+<%args>
+	$tourn
+	$account
+	$school_id => undef
+</%args>
+<%init>
+
+	my $school = Tab::School->retrieve($school_id) if $school_id;
+	my $symbol = $tourn->setting('currency');
+
+	my $switch;
+
+	unless ($school) {
+		$m->redirect("/register/index.mhtml");
+	}
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+</%init>
+
+	<& /register/menubar.mas, school => $school, whoami => "tourn", tourn => $tourn &>
+
+		<table cellpadding="6" cellspacing="1" border="0" width="100%">
+
+% 			undef $switch;
+
+			<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+				<th>
+					<form action="save.mhtml" method="post">
+					<input type="hidden" name="school_id" value="<% $school->id %>">
+					School Name:
+				</td>
+
+				<td class="rightalign">
+					<input type="text" name="name" size="30" value="<% $school->name %>">
+				</td>
+
+			</tr>
+
+%				if ($tourn->setting("school_codes")) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+			 			<th width="25%">
+							School Code:
+						</td>
+			
+						<td class="rightalign">
+							<input type="text" name="code" size="6" value="<% $school->code %>">
+						</td>
+
+					</tr>
+%				}
+
+%				if ($tourn->setting("ncfl") || $tourn->setting("regions") ) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+	
+						<th width="25%">
+							<% $tourn->setting("regions") ? "Region" : "Diocese" %>:
+						</td>
+
+						<td class="rightalign padless" style="padding-right: 20px;">
+
+							<select name="region" class="fixedmed chosen">
+	
+								<option value=""></option>
+
+%								foreach my $region ($m->comp("/funclib/tourn_regions.mas", tourn => $tourn)) {
+									<option value="<% $region->id %>" 
+										<% ($school->region) && ($region->id == $school->region->id) ? "selected" : ""  %>> 
+										<% $region->name %> (<% $region->code %>)
+									</option>
+%								}
+
+							</select>
+						</td>
+				
+					</tr>
+%				}
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th>
+						Contact Name
+					</td>
+
+					<td class="rightalign">
+						<input type="text" name="contact_name" size="30" value="<% $school->contact_name %>">
+					</td>
+
+				</tr>
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<th>
+						Contact Phone:
+					</td>	
+
+					<td class="rightalign">
+						<input type="tel" name="contact_number" size="30" value="<% $school->contact_number %>"> 
+					</td> 
+			
+				</tr>
+
+%				if ($tourn->setting("per_person_fee")) { 
+
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<th>
+							Individuals
+						</td> 
+			
+						<td class="padmuchmore rightalign">
+							<input type="number" name="individuals" min=0 max=9999 value="<% $school->individuals %>" size=7 >
+						</td> 
+
+					</tr>
+
+%				}
+
+% 				my ($fee, $feline_ref) = $m->comp("/funclib/school_fees.mas", school_id => $school_id);
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+
+					<th>
+						Fees:
+					</td> 
+			
+					<td class="padmuchmore rightalign">
+						<% $symbol %> <%  sprintf ("%.2f", $fee) %>
+					</td> 
+
+				</tr>
+
+%				my $concession_total = $m->comp("/funclib/school_concessions.mas", charge => 1, school => $school);
+
+%				if ($tourn->concessions && $concession_total) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<th>
+							<% $tourn->setting("concession_name") ? $tourn->setting("concession_name") : "Concession" %> Fees:
+						</td> 
+				
+						<td class="centeralign">
+							<% $symbol %> <%  sprintf ("%.2f", $concession_total) %>
+						</td> 
+
+					</tr>
+
+%				}
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>> 
+			
+					<th>
+						Paid:
+					</th>
+			
+					<td class="rightalign">
+						 <% $symbol %> <input type="number" min=0 name="paid" value="<%  sprintf ("%.2f", $school->paid) %>" size="7">
+					</td> 
+			
+				</tr>
+
+
+				<tr class="liblrow">
+
+					<td colspan="2" class="rightalign">
+						<input  type="submit" value=" Save School Info " name="register">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+
+			<br />
+
+%			undef $switch;
+
+%			if ($school->chapter) { 
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %>"> 
+
+					<span class="third divider">
+						School Location:
+					</span>
+			
+					<span class="twothird rightalign">
+						<form action="state_save.mhtml" method="post">
+						<input type="hidden" name="school_id" value="<% $school->id %>">
+						<select name="country" class="chosen fixedmed" onchange='this.form.submit()'>
+							<& /funclib/country_select.mas, country => $school->chapter->country &>
+						</select>
+						<select name="state" class="chosen fixedmed" onchange='this.form.submit()'>
+							<& /funclib/state_select.mas, state => $school->chapter->state &>
+						</select>
+						</form>
+					</span>
+				</div>
+%			}
+
+%			if ($school->entered_on) { 
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %>"> 
+
+					<span class="third divider">
+						First Entered Online
+					</span>
+			
+					<span class="twothird rightalign">
+						<% Tab::nicedt($school->entered_on->set_time_zone($tz)) %>
+					</span>
+
+				</div>
+%			}
+
+%				if ($school->contact) { 
+
+					<div class="<% ($switch++ % 2) ? "odd" : "even" %>"> 
+
+						<span class="third divider">
+							Entered Online by
+						</span>
+				
+						<span class="twothird rightalign">
+							<% $school->contact->first." ".$school->contact->last %>:
+							<a class="white" href="mailto:<% $school->contact->email %>"><% $school->contact->email %></a>
+						</span>
+
+					</div>
+
+%				}
+
+%				if ($school->registered_on) { 
+
+					<div class="<% ($switch++ % 2) ? "odd" : "even" %>"> 
+
+						<span class="third divider">
+							Registered Onsite
+						</span>
+				
+						<span class="twothird rightalign">
+							<% Tab::nicedt($school->registered_on->set_time_zone($tz)) %>
+						</span>
+					</div>
+%				}
+
+%				if ($school->registered_by) { 
+
+					<div class="<% ($switch++ % 2) ? "odd" : "even" %>"> 
+
+						<span class="third divider">
+							Registered By
+						</span>
+
+						<span class="twothird rightalign">
+							<% $school->registered_by->first." ".$school->registered_by->last %> (<% $school->registered_by->email %>)
+						</span>
+					</div>
+%				}
+
+%			undef $switch;
+
+% 			if ($m->comp("/funclib/chapter_admins.mas", chapter => $school->chapter)) {
+
+				<h4>Coach Access:</h4>
+
+% 				foreach my $coach ($m->comp("/funclib/chapter_admins.mas", chapter => $school->chapter)) {
+
+					<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<span class="third divider">
+							<% $coach->first." ".$coach->last %>
+						</span>
+						<span class="third divider">
+							<a class="white" href="mailto:<% $coach->email %>"><% $coach->email %></a>
+						</span>
+						<span class="third">
+							<% $coach->phone %>
+						</span>
+					</div>
+% 				} 
+
+% 			} elsif ($school->chapter) { 
+
+				<h4 class="martop">Grant administrator access</h4>
+
+				<p class="exwhite padless">
+					This team/school has no coach or administrator linked.  Enter a tabroom.com account
+					holder's email address to grant them access.  You cannot revoke access once granted.
+				</p>
+
+
+				<form action="chapter_access.mhtml" method="post">
+				<input type="hidden" name="chapter_id" value="<% $school->chapter->id %>">
+				<input type="hidden" name="school_id" value="<% $school->id %>">
+
+				<div class="evenrow block">
+
+					<span class="twothirds">
+						<input type="text" name="email" size="50" value="" placeholder="Tabroom.com account email...">
+					</span>
+					<span class="third rightalign">
+						<input type="submit" class="thin" value="Grant Access">
+					</span>
+
+				</div>
+
+				</form>
+%			}
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Status</h4>
+
+%				if ($school->registered) { 
+
+					<a class="caps dkgreen centeralign block" "register.mhtml?school_id=<% $school->id %>">
+						<h5 class="nospace">
+							Registered
+						</h5>
+					</a>
+
+					<a class="yellow block martop" href="register.mhtml?school_id=<% $school->id %>">Un-register</a> 
+
+%				} else { 
+
+					<a class="caps dkred block centeralign" href="register.mhtml?school_id=<% $school->id %>">
+						<h5 class="nospace">
+							Not Registered
+						</h5>
+					</a>
+
+					<a class="yellow block martop" href="register.mhtml?school_id=<% $school->id%>">Mark as Registered</a>
+					<a class="yellow block" href="register.mhtml?fees=full&school_id=<% $school->id%>">Mark as Registered & Paid</a>
+%				}
+
+%				if ($school->region) { 
+					<br />
+					<a class="blue block" href="/register/region/tourn.mhtml?region_id=<% $school->region->id%>">
+						Return to <% $school->region->name %>
+					</a>
+%				}
+
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Printouts</h4>
+
+			<a class="blue block" href="invoice_and_reg_print.mhtml?school_id=<% $school->id %>" method="post">
+				Print Registration + Invoice
+			</a>
+
+			<br />
+
+			<a class="blue block" href="invoice_print.mhtml?school_id=<% $school->id %>" method="post">
+				Print Invoice
+			</a>
+
+			<a class="blue block" href="reg_print.mhtml?school_id=<% $school->id %>" method="post">
+				Print Registration
+			</a>
+
+			<a class="blue block" href="assignments_print.mhtml?school_id=<% $school->id %>" method="post">
+				Print Assignments
+			</a>
+
+			<a class="blue block" href="dance_cards.mhtml?school_id=<% $school->id %>" method="post">
+				Print Student Sheets
+			</a>
+
+		</div>
+
+
+		<div class="sidenote">
+
+			<h4>Potential Damage</h4>
+
+			<a class="dkred block" href="drop.mhtml?school_id=<% $school->id %>&tourn_id=<% $tourn->id %>" >
+				Drop Entire Entry 
+			</a>
+
+		</div>
+
+% 			if ($account->site_admin) { 
+
+				<div class="sidenote">
+
+					<h4>Superpowers</h4>
+
+					<a class="blue block">
+						School: <% $school->id %> | Chapter: <% $school->chapter ? $school->chapter->id : "" %>
+					</a>
+
+					<a class="blue block" href="/user/tourn/director.mhtml?school_id=<% $school->id %>&tourn_id=<% $tourn->id %>" method="post">
+						View Online Registration
+					</a>
+
+				</div>
+% 			}	
+	
+	</div>

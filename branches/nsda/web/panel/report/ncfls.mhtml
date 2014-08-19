@@ -1,0 +1,90 @@
+<%args>
+	$tourn
+	$account
+</%args>
+<%init>
+
+	my @events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+	my @timeslots = $tourn->timeslots;
+	@events = sort { $a->name cmp $b->name } @events;
+	@timeslots = sort { $a->start cmp $b->start } @timeslots;
+	my $switch; 
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "ncfl" &>
+
+	<div class="left huge">
+
+		<h2>NCFL specific things</h2>
+
+		<table>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+		
+				<td class="smallish">
+					Ballot Packet Labels
+					<form action="ncfl/ballot_labels.mhtml" method="post">
+				</td> 
+					
+				<td>
+					<select name="group_id" class="fixedmed">  
+%	 					foreach my $group ($tourn->groups) { 
+							<option value="<% $group->id %>"><% $group->name %></option> 
+%	 					}
+					</select>
+				</td> 
+				
+				<td>
+					<select name="timeslot_id" class="fixedmed">  
+						<option value="">All</option>
+%	 					foreach my $timeslot ($tourn->timeslots) { 
+							<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+%	 					}
+					</select>
+				</td>
+
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+
+			</tr>
+
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+		
+				<td class="smallish">
+					Tab Cards
+					<form action="ncfl/tab_cards.mhtml" method="post">
+				</td> 
+					
+				<td>
+					<select name="event_id" class="fixedmed">  
+%	 					foreach my $event ($tourn->events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+%	 					}
+					</select>
+				</td> 
+
+				<td>
+					<select name="timeslot_id" class="fixedmed">  
+						<option value="">All</option>
+%	 					foreach my $timeslot ($tourn->timeslots) { 
+							<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+%	 					}
+					</select>
+				</td> 
+				
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>

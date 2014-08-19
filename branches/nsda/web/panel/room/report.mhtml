@@ -1,0 +1,153 @@
+<%args>
+	$room_id     => undef
+	$timeslot_id => undef
+	$tourn
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $room = Tab::Room->retrieve($room_id) if $room_id;
+
+	my @panels;
+	my @pools;
+	my @strikes;
+
+	if ($room) { 
+		@panels = $m->comp("/funclib/room_panels.mas", room => $room, tourn => $tourn);
+		@pools = $m->comp("/funclib/room_pools.mas", room => $room, tourn => $tourn);
+		@strikes = Tab::RoomStrike->search( room => $room->id, tourn => $tourn->id);
+	}
+
+	my $timeslot = Tab::Timeslot->retrieve($timeslot_id) if $timeslot_id;
+
+</%init>
+
+
+	<& menu.mas, tourn => $tourn, timeslot => $timeslot, whoami => "report", room_id => $room_id &>
+
+	<div class="left huge">
+
+		<h2>Rooms</h2>
+
+		<& tabbar.mas, tourn => $tourn, timeslot => $timeslot,  whoami => "report" &>
+
+%		if ($room) { 
+
+%			my $switch;
+
+			<h4>Room <% $room->name %></h4>
+
+			<div class="yellowrow">
+				<span class="half">
+					Site: <% $room->site->name %>
+				</span>
+
+				<span class="half">
+
+%					if ($room->inactive) { 
+
+						Room Inactive
+
+%					} else { 
+
+						<span class="third">
+							Quality: <% $room->quality %>
+						</span>
+
+						<span class="third">
+							Capacity: <% $room->capacity %>
+						</span>
+
+						<span class="third">
+							ADA: <% $room->ada ? "Yes" : "No" %>
+						</span>
+
+%					}
+
+				</span>
+			</div>
+
+			<h4>Rounds</h4>
+
+%			foreach my $panel (@panels) { 
+			
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %>">
+
+					<span class="quarter">
+						<a class="white padleft" href="/panel/schemat/show.mhtml?round_id=<% $panel->round->id %>">
+							<% $panel->round->realname %> 
+							<% $panel->round->flighted > 1 ? "Flt ".$panel->flight : "" %>
+						</a>
+					</span>
+
+					<span class="quarter">
+						<a class="white padleft" href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>">
+							<% $panel->round->event->abbr %> Sec <% $panel->letter %>
+						</a>
+					</span>
+
+					<span class="half">
+
+						<span class="quarter">
+							<% $panel->round->timeslot->name %>
+						</span>
+
+						<span class="threequarter">
+							<% Tab::niceshortdayt($panel->round->timeslot->start) %> - 
+							<% Tab::niceshortdayt($panel->round->timeslot->end) %>
+						</span>
+
+					</span>
+
+
+				</div>
+
+%			}
+
+%			if (@pools) { 
+
+				<h4>Pools</h4>
+
+%				foreach my $pool (@pools) { 
+
+%					my @rounds = $m->comp("/funclib/pool_rounds.mas", pool => $pool);
+				
+					<div class="<% ($switch++ % 2) ? "odd" : "even" %>">
+
+						<span class="sixth">
+							<a class="white padleft" href="/panel/room/pool.mhtml?pool_id=<% $pool->id %>">
+								<% $pool->name %> 
+							</a>
+						</span>
+
+						<span class="fivesixth smallish">
+%							foreach my $round (@rounds) { 
+
+%								my $start = $round->timeslot->start->set_time_zone($tz);
+%								my $end = $round->timeslot->end->set_time_zone($tz);
+		
+								<span class="half">
+									<span class="third">
+											<% $round->event->abbr %> <% $round->realname %>
+									</span>
+									<span class="twothird">
+										<% Tab::shorttime($round->timeslot->start) %> - 
+										<% Tab::shorttime($round->timeslot->end) %>
+									</span>
+								</span>
+%							}
+						</span>
+
+					</div>
+
+%				}
+
+%			}
+
+%			}
+
+	</div>
+
+

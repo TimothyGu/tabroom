@@ -1,0 +1,696 @@
+<%args>
+	$tourn
+	$account
+	$panel_id => undef
+	$judge_id => undef
+</%args>
+<%init>
+
+	my $panel;
+	my $bye;
+
+	if ($panel_id) { 
+		$panel = Tab::Panel->retrieve($panel_id);
+	}
+	
+	unless ($panel->round->tb_set) { 
+		my $msg = "You do not have tiebreakers set for that round; you cannot enter results until you do so";
+		$m->redirect("/panel/schemat/panel_view.mhtml?panel_id=$panel_id&msg=$msg");
+	}
+
+	$m->abort unless $panel;
+
+	my $wudc++ if $panel->round->event->type eq "wudc";
+	my $studpoints++ if $panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech";
+
+	my $pts = $panel->round->event->setting('point_increments') if $panel;
+	my $step = 1 if $pts eq "whole";
+	$step = .5 if $pts eq "half";
+	$step = .1 if $pts eq "tenths";
+	$step = .25 if $pts eq "fourths";
+
+	my $min = 0;
+	my $max = 999;
+
+	my $access = Tab::TournAdmin->search( tourn => $tourn->id, account => $account->id )->first;
+
+	if ($access && $access->no_setup) { 
+		$m->print("<p>You do not have access to that function</p>");
+		$m->abort();
+	}
+
+    my $winloss;
+    my $use_points;
+    my $ranks;
+
+    foreach my $tb ($panel->round->tb_set->tiebreaks) { 
+        $ranks++ if ($tb->name eq "ranks" || $tb->name eq "reciprocals");
+        $winloss++ if ($tb->name eq "opp_wins" || $tb->name eq "winloss" || $tb->name eq "ballots");
+        $use_points++ if ($tb->name eq "points" || $tb->name eq "competition" || $tb->name eq "opp_points");
+    }
+	
+</%init>
+
+	<div class="right small">
+	
+		<div class="sidenote">
+
+			<h4>Other functions</h4>
+
+			<a href="/panel/schemat/show.mhtml?round_id=<% $panel->round->id %>" class="blue block">
+				View <% $panel->round->realname %> Schematic 
+			</a>
+		
+			<hr>
+	
+			<a href="/panel/schemat/panel_view.mhtml?panel_id=<% $panel->id %>" class="yellow block">
+				View/Edit Panel <% $panel->letter %>
+			</a>
+
+			<a href="/tabbing/entry/index.mhtml?timeslot_id=<% $panel->round->timeslot->id %>" class="yellow block">
+				Ballot Entry Screen
+			</a>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Panel Bye</h4>
+
+			<a href="bye_switch.mhtml?panel_id=<% $panel->id %>" class="<% $panel->bye ? "dkgreen" : "yellow" %> block">
+				<% $panel->bye ? "Disable debate-wide bye" : "Enable debate-wide bye" %>
+			</a>
+
+			<h4> On byes & forfeits</h4>
+
+			<p>
+				If a debate-wide bye is enabled above, no round will be scheduled,
+				all debaters in the debate will get a win and averaged points.  This
+				is largely intended for a scheduled bye; i.e. the last place team in
+				an odd numbered field. 
+			</p>
+
+			<p>
+				For scheduled debates, award byes and forfeits on their ballots.
+				A bye given to one or both debaters will count as a won debate.
+				A forfeit/noshow will count as a loss in the case of debate.
+				If speaker points are entered, <span style="font-weight: 900;">
+				even a zero,</span> those points will count; otherwise, the
+				average of the entry's other points will be added in for this
+				round
+
+			</p>
+
+			<p>
+				The "Noshows never advance" setting 
+				<% $panel->round->tb_set->setting("noshows_never_break") ? "IS" : "IS NOT" %>
+				enabled for the tiebreaker set used in this round.  If it is
+				enabled, any entries marked as a forfeit or a noshow in a round
+				will be excluded from elimination rounds no matter their
+				records.  You can change this setting under Settings -> Rules & Results.
+			</p>
+
+		</div>
+
+	</div>
+
+	<div class="left huge">
+
+		<h2>Panel Card</h2>
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<tr class="liblrow">
+
+				<th>
+					<% $panel->round->event->abbr %>
+				</th>
+
+				<th>
+					Section <% $panel->letter %>
+				</th>
+
+				<th>
+					<% $panel->round->realname %>
+				</th>
+
+%				if ($panel->round->flighted > 1) { 
+					<th>
+						Flight <% $panel->flight %>
+					</th>
+%				}
+
+				<th>
+					Room <% ($panel->room) ? $panel->room->name : "" %>
+				</th>
+
+			</tr>
+
+		</table> 
+
+		<script>
+			function doneSwitch(judge) { 
+				
+				$('.judgetable').hide();
+
+				var selectors = document.getElementsByClassName("selector");
+
+				for (var n = 0; n < selectors.length; n++) { 
+					$('#'+selectors[n].id).removeClass("selected");
+				}
+
+				$('#table_'+judge).show();
+				$('#selector_'+judge).addClass("selected");
+
+				return true;
+
+			}
+
+		</script>
+
+%		my $no_codes++ if $panel->round->event->judge_group->setting('no_codes');
+%		my @judges = $m->comp('/funclib/panel_judges.mas', panel => $panel);
+
+%		if (scalar @judges > 1) { 
+
+			<ul id="tabnav" style="margin-bottom: 3px; text-align: right;">
+
+%				my $notfirst;
+
+%				foreach my $judge (sort {$a->code <=> $b->code} @judges) { 
+
+%					$notfirst++ if $judge_id;
+
+					<li id="selector_<% $judge->id %>" class="<% $judge_id && $judge_id == $judge->id ? "selected" : "" %> <% $notfirst++ ? "" : "selected" %> selector">
+						<a onclick="return doneSwitch(<% $judge->id %>)">
+							<% $no_codes ? $judge->last : $judge->code." ".$judge->last %>
+						</a>
+					</li>
+%				}
+			</ul>
+%		}
+
+%		my $switch;
+%		my $notfirst;
+
+%		foreach my $judge (sort {$a->code <=> $b->code} $m->comp('/funclib/panel_judges.mas', panel => $panel)) { 
+
+%			next if $wudc &! $judge->chair;
+%			undef $notfirst if $judge_id == $judge->id;
+
+			<div id="table_<% $judge->id %>" class="judgetable" style="<% ($judge_id && $judge_id != $judge->id) ? 'display: none;' : "" %> <% ($notfirst++) ? "display: none;" : "" %>">
+			
+			<table cellpadding="4" cellspacing="1" width="100%">
+
+				<tr>
+					<td colspan="5">
+
+						<h4>
+							<% $wudc ? "Chair" : "" %> Judge <% $judge->code ." ".$judge->first." ".$judge->last %>
+						</h4>
+
+						<form action="panel_save.mhtml" method="post">
+						<input type="hidden" name="panel_id" value="<% $panel->id %>">
+						<input type="hidden" name="judge_id" value="<% $judge->id %>">
+					</td>
+
+				</tr>
+
+				<tr class="yellowrow">
+
+					<th class="smaller centeralign">
+						Done
+					</th>
+
+%					if ($wudc) { 
+						<th class="smallish">
+							Pos
+						</th>
+%					} elsif ($studpoints) { 
+						<th class="smallish">
+							S
+						</th>
+%					} else {
+						<th class="smallish">
+							Order
+						</th>
+%					} 
+
+					<th class="smallish">
+						Entry
+					</th>
+
+%					if ($winloss) { 
+						<th class="smallish">
+							W	
+						</th>
+%					}
+
+%					if ($ranks) { 
+						<th class="smallish">
+							Rank
+						</th>
+%					}
+
+%					if ($use_points) { 
+						<th class="smallish">
+							Points
+						</th>
+%					}
+
+%              		if ($panel->round->tb_set->setting("mfl_time_violation") > 0) {
+						<th class="smallish">
+							Overtime
+						</th>
+%					}
+
+
+%					if ($panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech") { 
+						<th class="smallish centeralign">
+							Bye (W)
+						</th>
+
+						<th class="smallish centeralign">
+							FFT (L)
+						</th>
+%					} elsif ($panel->round->tb_set->setting("noshows_never_break") > 0) {
+						<th class="smallish centeralign">
+							Noshow
+						</th>
+%					}
+
+				</tr>
+
+%				my $rfd;
+%				my @comments;
+%				my %comment_entry;
+
+%				foreach my $entry ($m->comp('/funclib/panel_entries.mas', panel => $panel)) { 
+
+<%perl>
+					my @ballots = Tab::Ballot->search( judge => $judge->id, entry => $entry->id, panel => $panel->id ) if $judge;
+					@ballots = Tab::Ballot->search( entry => $entry->id, panel => $panel->id ) unless $judge;
+					next unless @ballots;
+					my $ballot = shift @ballots;
+
+					$rfd = Tab::BallotValue->search( tag => "rfd", ballot => $ballot->id )->first;
+					my $comment = Tab::BallotValue->search( tag => "comments", ballot => $ballot->id )->first;
+
+					push @comments, $comment if $comment;
+					$comment_entry{$comment->id} = $entry->code if $comment;
+
+					my $win;
+					my $rank;
+					my $points;
+					my %student_ranks = ();
+					my %student_points = ();
+
+					foreach my $value ($ballot->ballot_values) {
+						$win = $value->value if $value->tag eq "ballot";
+						$rank = $value->value if $value->tag eq "rank";
+						$points = $value->value if $value->tag eq "points";
+						$student_ranks{$value->student->id} = $value->value if $value->tag eq "rank" && $value->student;
+						$student_points{$value->student->id} = $value->value if $value->tag eq "points" && $value->student;
+					}
+
+					my @students = $entry->students;
+
+					Tab::Student->set_sql(by_panel => "
+						select distinct student.*
+						from student, ballot_value, ballot
+						where ballot.panel = ?
+						and ballot.id = ballot_value.ballot
+						and ballot_value.student = student.id
+						and ballot.entry = ? 
+					");
+
+					push @students, Tab::Student->search_by_panel($panel->id, $entry->id);
+
+					my %seen = (); 
+					@students = grep { ! $seen{$_->id} ++ } @students;
+
+</%perl>
+                    	
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<td class="centeralign">
+							<input type="checkbox" name="audit_<% $ballot->id %>" value="1" <% $ballot->audit ? 'checked="checked"' : "" %>>
+						</td>
+
+%						if ($wudc) { 
+							<td class="smallish centeralign">
+                                <% ($ballot->speakerorder == 1) ? "1st Gov" : "" %>
+                                <% ($ballot->speakerorder == 2) ? "1st Opp" : "" %>
+                                <% ($ballot->speakerorder == 3) ? "2nd Gov" : "" %>
+                                <% ($ballot->speakerorder == 4) ? "2nd Opp" : "" %>
+							</td>
+%						} elsif ($studpoints) { 
+							<td class="smallish centeralign">
+								<% $ballot->side == 1 ? "Aff" : "" %>
+								<% $ballot->side == 2 ? "Neg" : "" %>
+							</td>
+%						} else { 
+							<td class="smallish centeralign">
+								<% $ballot->speakerorder %>
+							</td>
+%						} 
+
+						<td style="padding-left: 15px;">
+							<a href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>" class="white" tabindex="-1">
+								<% $entry->code %> <br /> <% $entry->name %>
+							</a>
+						</td>
+
+%						if ($winloss && $wudc) { 
+							<td class="centeralign">
+								<input type="checkbox" name="<% $entry->id %>_winloss" value="1" <% $win ? "checked" : "" %>>
+							</td>
+%						} elsif ($winloss) { 
+							<td class="centeralign">
+								<input type="radio" name="winloss" value="<% $entry->id %>" <% $win ? "checked" : "" %>>
+							</td>
+%						}
+
+%						if ($ranks && $studpoints && not defined $wudc) { 
+
+							<td class="nowrap">
+%								foreach my $student (@students) { 
+									<div>
+										<span class="half smallish">
+											<% $student->last %>
+										</span> 
+										<span class="half">
+											<input type="number" class="smaller" name="ranks_<% $student->id %>" size="3" value="<% $student_ranks{$student->id} %>" min="1" max="9">
+										</span>
+									</div>
+%								}
+							</td>
+
+%						} elsif ($ranks)  { 
+							<td>
+								<input type="number" class="smaller"  name="rank_<% $ballot->id %>" size="4" value="<% $rank %>" min="0" max="100">
+							</td>
+%						} 
+
+%						if ($use_points) { 
+							<td class="nowrap">
+%								if ($studpoints) { 
+%									foreach my $student (@students) { 
+										<div>
+											<span class="half smallish">
+												<% $student->last %>
+											</span>
+
+											<span class="half">
+												<input type="number" class="smaller"  name="points_<% $student->id %>" size="4" value="<% $student_points{$student->id} %>" step="<% $step %>" min="<% $min %>" max="<% $max %>">
+											</span>
+
+										</div>
+%									}
+%								} else { 
+									<input type="number" class="smaller"  name="points_<% $ballot->id %>" size="4" value="<% $points %>" min="0" max="100">
+%								} 
+							</td>
+%						} 
+
+%                  		if ($panel->round->tb_set->setting("mfl_time_violation") > 0) {
+							<td class="centeralign">
+								<input type="checkbox" name="tv_<% $ballot->id %>" value="1" <% ($ballot->tv) ? "checked" : "" %>>
+							</td>
+%						}
+
+%						if ($panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech") { 
+							<td class="centeralign">
+								<input type="checkbox" name="bye_<% $ballot->id %>" value="1" <% ($ballot->bye > 0) ? "checked" : "" %>>
+							</td>
+
+							<td class="centeralign">
+								<input type="checkbox" name="noshow_<% $ballot->id %>" value="1" <% ($ballot->noshow > 0) ? "checked" : "" %>>
+							</td>
+%						} elsif ($panel->round->tb_set->setting("noshows_never_break") > 0) {
+							<td class="centeralign">
+								<input type="checkbox" name="noshow_<% $ballot->id %>" value="1" <% ($ballot->noshow) ? "checked" : "" %>>
+							</td>
+%						}
+
+					</tr>
+
+%				}
+
+				<tr class="liblrow">
+					<td colspan="10" class="rightalign">
+						<input type="submit" value="  Save Changes  " >
+						</form>
+					</td>
+				</tr>
+
+			</table>
+
+%			if ($rfd) { 
+				<h5>RFD</h5>
+				<div class="padmore evenrow">
+					<% $rfd->content %>
+				</div>
+%			}
+
+%			foreach my $comment (@comments) { 
+
+				<h5>Comments for <% $comment_entry{$comment->id} %></h5>
+
+				<div class="padmore evenrow">
+					<% $comment->content %>
+				</div>
+%			}
+
+			</div>
+%		}	
+
+%		if ($panel->bye) { 
+
+			<table cellpadding="4" cellspacing="1" width="100%" style="<% $switch ? 'display: none;' : "" %>">
+
+				<tr>
+
+					<td colspan="5">
+
+						<h4>
+							Bye round
+						</h4>
+
+						<form action="panel_save.mhtml" method="post">
+						<input type="hidden" name="panel_id" value="<% $panel->id %>">
+						<input type="hidden" name="panel_bye" value="1">
+					</td>
+
+				</tr>
+
+				<tr class="yellowrow">
+
+					<th class="smallish centeralign">
+						Confirmed
+					</th>
+
+					<th class="smallish">
+						Entry
+					</th>
+
+%					if ($winloss) { 
+						<th class="smallish">
+							Win
+						</th>
+%					}
+
+%					if ($ranks) { 
+						<th class="smallish">
+							Rank
+						</th>
+%					}
+
+%					if ($use_points) { 
+						<th class="smallish">
+							Points
+						</th>
+%					}
+
+%              			if ($panel->round->tb_set->setting("mfl_time_violation") > 0) {
+						<th class="smallish">
+							Overtime
+						</th>
+%					}
+
+%					if ($panel->round->tb_set->setting("noshows_never_break") > 0) {
+						<th class="smallish">
+							Noshow
+						</th>
+%					}
+
+%					if ($panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech") { 
+
+						<th class="smallish">
+							Bye
+						</th>
+
+						<th class="smallish">
+							FFt
+						</th>
+%					}
+
+				</tr>
+
+%				foreach my $entry ($m->comp('/funclib/panel_entries.mas', panel => $panel)) { 
+<%perl>
+					my @ballots = Tab::Ballot->search( entry => $entry->id, panel => $panel->id );
+					next unless @ballots;
+					my $ballot = shift @ballots;
+					my $win;
+					my $rank;
+					my $points;
+					my %student_ranks = ();
+					my %student_points = ();
+
+					foreach my $value ($ballot->ballot_values) {
+						$win = $value->value if $value->tag eq "ballot";
+						$rank = $value->value if $value->tag eq "rank";
+						$points = $value->value if $value->tag eq "points";
+						$student_ranks{$value->student->id} = $value->value if $value->tag eq "rank" && $value->student;
+						$student_points{$value->student->id} = $value->value if $value->tag eq "points" && $value->student;
+					}
+
+					my @students = $entry->students;
+
+					Tab::Student->set_sql(by_panel => "
+						select distinct student.*
+						from student, ballot_value, ballot
+						where ballot.panel = ?
+						and ballot.id = ballot_value.ballot
+						and ballot_value.student = student.id
+						and ballot.entry = ? 
+					");
+
+					push @students, Tab::Student->search_by_panel($panel->id, $entry->id);
+
+					my %seen = (); 
+					@students = grep { ! $seen{$_->id} ++ } @students;
+</%perl>
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<td class="centeralign">
+							<input type="checkbox" name="audit_<% $ballot->id %>" value="1" <% $ballot->audit ? 'checked="checked"' : "" %>>
+						</td>
+
+						<td style="padding-left: 15px;">
+							<a href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>" class="white" tabindex="-1">
+								<% $entry->code %> <br /> <% $entry->name %>
+							</a>
+						</td>
+
+%						if ($winloss) { 
+							<td class="centeralign">
+								<input type="radio" name="winloss" value="<% $entry->id %>" <% $win ? "checked" : "" %>>
+							</td>
+%						}
+
+%						if ($ranks && $studpoints && not defined $wudc) { 
+
+							<td class="nowrap">
+
+%								foreach my $student (@students) { 
+									<div>
+										<span class="half smallish">
+											<% $student->last %>
+										</span> 
+
+										<span class="half">
+											<input type="number" class="smaller"  name="ranks_<% $student->id %>" size="4" value="<% $student_ranks{$student->id} %>" step="<% $step %>"
+												min="<% $min %>" max="<% $max %>">
+										</span>
+									</div>
+%								}
+
+							</td>
+
+%						} elsif ($ranks)  { 
+							<td>
+								<input type="number" class="smaller" name="rank_<% $ballot->id %>" size="4" value="<% $rank %>" min="0" max="100">
+							</td>
+%						} 
+
+%						if ($use_points) { 
+
+							<td class="nowrap">
+
+%								if ($studpoints) { 
+
+%									foreach my $student (@students) { 
+										<div>
+											<span class="half">
+												<% $student->last %>
+											</span>
+
+											<span class="half">
+												<input type="number" name="points_<% $student->id %>" size="4" value="<% $student_points{$student->id} %>" step="<% $step %>"
+													min="<% $min %>" max="<% $max %>">
+											</span>
+
+										</div>
+%									}
+
+%								} else { 
+
+									<input type="number" name="points_<% $ballot->id %>" size="4" value="<% $points %>" min="0" max="100">
+%								} 
+
+							</td>
+%						} 
+
+%           	       		if ($panel->round->tb_set->setting("mfl_time_violation") > 0) {
+							<td class="centeralign">
+								<input type="checkbox" name="tv_<% $ballot->id %>" value="1" <% ($ballot->tv) ? "checked" : "" %>>
+							</td>
+%						}
+
+%						if ($panel->round->tb_set->setting("noshows_never_break") > 0) {
+							<td class="centeralign">
+								<input type="checkbox" name="noshow_<% $ballot->id %>" value="1" <% ($ballot->noshow) ? "checked" : "" %>>
+							</td>
+%						}
+
+%						if ($panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech") { 
+
+							<td class="centeralign">
+								Y
+							</td>
+							<td class="centeralign">
+								N
+							</td>
+%						}
+
+					</tr>
+
+%				}
+
+				<tr class="liblrow">
+	
+					<td colspan="10" class="rightalign">
+						<input type="submit" value="  Save Changes  " >
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+%		}
+
+
+%		if ($wudc) { 
+	
+			<h5>Panelists:
+%			foreach my $judge (sort {$a->code <=> $b->code} $m->comp('/funclib/panel_judges.mas', panel => $panel)) { 
+%				next if $judge->chair;
+				<% $judge->first." ".$judge->last %>
+%			}	
+			</h5>
+%		}
+
+	</div> 
+

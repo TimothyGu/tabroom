@@ -1,0 +1,87 @@
+<%args>
+	$event
+	$done => undef
+</%args>
+<%init>
+
+	if ($done) {
+
+		Tab::Round->set_sql(last_done => "    
+			select distinct round.* 
+			from round
+			where round.event = ? 
+				and not exists (
+					select ballot.id 
+						from ballot, entry, panel
+						where ballot.audit != 1
+						and ballot.entry = entry.id
+						and entry.dropped = 0
+						and entry.waitlist = 0
+						and entry.unconfirmed = 0
+						and entry.dq = 0
+						and ballot.panel = panel.id
+						and panel.round = round.id
+				)
+				and exists (
+					select b2.id
+					from ballot b2, panel p2
+					where b2.panel = p2.id
+					and p2.round = round.id
+				)
+			order by round.name DESC limit 1
+		");
+
+		return Tab::Round->search_last_done( $event->id )->first;
+
+	} else { 
+
+		if ($event->type eq "speech" || $event->type eq "congress" || $event->setting("round_robin") ) { 
+
+			Tab::Round->set_sql(current => "    
+				select distinct round.* 
+				from round
+				where round.event = ? 
+					and exists (
+						select ballot.id 
+							from ballot, entry, panel
+							where ballot.audit != 1
+							and ballot.entry = entry.id
+							and entry.dropped = 0
+							and entry.waitlist = 0
+							and entry.unconfirmed = 0
+							and entry.dq = 0
+							and ballot.panel = panel.id
+							and panel.round = round.id
+					)
+				order by round.name limit 1
+			");
+
+			return Tab::Round->search_current( $event->id )->first;
+
+		} else { 
+
+			Tab::Round->set_sql(current => "    
+				select distinct round.* 
+				from round
+				where round.event = ? 
+					and exists (
+						select ballot.id 
+							from ballot, entry, panel
+							where ballot.entry = entry.id
+							and entry.dropped = 0
+							and entry.waitlist = 0
+							and entry.unconfirmed = 0
+							and entry.dq = 0
+							and ballot.panel = panel.id
+							and panel.round = round.id
+					)
+				order by round.name DESC limit 1
+			");
+
+			return Tab::Round->search_current( $event->id )->first;
+
+		}
+
+	}
+
+</%init>

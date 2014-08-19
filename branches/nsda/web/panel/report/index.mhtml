@@ -1,0 +1,530 @@
+<%args>
+	$tourn
+	$account
+</%args>
+<%init>
+
+	my @events = $m->comp("/funclib/tourn_events.mas", tourn => $tourn);
+	my @timeslots = $tourn->timeslots;
+	@events = sort { $a->name cmp $b->name } @events;
+	@timeslots = sort { $a->start cmp $b->start } @timeslots;
+	my $switch; 
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "events" &>
+
+	<div class="left huge">
+
+		<h2>Printout & Things</h2> 
+
+		<table cellpadding="9" width="100%" cellspacing="1">
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smallish">
+					<form action="schematic.mhtml" method="post">
+					Schematics
+				</td>
+
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+						<option value="all">
+							All Timeslots
+						</option> 
+
+% 						foreach my $timeslot(@timeslots) { 
+							<option value="<% $timeslot->id %>">
+								<% $timeslot->name %>
+							</option> 
+% 						}
+						
+					</select>
+				</td> 
+				
+				<td>
+					<select name="event_id" class="chosen fixedmed" >
+						<option value="all">All Events</option> 
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+				</td> 
+				
+				<td class="smaller nospace">
+
+					<label for="schools">
+						<div class="hover full marno">
+							<span class="threequarters nospace padleft">
+								For Tab
+							</span>
+							<span class="quarter nospace">
+								<input type="checkbox" id="schools" name="schools" value="hewwo">
+							</span>
+						</div>
+					</label>
+
+					<label for="no_break" >
+						<div class="hover full marno">
+							<span class="threequarters nospace padleft">
+								No Pagebreaks
+							</span>
+							<span class="quarter nospace">
+								<input type="checkbox" id="no_break" name="no_break" value="hewwo">
+							</span>
+						</label>
+					</div>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+				
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<td class="smallish">
+					<form action="postings.mhtml" method="post">
+					Postings
+				</td>
+				
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+
+						<option value="all">All Timeslots</option> 
+
+% 						foreach my $timeslot(@timeslots) { 
+								<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 						}
+
+					</select> 
+					
+				</td>
+				
+				<td>
+				
+					<select name="event_id" class="chosen fixedmed" > 
+					
+						<option value="all">All Events</option> 
+
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+
+					</select>
+					
+				</td>
+
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+				
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<td class="smallish">
+					<form action="slideshow.mhtml" method="post">
+					Slideshow 
+				</td>
+				
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+% 						foreach my $timeslot(@timeslots) { 
+							<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 						}
+					</select> 
+					
+				</td>
+				
+				<td>
+				
+					<select name="event_id" class="chosen fixedmed" > 
+						<option value="all">All Events</option>
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+					
+				</td>
+
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Show"> 
+					</form>
+				</td>
+				
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<td class="smallish">
+					<form action="preset_draw.mhtml" method="post">
+					Preset Draw
+				</td>
+				
+				<td class="smallish">
+					All Timeslots					
+				</td>
+				
+				<td>
+				
+					<select name="event_id" class="chosen fixedmed" > 
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+					
+				</td>
+
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Show"> 
+					</form>
+				</td>
+				
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<td class="smallish">
+					<form action="pref_experience.mhtml" method="post">
+					Pref Experience
+				</td>
+				
+				<td class="smallish">
+					All Timeslots					
+				</td>
+				
+				<td>
+				
+					<select name="event_id" class="chosen fixedmed" > 
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+					
+				</td>
+
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Show"> 
+					</form>
+				</td>
+				
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+			
+				<td class="smallish">
+					<form action="show_judge_assignments.mhtml" method="post">
+					Judge assignments with entries
+				</td>
+				
+				<td class="smallish">
+					All Timeslots					
+				</td>
+				
+				<td>
+				
+					<select name="event_id" class="chosen fixedmed" > 
+% 						foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+					
+				</td>
+
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Show"> 
+					</form>
+				</td>
+				
+			</tr>
+
+%			undef $switch;
+
+			<tr>
+				<td>
+					&nbsp;
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smallish">
+					<form action="judge_chart.mhtml" method="post">
+					Judge Chart
+				</th>
+
+				<td class="smallish">
+					<select name="sort_by" class="chosen fixedsmaller">
+						<option value="code">by Judge Code</option>
+						<option value="last">by Last Name</option>
+					</select>
+				</td>
+		
+				<td>
+					<select name="group_id" class="chosen fixedmed">
+
+% 					foreach my $group (sort {$a->abbr cmp $b->abbr} $tourn->groups) {
+							<option value="<% $group->id %>">
+								<% $group->name %>
+							</option>
+%						}
+
+						<option value="">----------</option>
+
+					</select>
+				</td>
+
+				<td>
+				</td>
+
+				<td>
+					<input  type="submit" class="thin" value="Print">
+					</form>
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smallish">
+					Ballot Table
+					<form action="ballot_table.mhtml" method="post">
+				</td>
+		
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+% 					foreach my $timeslot(@timeslots) { 
+							<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 					}
+					</select>
+				</td>
+		
+				<td>
+					<select name="event_id" class="chosen fixedmed">
+
+						<option value="">All Events</option>
+
+%						foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) {
+							<option value="<% $event->id %>">
+								<% $event->name %>
+							</option>
+
+%						}
+
+					</select>
+				</td> 
+
+				<td class="smallish">
+					<select name="sort_by" class="chosen fixedsmaller">
+						<option value="jcode">by Code</option>
+						<option value="jname">by Name</option>
+						<option value="room">by Room</option>
+						<option value="event">by Event</option>
+
+					</select>
+				</td>
+				
+				<td align="center">
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td> 
+				
+			</tr> 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smallish">
+					Judge Subs
+					<form action="judge_substitutes.mhtml" method="post">
+				</td>
+				
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+% 					foreach my $timeslot(@timeslots) { 
+						<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 					}
+					</select> 
+				</td>
+				
+				<td>
+					<select name="event_id" class="chosen fixedmed"> 
+
+						<option value="">All Events (slow)</option> 
+
+% 						foreach my $event (@events) { 
+								<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+
+					</select>
+				</td> 
+				
+				<td>
+				</td>
+				
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td class="smallish">
+					<form action="seating.mhtml" method="post">
+					Seating Chart
+				</th>
+
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+% 					foreach my $timeslot (@timeslots) { 
+						<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 					}
+					</select> 
+				</td>
+
+				<td>
+					<select name="event_id" class="chosen fixedmed"> 
+% 						foreach my $event (@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+% 						}
+					</select>
+				</td> 
+
+
+				<td class="smallish">
+					Seats/row
+					<input type="text" name="seats" size="3">
+				</td>
+				
+				<td>
+					<input class="thin" type="submit" value="Print">
+					</form>
+				</td>
+
+			</tr>
+
+			<tr>
+				<td>
+					&nbsp;
+				</td>
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				
+				<td class="smallish">
+					Master Ballots
+					<form action="master_ballots.mhtml" method="post">
+				</td>
+				
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+						<option value="all">All Timeslots</option> 
+
+% 						foreach my $timeslot(@timeslots) { 
+								<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 						}
+					</select> 
+				</td>
+				
+				<td>
+					<select name="event_id" class="chosen fixedmed"> 
+						<option value="all">All Events</option> 
+
+% 					foreach my $event(@events) { 
+							<option value="<% $event->id %>"><% $event->name %></option> 
+%						}
+
+					</select>
+				</td>
+				
+				<td class="smallish">
+					<select name="sort_by" class="chosen fixedsmaller">
+						<option value="">by Panel</option>
+						<option value="code">by Code</option>
+						<option value="school">by School</option>
+						<option value="name">by Name</option>
+						<option value="blank">Blank</option>
+						<option value="panname">by Panel then Name</option>
+					</select>
+				</td> 
+				
+				<td>
+					<input  type="submit" class="thin" value="Print">
+					</form>
+				</td>
+					
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+		
+				<td class="smallish">
+					Ballot Labels
+					<form action="ballot_labels.mhtml" method="post">
+				</td> 
+					
+				<td class="smallish">
+					<select name="timeslot_id" class="chosen fixedsmaller"> 
+						<option value="all">All Timeslots</option> 
+% 						foreach my $timeslot(@timeslots) { 
+							<option value="<% $timeslot->id %>"><% $timeslot->name %></option> 
+% 						}
+					</select>
+				</td> 
+				
+				<td class="padless">
+					<span class="inline padno">
+						<select name="event_id" class="chosen fixedsmaller"> 
+							<option value="all">All Events</option> 
+% 							foreach my $event(@events) { 
+								<option value="<% $event->id %>"><% $event->name %></option> 
+% 							}
+						</select>
+					</span>
+					<span class="inline padno">
+						<select name="sort_by" class="chosen fixedmicro">
+							<option value="event">By Event</option>
+							<option value="judge">By Judge</option>
+							<option value="names">By Judge Name</option>
+						</select>
+					</span>
+				</td> 
+					
+				<td class="smaller centeralign">
+					<a class="dkgrey block" href="adjust_labels.mhtml">Adjust Labels</a>
+					<a class="dkgrey block" href="pick_labels.mhtml">Choose Events</a>
+				</td>
+					
+				<td>
+					<input  type="submit" class="thin" value="Print"> 
+					</form>
+				</td>
+			</tr>
+
+%			if ($ncfl) { 
+
+%			}
+
+		</table>
+
+	</div>

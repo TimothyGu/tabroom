@@ -1,0 +1,138 @@
+<%args>
+	$tourn
+	$account
+	$session
+	$event_id => 0
+	$drops    => undef
+	$waitlist => undef
+	$at_large => undef
+	$sort     => undef
+</%args>
+<%init>
+
+	my @events;
+	my $namestring;
+	my $printname;
+
+	if ($event_id) { 
+
+		$events[0] = Tab::Event->retrieve($event_id);
+		$namestring = $events[0]->abbr;
+
+		$printname = $events[0]->name." Roster";
+		$printname = $events[0]->name." Drops List" if $drops;
+		$printname = $events[0]->name." Waitlist" if $waitlist;
+		$printname = $events[0]->name." At Larges" if $at_large;
+
+	} else {
+
+		@events = sort{$a->name cmp $b->name} $tourn->events;
+		$namestring = "all-events";
+
+		$printname = "All Events Roster";
+		$printname = "Drops " if $drops;
+		$printname = "Waitlist" if $waitlist;
+		$printname = "At Large Qualifiers" if $at_large;
+
+	}
+
+	my $filename = "entry-".$namestring."-".$session->id;
+	my $filepath = $Tab::file_root."/tmp/$filename";
+	my $garbage = `rm -f $filepath.*`;
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1 );
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	print TEXOUT "\\bigskip\n";
+	print TEXOUT "\\hfill {\\Huge ". &Tab::texify($tourn->name) ." } \\\\ \n";
+	print TEXOUT "\\smallskip\n\n";
+	print TEXOUT "{\\LARGE ". &Tab::texify($printname) ." } \\\\ \n";
+
+	foreach my $event (@events) { 
+
+		my $no_codes++ if $event->setting("code_style") eq "names";
+
+		my $tabular = "\\begin{tabular}{p{.25in}p{.5in}p{1.75in}p{1.75in}p{2in}} \n";
+		$tabular = "\\begin{tabular}{p{.25in}p{.5in}p{2in}p{3.65in}} \n" if $no_codes;
+		$tabular = "\\begin{tabular}{p{.25in}p{.5in}p{1in}p{1.25in}p{.5in}p{2in}} \n" if $tourn->setting("ncfl");
+		$tabular = "\\begin{tabular}{p{.25in}p{1in}p{.5in}p{1in}p{1.25in}p{2in}} \n" if $tourn->setting("regions");
+
+		unless (scalar @events == 1) { 
+			print TEXOUT "\\bigskip\n";
+			print TEXOUT "\\newline\n";
+			print TEXOUT "{\\Large \\bf ". &Tab::texify($event->name) ." } \n";
+			print TEXOUT "\\newline\n";
+		}
+
+		print TEXOUT $tabular;
+		print TEXOUT "\\\\ \n \\hline \n";
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n";
+		print TEXOUT " & ";
+		print TEXOUT "DioCode & "  if $tourn->setting("ncfl");
+		print TEXOUT "Diocese & " if $tourn->setting("ncfl");
+		print TEXOUT "Region & " if $tourn->setting("regions");
+		print TEXOUT "Event & ";
+		print TEXOUT "School & ";
+		print TEXOUT "Code & " unless $no_codes;
+		print TEXOUT "Name ";
+		print TEXOUT "\\\\ \n \\hline \n";
+		print TEXOUT "\\end{tabular}\n  \\\\ \n";
+
+		my $switch;
+		my @entries;
+
+		if ($drops) { 
+			@entries = Tab::Entry->search( event => $event->id, dropped => 1 )  if $drops;
+		} elsif ($waitlist) { 
+			@entries = Tab::Entry->search( event => $event->id, waitlist => 1, dropped => 0, unconfirmed => 0 )  if $waitlist;
+		} elsif ($at_large) { 
+			@entries = Tab::Entry->search( event => $event->id, unconfirmed => 0, dropped => 0, seed => "atlarge");
+		} else { 
+			@entries = Tab::Entry->search( event => $event->id, unconfirmed => 0 );
+		}
+
+		@entries = sort {$a->name cmp $b->name} @entries;
+		@entries = sort {$a->code cmp $b->code} @entries;
+		@entries = sort {$a->code <=> $b->code} @entries;
+	
+		foreach my $entry (@entries) { 
+
+			print TEXOUT $tabular;
+			print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\n" if ($switch++ % 2);
+
+			if ($entry->dropped) { 
+				print TEXOUT &Tab::texify("Drop");
+			} elsif ($entry->waitlist) { 
+				print TEXOUT &Tab::texify("WL");
+			} 
+
+			print TEXOUT " & ";
+
+			if ($tourn->setting("ncfl")) { 
+				print TEXOUT &Tab::texify($entry->school->region->code)." & ";
+				print TEXOUT &Tab::texify($entry->school->region->name)." & ";
+			} 
+			
+			if ($tourn->setting("regions")) { 
+				print TEXOUT &Tab::texify($entry->school->region->name) if $entry->school->region;
+				print TEXOUT "\\hspace{1mm}  & ";
+			}
+
+			print TEXOUT &Tab::texify($event->abbr)." & ";
+
+			print TEXOUT &Tab::texify($entry->school->short_name)." & ";
+			print TEXOUT &Tab::texify($entry->code)." & " unless $no_codes;
+			print TEXOUT &Tab::texify($entry->name);
+			print TEXOUT " \n ";
+			print TEXOUT "\\end{tabular}\n  \\\\ \n";
+
+		}
+
+	}
+
+	close TEXOUT;
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+</%init>
+

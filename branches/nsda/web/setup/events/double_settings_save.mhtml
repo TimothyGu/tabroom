@@ -1,0 +1,25 @@
+<%args>
+	$tourn
+	$double_entry => undef
+	$double_max   => undef
+</%args>
+<%init>
+
+	$tourn->setting("double_entry", $double_entry);
+	$tourn->setting("double_max", $double_max);
+
+	foreach my $event_double ($tourn->event_doubles) { 
+
+		$event_double->name($ARGS{"name_".$event_double->id});
+		$event_double->setting($ARGS{$event_double->id});
+		$event_double->max($ARGS{"max_".$event_double->id});
+		$event_double->exclude($ARGS{$event_double->id."_exclude"});
+		$event_double->update;
+
+	}
+
+	my $msg = "Event double-entry group settings saved";
+
+	$m->redirect("/setup/events/double_entry.mhtml?msg=$msg");
+
+</%init>

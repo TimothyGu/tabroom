@@ -1,0 +1,1020 @@
+<%args>
+	$tourn
+	$account
+	$panel_id
+	$from     => undef
+	$judge_id => undef
+</%args>
+<%init>
+
+	my $panel = Tab::Panel->retrieve($panel_id);
+	my $switch;
+
+	$m->comp("/funclib/panel_dedupe.mas", panel => $panel);
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my $tourn_access = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id)->first;
+	my $entry_only++ if $tourn_access && $tourn_access->entry_only;
+	undef $entry_only if $account->site_admin;
+
+	unless ($panel) { 
+		$m->print("You did not select an existing panel.  Hit back and try again");
+		$m->abort;
+	}
+
+	my $round = $panel->round;
+	my @values = $m->comp("/funclib/panel_ballot_values.mas", panel => $panel);
+
+	my $timeslot = $panel->round->timeslot;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $start = $timeslot->start->set_time_zone($tz);
+	my $end = $timeslot->end->set_time_zone($tz);
+
+	my $event = $panel->round->event;
+	my $group = $event->judge_group;
+
+	my $live_updates++ if $event->setting('live_updates');
+
+	my @judges = $m->comp("/funclib/panel_judges.mas", panel => $panel);
+
+	my %entry_wins = $m->comp("/funclib/entry_wins.mas", event => $round->event, round => $round);
+	my %entry_losses = $m->comp("/funclib/entry_losses.mas", event => $round->event, round => $round);
+
+	my @reserved_rooms;
+
+	foreach my $judge (@judges) {
+		my $r_id = $judge->setting('room_reserved');
+		my $r2 = Tab::Room->retrieve($r_id) if $r_id;
+		push @reserved_rooms, $r2 if $r2;
+	}
+
+	my @entries = $m->comp("/funclib/panel_entries.mas", panel => $panel);
+
+	my $coach_ratings++ if $group->setting("coach_ratings");
+	my $tab_ratings++ if $group->setting("tab_ratings");
+	my $prefs = $group->setting("prefs");
+	undef $prefs if $prefs eq "none";
+
+	my $no_judge_codes++ if $group->setting("no_codes");
+	my $no_school_codes++ if $tourn->setting("school_codes") eq "none";
+
+	my %rating_by_judge = ();
+
+	if ($coach_ratings) { 
+
+		my @ratings = $m->comp("/funclib/group_ratings.mas", event => $event, type => "coach");
+
+		my @tiers = $group->rating_tiers;
+		my %tier_names = ();
+
+		foreach my $tier (@tiers) { 
+			$tier_names{$tier->id} = $tier->name;
+		}
+
+		foreach my $rating (@ratings) { 
+			$rating_by_judge{$rating->judge->id} = $tier_names{$rating->rating_tier->id} if $rating && $rating->rating_tier;
+		}
+
+	}
+
+	my $rounds_per++ if $group->setting("rounds_per");
+	my $section = "Debate";
+	$section = "Section" if $event->type eq "speech";
+	$section = "Chamber" if $event->type eq "congress";
+
+	my $room = $panel->room;
+	my @good_judges = $m->comp("/funclib/clean_judges.mas", panel => $panel);
+
+	my %burned;
+
+	my $judge_use_ref = $m->comp("/funclib/judge_use.mas", round_id => $round->id);    
+	my %judge_use = %{$judge_use_ref};
+
+	my $round_type = $round->type;
+	$round_type = "flip" if $event->setting("no_side_constraints");
+
+	if ($rounds_per && $round_type ne "elim" && $round_type ne "final") { 
+		foreach my $gj (@good_judges) { 
+			$burned{$gj}++ if $judge_use{$gj->id}{'left'} < 1;
+		}
+	}
+
+	my $judge_indicator;
+
+	@good_judges = sort {$a->code cmp $b->code} @good_judges;	
+	@good_judges = sort {$b->score <=> $a->score} @good_judges;	
+	@good_judges = sort {$rating_by_judge{$a->id} cmp $rating_by_judge{$b->id}} @good_judges if $coach_ratings;	
+	@good_judges = sort {length($rating_by_judge{$b->id}) <=> length($rating_by_judge{$a->id})} @good_judges if $coach_ratings;	
+	@good_judges = sort {$b->tab_rating <=> $a->tab_rating} @good_judges if $tab_ratings;
+	@good_judges = sort {$b->standby cmp $a->standby} @good_judges;
+
+	my @busy_judges = $m->comp("/funclib/clean_judges.mas", panel => $panel, stealable => "daveroberts");
+
+	@busy_judges = sort {$a->code cmp $b->code} @busy_judges;	
+	@busy_judges = sort {$a->score <=> $b->score} @busy_judges;	
+	@busy_judges = sort {$rating_by_judge{$a->id} cmp $rating_by_judge{$b->id}} @busy_judges if $coach_ratings;	
+	@busy_judges = sort {length($rating_by_judge{$b->id}) <=> length($rating_by_judge{$a->id})} @busy_judges if $coach_ratings;	
+	@busy_judges = sort {$b->tab_rating <=> $a->tab_rating} @busy_judges if $tab_ratings;
+	@busy_judges = sort {$b->standby cmp $a->standby} @busy_judges;
+
+	my $affref;
+	my $negref;
+	my $diffref;
+
+	my %others = $m->comp("/funclib/round_judge_panels.mas", round => $round, flight => $panel->flight);
+
+	if ($prefs) { 
+
+		($affref, $negref, $diffref) = $m->comp("/funclib/panel_ratings.mas", panel => $panel, type => $prefs);
+
+		foreach my $gj (@good_judges) { 
+			${$diffref}{$gj->id} = 110 unless defined ${$diffref}{$gj->id};
+		}
+
+		foreach my $bj (@busy_judges) { 
+			${$diffref}{$bj->id} = 110 unless defined ${$diffref}{$bj->id};
+		}
+
+		@good_judges = sort {${$affref}{$a->id} <=> ${$affref}{$b->id}} @good_judges;
+		@good_judges = sort {${$diffref}{$a->id} <=> ${$diffref}{$b->id}} @good_judges;
+
+		@busy_judges = sort {${$affref}{$a->id} <=> ${$affref}{$b->id}} @busy_judges;
+		@busy_judges = sort {${$diffref}{$a->id} <=> ${$diffref}{$b->id}} @busy_judges;
+	}
+
+	@good_judges = sort {$burned{$a} <=> $burned{$b}} @good_judges;
+
+	my $aff = $m->comp("/funclib/round_elim_dueaff.mas", panel => $panel);
+	undef $aff if $round_type eq "flip";
+
+</%init>
+
+	<div class="left huge">
+
+		<h2><% $round->realname %> <% $section %> <% $panel->letter %> of <% $event->abbr %></h2>
+
+		<h4>Judges</h4>
+
+		<% $aff %>
+		
+		<table cellspacing="1" cellpadding="5" width="100%">
+
+			<tr class="yellowrow">
+
+				<th class="smaller">
+%					if ($event->type eq "congress") { 
+						Parli
+%					} else { 
+						Chair
+%					} 
+				</th>
+
+				<th class="smaller">
+					Judge
+				</th>
+
+% 				if ($live_updates) { 
+					<th class="smaller">
+						Foll
+					</th>
+%				}
+
+% 				if ($coach_ratings || $tab_ratings) { 
+					<th class="smaller">
+						Rate
+					</th>
+%				}
+
+% 				if ($prefs) { 
+					<th class="smaller">
+						Prefs
+					</th>
+%				}
+
+%				if ($ncfl) { 
+					<th class="smaller">
+						Dio
+					</th>
+%				}
+
+				<th class="smaller">
+					School
+				</th>
+
+				<th class="smaller" colspan="2">
+					Remove
+				</th>
+
+			</tr>
+
+% 			foreach my $judge (@judges) { 
+
+%				my $rating_name = $rating_by_judge{$judge->id};
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smaller centeralign" width="15px;">
+						<% $judge->chair
+							? "<a class=\"dkgreen block\" href=\"chair_switch.mhtml?judge_id=".$judge->id."&panel_id=".$panel->id."\">Y</a>"
+							: "<a class=\"dkred block\" href=\"chair_switch.mhtml?judge_id=".$judge->id."&panel_id=".$panel->id."\">N</a>" %>
+					</td>
+
+					<td class="smallish" align="left">
+%						unless ($entry_only) { 
+						<a class="white" href="/register/judge/edit.mhtml?judge_id=<% $judge->id %>"> 
+%						}
+							<% ($no_judge_codes) ? "" : $judge->code  %>
+							<% $judge->first." ".$judge->last %>
+						</a>
+					</td>
+
+% 					if ($live_updates) { 
+						<td class="smallish centeralign">
+							<% scalar $m->comp("/funclib/judge_follower.mas", judge => $judge) %>
+						</td>
+% 					}
+
+% 					if ($coach_ratings) { 
+						<td class="smallish" align="center">
+							<% $rating_name %>
+						</td>
+% 					}
+
+% 					if ($prefs) { 
+						<td class="smallish" align="center">
+							<% ${$affref}{$judge->id} %>-<% ${$negref}{$judge->id} %> 
+						</td>
+% 					}
+
+% 					if ($tab_ratings) { 
+						<td class="smallish" align="center">
+							<% $judge->tab_rating %>
+						</td>
+% 					}
+
+%					if ($ncfl) { 
+						<td class="smallish" align="center">
+							<% $judge->school->region->code %>
+						</td>
+%					}
+
+					<td class="smallish">
+						<% ($judge->school) ? $judge->school->short_name : "HIRE" %>
+					</td>
+
+%					if (@values) { 
+
+%						my $warn = "These ballots have scores entered.  If you remove the judge you will also delete those scores.  Continue?";
+
+						<td class="centeralign smaller">
+							<a class="dkred block" <& "/funclib/confirm.mas", warn => $warn &>
+							href="judge_rm.mhtml?from=<% $from %>&judge_id=<%$judge->id %>&panel_id=<% $panel->id %>">Remove</a>
+						</td>
+					
+						<td class="centeralign smaller">
+							<a class="dkred block" <& "/funclib/confirm.mas", warn => $warn &>
+							href="judge_rm.mhtml?from=<% $from %>&judge_id=<% $judge->id %>&panel_id=<% $panel->id %>&fine=yes">RM & Fine</a>
+						</td>
+
+%					} else { 
+
+						<td class="centeralign smaller">
+							<a class="dkred block" href="judge_rm.mhtml?from=<% $from %>&judge_id=<% $judge->id %>&panel_id=<% $panel->id %>">Remove</a>
+						</td>
+					
+						<td class="centeralign smaller">
+							<a class="dkred block" href="judge_rm.mhtml?from=<% $from %>&judge_id=<% $judge->id %>&panel_id=<% $panel->id %>&fine=yes">RM & Fine</a>
+						</td>
+
+%					} 
+
+
+				</tr>
+
+% 		}
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smallish" style="padding-top: 13px;" colspan="9">
+
+					<span class="sixth">
+						Available:
+					</span>
+					
+					<span class="fivesixth">
+
+					<form action="judge_add.mhtml" method="post">
+					<input type="hidden" name="panel_id" value="<% $panel_id %>">
+					<input type="hidden" name="from" value="<% $from %>">
+					<select name="judge_id" class="fixedbigger chosen" data-placeholder="Clean judges without assignments...">
+
+
+%					my $label;
+
+%					if ($prefs) { 
+%						$label .= "&nbsp;&nbsp;&nbsp;" if $prefs eq "ordinals";
+%						$label .= "Prefs&nbsp;";
+%						$label .= "&nbsp;&nbsp;&nbsp;" if $prefs eq "ordinals";
+%					} elsif ($coach_ratings || $tab_ratings) {
+%						$label = "Rtng&nbsp;&nbsp;";
+%					}
+
+%					$label .= "&nbsp;&nbsp;" if $rounds_per; 
+%					$label .= "&nbsp;Rds&nbsp;";
+%					$label .= "&nbsp;Own&nbsp;&nbsp;" unless ($coach_ratings || $tab_ratings || $prefs);
+%					$label .= "&nbsp;&nbsp;&nbsp;&nbsp;" if $rounds_per;
+%					$label .= "&nbsp;&nbsp;" if ($coach_ratings || $tab_ratings || $prefs) && not defined $rounds_per;
+%					$label .= "Diocese&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" if $ncfl;
+%					$label .= "School&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" unless $ncfl;
+%					$label .= "Judge";
+
+					<option value=""></option>
+					<optgroup class="key" label="<% $label %>">
+
+<%perl>
+						my %used;
+						my $type = $event->type;
+
+						my $is_not_standby;
+						my $not_yet = 1;
+
+	 					foreach my $judge (@good_judges) { 
+
+							$used{$judge->id}++;
+
+							my $rating;
+
+							if ($prefs) { 
+
+								if (${$affref}{$judge->id}) { 
+									$rating = ${$affref}{$judge->id};
+								} else { 
+									$rating = "x";
+								}
+
+								$rating .= "-";
+
+								if (${$negref}{$judge->id}) { 
+									$rating .= ${$negref}{$judge->id};
+								} else { 
+									$rating .= "x";
+								}
+
+
+							}  else { 
+
+								if ($tab_ratings) { 
+									$rating = $judge->tab_rating;
+									$rating = "x" unless $rating;
+								}
+
+								if ($coach_ratings) { 
+									$rating .= "-" if $rating;
+									$rating = $rating_by_judge{$judge->id} if $rating_by_judge{$judge->id};
+									$rating = "x" unless $rating;
+								}
+							}
+
+							if ($prefs eq "ordinals") { 
+								foreach ( length($rating) .. 11) {
+									$rating .= "&nbsp;";
+								}
+							} elsif ($prefs || $coach_ratings || $tab_ratings) {
+								foreach ( length($rating) .. 5) {
+									$rating .= "&nbsp;";
+								}
+							}
+
+							my $usage;
+							
+							if ($rounds_per) {
+								$usage = $judge_use{$judge->id}{'left'} ."/".($judge_use{$judge->id}{'judged_already'} + $judge_use{$judge->id}{'will_judge'})."/".$judge_use{$judge->id}{'oblig'}."&nbsp;&nbsp;&nbsp;";
+							} else { 
+								$usage = $judge_use{$judge->id}{'judged_already'} + $judge_use{$judge->id}{'will_judge'};
+								if ($judge_use{$judge->id}{'judged_already'} != $judge_use{$judge->id}{'judged_all'}) { 
+									$usage .= '-'.$judge_use{$judge->id}{'judged_all'}.'&nbsp;';
+								} else { 
+									$usage .= "&nbsp;&nbsp;&nbsp;";
+								}
+							}
+
+							my $own = $judge->score."&nbsp;&nbsp;&nbsp;" unless ($coach_ratings || $tab_ratings || $prefs);
+							
+							my $school;
+
+							if ($ncfl) {
+								$school = $judge->regcode;
+							} else { 
+								if ($no_school_codes) { 
+									$school = substr(&Tab::short_name($judge->schoolname),0,9);
+								} elsif ($judge->schoolcode eq "--") { 
+									$school = "HIRED";
+								} else { 
+									$school = substr($judge->schoolcode,0,9);
+								}
+							}
+
+							foreach ( length($school) .. 10) {
+								$school .= "&nbsp;";
+							}
+
+							my $judge_name;
+
+							unless ($no_judge_codes) { 
+								$judge_name = substr($judge->code,0,5);
+								foreach ( length($judge_name) .. 6) {
+									$judge_name .= "&nbsp;";
+								}
+							}
+
+							$judge_name .= $judge->first." ".$judge->last;
+
+							if ($not_yet &! $is_not_standby) { 
+								undef $not_yet;
+								$is_not_standby++;
+							}
+
+</%perl>
+
+%							if ($judge->standby && $not_yet) { 
+								<option value="x" "disabled" class="key">Judges in standby pool:</option>
+%								undef $not_yet;
+%							}
+
+%							unless ($is_not_standby || $judge->standby || $not_yet) { 
+								<option value="x" "disabled" class="key">Judges not in standby pool:</option>
+%								$is_not_standby++ unless $judge->standby;
+%							} 
+							
+							<option value="<%$judge->id %>"><% $rating." ".$usage." ".$own." ".$school." ".$judge_name %></option>
+% 						} 
+
+					</optgroup>
+
+					</select> 
+
+					<input  type="submit" value="Add" class="thin right">
+					</form>
+
+					</span>
+
+				</td>
+
+			</tr>
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<th class="smallish" style="padding-top: 13px;" colspan="9">
+
+					<span class="sixth">
+						Judging elsewhere
+					</span>
+					
+					<span class="fivesixth">
+
+					<form action="judge_add.mhtml" method="post">
+					<input type="hidden" name="panel_id" value="<% $panel_id %>">
+					<input type="hidden" name="from" value="<% $from %>">
+					<input type="hidden" name="steal" value="yes">
+					<select name="judge_id" class="fixedbigger chosen" data-placeholder="Clean judges who are judging already...">
+
+%					undef $label;
+
+%					if ($prefs) { 
+%						$label .= "&nbsp;&nbsp;&nbsp;" if $prefs eq "ordinals";
+%						$label .= "Prefs&nbsp;&nbsp;";
+%						$label .= "&nbsp;&nbsp;" if $prefs eq "ordinals";
+%						$label .= "Bkt&nbsp;&nbsp;";
+%						$label .= "&nbsp;&nbsp;" if $prefs eq "ordinals";
+%						$label .= "CurPf&nbsp;";
+%						$label .= "&nbsp;&nbsp;" if $prefs eq "ordinals";
+%					} elsif ($coach_ratings || $tab_ratings) {
+%						$label = "Rtng&nbsp;&nbsp;";
+%					}
+
+%					$label .= "&nbsp;" if $rounds_per; 
+%					$label .= "&nbsp;Event&nbsp;";
+%					$label .= "&nbsp;Own&nbsp;&nbsp;&nbsp;" unless ($coach_ratings || $tab_ratings || $prefs);
+%					$label .= "&nbsp;&nbsp;" if $rounds_per;
+%					$label .= "&nbsp;&nbsp;" if ($coach_ratings || $tab_ratings || $prefs) && not defined $rounds_per;
+%					$label .= "Diocese&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;" if $ncfl;
+%					$label .= "School&nbsp;&nbsp;&nbsp;&nbsp;" unless $ncfl;
+%					$label .= "Judge";
+
+					<option value=""></option>
+					<optgroup class="key" label="<% $label %>">
+<%perl>
+
+	 					foreach my $judge (@busy_judges) { 
+
+							next if $used{$judge->id}++;
+
+							my $rating;
+							my $bracket;
+							my $current_prefs;
+
+							if ($prefs) { 
+
+								if (${$affref}{$judge->id}) { 
+									$rating = ${$affref}{$judge->id};
+								} else { 
+									$rating = "x";
+								}
+
+								$rating .= "-";
+
+								if (${$negref}{$judge->id}) { 
+									$rating .= ${$negref}{$judge->id};
+								} else { 
+									$rating .= "x";
+								}
+
+								$bracket = $others{$judge->id}{"bracket"};
+								$current_prefs = $others{$judge->id}{"prefs"};
+
+							}  else { 
+
+								if ($tab_ratings) { 
+									$rating = $judge->tab_rating;
+									$rating = "x" unless $rating;
+								}
+
+								if ($coach_ratings) { 
+									$rating .= "-" if $rating;
+									$rating = $rating_by_judge{$judge->id} if $rating_by_judge{$judge->id};
+									$rating = "x" unless $rating;
+								}
+							}
+
+							if ($bracket && $current_prefs) {
+								if ($prefs eq "ordinals") { 
+									foreach ( length($rating) .. 10) {
+										$rating .= "&nbsp;";
+									}
+									foreach ( length($current_prefs) .. 10) {
+										$current_prefs .= "&nbsp;";
+									}
+									foreach ( length($bracket) .. 3) {
+										$bracket .= "&nbsp;";
+									}
+								} elsif ($prefs || $coach_ratings || $tab_ratings) {
+									foreach ( length($rating) .. 5) {
+										$rating .= "&nbsp;";
+									}
+									foreach ( length($current_prefs) .. 6) {
+										$current_prefs .= "&nbsp;";
+									}
+
+									foreach ( length($bracket) .. 3) {
+										$bracket .= "&nbsp;";
+									}
+								}
+
+							} elsif ($rating) { 
+								foreach ( length($rating) .. 4) {
+									$rating .= "&nbsp;";
+								}
+							}
+
+							
+							my $event = substr($others{$judge->id}{"event"},0,5);
+
+							foreach ( length($event) .. 6) {
+								$event .= "&nbsp;";
+							}
+
+
+							my $own = $judge->score."&nbsp;&nbsp;&nbsp;" unless ($coach_ratings || $tab_ratings || $prefs);
+							
+							my $school;
+
+							if ($ncfl) {
+								$school = $judge->regcode;
+							} else { 
+								if ($no_school_codes) { 
+									$school = substr(&Tab::short_name($judge->schoolname),0,7);
+								} elsif ($judge->schoolcode eq "--") { 
+									$school = "HIRED";
+								} else { 
+									$school = substr($judge->schoolcode,0,7);
+								}
+							}
+
+							foreach ( length($school) .. 8) {
+								$school .= "&nbsp;";
+							}
+
+							my $judge_string;
+							my $judge_code;
+
+							unless ($no_judge_codes) { 
+								$judge_code = substr($judge->code,0,5);
+								foreach ( length($judge_code) .. 6) {
+									$judge_code .= "&nbsp;";
+								}
+							}
+
+							my $judge_name .= $judge->first." ".$judge->last;
+							$judge_name = substr($judge_name, 0, 25);
+							$judge_name = substr($judge_name, 0, 16) if $prefs eq "ordinals";
+
+							$judge_string = $judge_code.$judge_name;
+
+							if ($not_yet &! $is_not_standby) { 
+								undef $not_yet;
+								$is_not_standby++;
+							}
+
+</%perl>
+
+%							if ($judge->standby && $not_yet) { 
+								<option value="x" "disabled" class="key">Judges in standby pool:</option>
+%								undef $not_yet;
+%							}
+
+%							unless ($is_not_standby || $judge->standby || $not_yet) { 
+								<option value="x" "disabled" class="key">Judges not in standby pool:</option>
+%								$is_not_standby++ unless $judge->standby;
+%							} 
+							
+							<option value="<%$judge->id %>"><% $rating." ".$bracket.$current_prefs." ".$event." ".$own." ".$school." ".$judge_string %></option>
+% 						}
+
+						</optgroup>
+
+					</select> 
+
+						<input  type="submit" value="Add" class="thin right">
+						</form>
+					</span>
+
+				</td>
+
+			</tr>
+
+		</table>
+
+		<h4><% scalar @entries %> Entries</h4>
+
+		<table cellspacing="1" cellpadding="4" width="100%">
+
+			<tr class="yellowrow">
+
+%				if ($event->type eq "speech") { 
+					<th class="smaller">
+						Spks
+					</th>
+%				} elsif ($event->type eq "wudc") { 
+					<th class="smaller">
+						Pos
+					</th>
+%				} elsif ($event->type eq "congress") { 
+
+%				} else { 
+					<th class="smaller">
+						Side
+					</th>
+					<th class="smaller">
+						Record
+					</th>
+%				} 
+
+				<th class="smaller">
+					Entry
+				</th>
+
+% 				if ($live_updates) { 
+					<th class="smaller">
+						Followers
+					</th>
+%				} 
+
+				<th class="smaller">
+					School
+				</th>
+
+%				if ($tourn->setting("ncfl")) {
+					<th class="smaller">
+						Dio
+					</th>
+%				}
+
+				<th colspan="3">
+				</th>
+
+
+			</tr>
+
+% 		$switch = 1;
+
+% 		foreach my $entry (@entries) { 
+
+			<tr class="<% $entry->dropped && $switch++ ? "lirdrow" : ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+%				if ($event->type eq "speech") { 
+					<td class="smallish">
+						<% $entry->speaks ? Lingua::EN::Numbers::Ordinate::ordinate($entry->speaks) : "" %>
+					</td>
+%				} elsif ($event->type eq "wudc") { 
+					<td class="smallish">
+						<% $entry->speaks == 1 ? "OG" : "" %>
+						<% $entry->speaks == 2 ? "OO" : "" %>
+						<% $entry->speaks == 3 ? "CG" : "" %>
+						<% $entry->speaks == 4 ? "CO" : "" %>
+					</td>
+%				} elsif ($event->type eq "congress" ) { 
+
+%				} else { 
+
+%					if ( ($round_type eq "elim" || $round_type eq "final" || $round_type eq "flip") && scalar @values < 1 && not defined $aff) { 
+						<td class="smallish centeralign">
+							Flip
+						</td>
+
+%					} else { 
+
+						<td class="smallish centeralign">
+							<% $aff ? "Locked" : "" %>
+							<% $entry->side == 1 ? "Aff" : ""%>
+							<% $entry->side == 2 ? "Neg" : ""%>
+						</td>
+%					}
+					<td class="smallish centeralign">
+						<% $entry_wins{$entry->id} ? $entry_wins{$entry->id} : 0 %>-<% $entry_losses{$entry->id} ? $entry_losses{$entry->id} : 0 %>
+					</td>
+%				} 
+
+				<td class="smallish">
+%				unless ($entry_only) { 
+					<a class="white " href="/register/entry/edit.mhtml?entry_id=<% $entry->id %>">
+%				}
+						<% ($entry->dq) ? "DQ -" : "" %>
+						<% ($entry->dropped) ? "DROP -" : "" %>
+%						unless ($event->setting("code_style") eq "names") {
+							<% $entry->code %>
+%						}
+%						unless ($event->setting("code_style") eq "names_lastfirst") {
+							<% $entry->name %>
+%						}
+					</a>
+				</td>
+
+% 				if ($live_updates) { 
+					<td class="smallish centeralign">
+						<% scalar $m->comp("/funclib/entry_follower.mas", entry => $entry) %>
+					</td>
+%				}
+					
+				<td class="smallish">
+					<% $entry->school->short_name %> 
+				</td>
+
+				<% ($entry->school->code) ? "<td class=\"smallish\">".$entry->school->code."</td>" : "" %>
+
+%				if ($tourn->setting("regions") || $ncfl) {
+
+					<td class="smallish centeralign">
+						<% ($entry->school->region) ? $entry->school->region->code : "" %>
+					</td>
+
+%				}
+
+%				unless ($entry_only) { 
+					<td class="smallish centeralign">
+						<a class="dkgreen block" href="/panel/manipulate/entry_edit.mhtml?entry_id=<%$entry->id%>&round_id=<% $round->id %>">Move</a>
+					</td>
+%				}
+
+			</tr>
+
+% 		}
+
+		</table>
+
+		<br />
+
+%		my $timestamp;
+%		foreach my $ballot ($panel->ballots) { 
+%			$timestamp = $ballot->timestamp if $ballot->audit && $ballot->timestamp > $timestamp;
+%			$timestamp = $ballot->timestamp if $ballot->audit && not defined $timestamp;
+%		}
+
+		<div class="liblrow block centeralign smallish">
+
+			<span class="medbigspan">
+				<% $panel->started ?  "Started: ".Tab::niceshortdayt($panel->started->set_time_zone($tz)) : "" %>
+			</span>
+
+			<span class="medbigspan">
+				<% $panel->confirmed ?  "Confirmed: ".Tab::niceshortdayt($panel->confirmed->set_time_zone($tz)) : "" %>
+			</span>
+
+			<span class="medbigspan">
+				<% $timestamp ?  "Entered: ".Tab::niceshortdayt($timestamp->set_time_zone($tz)) : "" %>
+			</span>
+
+		</div>
+
+%		if ($account->site_admin) { 
+			<p style="text-align: center;" >
+				<% $round->realname %> <% $section %> <% $panel->id %> Event <% $event->id %>
+			</p>
+%		}
+
+
+	</div>
+
+	<div class="right small">
+
+%		if ($entry_only) { 
+
+	        <div class="sidenote">
+
+				<h4>Return</h4>
+
+				<a class="blue block" href="/tabbing/entry/index.mhtml">
+					Return to Ballot Entry
+				</a>
+			</div>
+
+%		} else { 
+
+		<div class="sidenote">
+
+			<h4>Pairings/Printouts</h4>
+
+			<a class="blue block" href="show.mhtml?round_id=<% $round->id %>">
+				<% $event->abbr %> <% $round->realname %> Pairing
+			</a>
+
+			<a class="blue block" href="/panel/report/master_single.mhtml?panel_id=<% $panel->id %>">
+				Print Master Ballots
+			</a>
+
+			<a class="blue block" href="/panel/report/posting.mhtml?panel_id=<% $panel->id %>">
+				Print Round Posting
+			</a>
+
+			<a class="blue block" href="/panel/schemat/panel_blast.mhtml?panel_id=<% $panel->id %>">
+				Text/email blast this section
+			</a>
+
+		</div>
+
+		<div class="sidenote">
+
+%			if ($round->flighted > 1) { 
+				<h4>Flight</h4>
+
+				<span class="evenrow visible centeralign">
+					<form action="panel_flight_save.mhtml" method="post">
+					<input type="hidden" name="panel_id" value="<% $panel_id %>">
+					<select name="flight" class="fixedmed" onchange='this.form.submit()' >  
+						<option value="">None</option>
+%					foreach my $flight ( 1 .. $round->flighted ) { 	
+						<option value="<% $flight %>" <% $flight == $panel->flight ? "selected" : "" %>>
+							<% $flight %>
+						</option>
+%					}
+				</select>
+				</form>
+			</span>
+
+%			}
+
+			<h4>Room</h4>
+
+			<span class="evenrow visible centeralign">
+				<form action="panel_room_save.mhtml" method="post">
+				<input type="hidden" name="panel_id" value="<% $panel_id %>">
+				<select name="room_id" onchange='this.form.submit()' class="fixedmed chosen" data-placeholder="Select room:">  
+
+%					if ($panel->room) { 
+						<option value="<% $panel->room->id %>" "selected"><% $room->name %></option>
+%					}
+
+					<option value="">--NONE--</option>
+
+%					foreach my $room (@reserved_rooms) { 
+						<option value="<% $room->id %>"><% $room->name %></option>
+%					}
+
+%					foreach my $room ($m->comp("/funclib/clean_rooms.mas", panel => $panel)) { 
+						<option value="<% $room->id %>"><% $room->name %></option>
+%					}
+
+				</select>
+				</form>
+			</span>
+
+			<h4>Time</h4>
+
+			<table cellpadding="4" cellspacing="1" width="100%">
+		
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<td class="smallish">
+						Starts: 
+					</td>
+
+					<td class="centeralign smallish">
+						<% &Tab::niceshortdt($start) %> 
+					</td>
+				</tr>
+
+				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+	
+					<td class="smallish">
+						Ends
+					</td>	
+
+					<td class="centeralign smallish">
+						<% &Tab::niceshortdt($end) %> 
+					</td>
+
+				</tr>
+
+			</table>
+
+%			if ($round->pool && $round->pool->id) {
+				<h4>Judge Pool</h4>
+				<a class="blue block" href="/panel/judge/pool.mhtml?pool_id=<% $round->pool->id %>">
+					<% $round->pool->name %>
+				</a>
+%			}
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Make Changes</h4>
+%			if ($event->type eq "speech" || $event->type eq "congress") { 
+				<a href="speaker_order.mhtml?panel_id=<% $panel->id %>" class="yellow block">
+					Change Speaker Order
+				</a>
+%			} elsif ($event->type eq "wudc") { 
+				<a href="wudc_sides.mhtml?panel_id=<% $panel->id %>" class="yellow block">
+					Change Team Positions
+				</a>
+%			} else { 
+				<a href="debate_sides.mhtml?panel_id=<% $panel->id %>" class="yellow block">
+					Change Sides
+				</a>
+%			} 
+
+			<a href="/tabbing/entry/panel.mhtml?panel_id=<% $panel->id %>" class="yellow block">
+				View/Edit Results
+			</a>
+
+% 			unless (@judges || @entries) { 
+				<a href="/panel/manipulate/panel_rm.mhtml?panel_id=<% $panel_id %>" class="dkred block">Delete <% $section %></a>
+% 			}
+
+			<p class="padno bold">Add literally any judge:</p>
+			<form action="judge_add.mhtml" method="post">
+			<input type="hidden" name="panel_id" value="<% $panel->id %>">
+			<div class="even visible centeralign">
+				<select name="judge_id" class="chosen fixedmed">
+%					foreach my $judge ($m->comp("/funclib/tourn_judges.mas", tourn => $tourn)) { 
+						<option value="<% $judge->id %>"> <% $judge->code %> <% $judge->last %>, <% $judge->first %> </option>
+%					}
+				</select>
+			</div>
+			<div class="liblrow block rightalign padless">
+				<input type="submit" class="thin" value="Add Judge & Tempt Fate">
+			</div>
+			</form>
+
+			<p class="padno bold">Change to literally any room:</p>
+			<form action="panel_room_save.mhtml" method="post">
+			<input type="hidden" name="panel_id" value="<% $panel->id %>">
+			<div class="even visible centeralign">
+				<select name="room_id" class="chosen fixedmed">
+%					foreach my $room ($m->comp("/funclib/tourn_rooms.mas", tourn => $tourn)) { 
+						<option value="<% $room->id %>"> <% $room->name %> </option>
+%					}
+				</select>
+			</div>
+
+			<div class="liblrow block rightalign padless">
+				<input type="submit" class="thin" value="Change Room & Tempt Fate">
+			</div>
+			</form>
+
+%			my $warn = "This will delete this section, together with all results and records.  Are you sure?";
+			<a class="dkred block martop" <& "/funclib/confirm.mas", warn => $warn &>  href="/panel/manipulate/panel_rm.mhtml?panel_id=<% $panel->id %>&from=schemat">
+				Delete This 
+					<% $event->type eq "speech" ? "Section" : "" %>
+					<% $event->type eq "congress" ? "Chamber" : "" %>
+					<% $event->type ne "speech" && $event->type ne "congress" ? "Debate" : "" %>
+			</a>
+	
+		</div>
+
+%		}
+
+	</div>
+

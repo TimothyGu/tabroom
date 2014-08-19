@@ -1,0 +1,447 @@
+<%args>
+	$tourn
+	$account
+	$from_id     => undef
+	$into_id     => undef
+	$site_id     => undef
+	$timeslot_id => undef
+	$tb_set_id   => undef
+	$label       => undef
+	$panels      => undef
+	$start       => undef
+	$end         => undef
+	$type        => undef
+</%args>
+<%init>
+
+	use List::Util 'shuffle';
+	my $from = Tab::Round->retrieve($from_id) if $from_id;
+	my $into = Tab::Round->retrieve($into_id) if $into_id;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $now = DateTime->now(time_zone => $tz);
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+
+	if ($into) { 
+
+		my $err = "You must specify the number of sections to be used  " unless $panels;
+		$err .= "You must specify the starting position of whom to break  " unless $start;
+		$err .= "You must specify the ending position of whom to break  " unless $end;
+		$m->redirect("index.mhtml?from_id=".$from->id."&preset_id=".$into->id."&err=".$err) if $err;
+
+		$into->tb_set($tb_set_id) if $tb_set_id;
+		$into->site($site_id) if $site_id;
+		$into->timeslot($timeslot_id) if $timeslot_id;
+		$into->label($label) unless $label;
+		$into->type($type) unless $type;
+		$into->created($now);
+		$into->update;
+
+	} else { 
+
+		my $err = " Missing timeslot " unless $timeslot_id;
+		$err .= " Missing site " unless $site_id;
+		$err .= " Missing starting entry " unless $start;
+		$err .= " Missing ending entry " unless $end;
+		$err .= " Missing tiebreaker set " unless $tb_set_id;
+		$err .= " Missing round type " unless $type;
+		$err .= " Missing site " unless $site_id;
+		$err .= " Missing number of sections " unless $panels;
+
+		$m->redirect("index.mhtml?from_id=".$from_id."&preset_id=".$into_id."&err=".$err) if $err;
+
+		my $judges = 1;
+		$judges = 3 if $type eq "elim";
+		$judges = 3 if $type eq "final";
+		$judges = 5 if $type eq "final" && $ncfl;
+
+		$m->redirect("index.mhtml?from_id=".$from->id."&err=".$err) if $err;
+
+		$into = Tab::Round->create({
+			event => $from->event->id,
+			timeslot => $timeslot_id,
+			tb_set => $tb_set_id,
+			label => $label,
+			type => $type,
+			created => $now,
+			judges => $judges
+		});
+
+		$m->comp("/funclib/renumber_rounds.mas", event_id => $from->event->id);
+
+	}
+
+	my ($entries_ref, $tbs_ref, $desc_ref, $noshow_ref) = $m->comp("/tabbing/results/order_entries.mas", round => $from);
+
+	my @breaks;
+	my $count;
+
+	my %entry_tb = ();
+	my %entry_seed = ();
+	my %entry_school = ();
+
+	my %id_entry = map {$_->id => $_} $from->event->entries;
+
+	foreach my $seed (sort {$a <=> $b} keys %{$entries_ref}) { 
+		foreach my $entryid (@{${$entries_ref}{$seed}}) { 
+			$count++;
+			my $entry = $id_entry{$entryid};
+			next if $count > $end;
+			next if $count < $start;
+			push @breaks, $entryid;
+			$entry_seed{$entryid} = $seed;
+			if ($ncfl) { 
+				$entry_school{$entryid} = $entry->school->region->id;
+			} else { 
+				$entry_school{$entryid} = $entry->school->id;
+			}
+
+		}
+	}
+
+	if ($ncfl && $from->type eq "elim") { 
+
+		$m->comp("ncfl_snake.mhtml", 
+			breakref => \@breaks, 
+			into => $into, 
+			type => $type,
+			site_id => $site_id,
+			num_panels => $panels
+		);
+
+	}
+
+	foreach my $seed (sort {$a <=> $b} keys %{$entries_ref}) { 
+		foreach my $entry (@{${$entries_ref}{$seed}}) {
+			my $one;	
+			foreach my $key (sort {$a <=> $b} keys %{$desc_ref}) {
+				next if $one;
+				$entry_tb{$entry} = ${$tbs_ref}{$entry."-".$key};
+				$one++;
+			}
+		}
+	}
+
+	my @existing_panels = $into->panels;
+	my @use_panels;	
+
+    my $letter = 1;
+	$letter = "A" if $from->event->setting("panel_labels") eq "letters";
+
+	foreach my $count (1 .. $panels) { 
+
+		my $existing = shift @existing_panels if @existing_panels;
+
+		if ($existing) {
+
+			push @use_panels, $existing;
+
+		} else { 
+
+			my $new = Tab::Panel->create({
+				flight => 1,
+				round  => $into->id,
+				letter => $letter,
+			});
+
+			push @use_panels, $new;
+
+		}
+
+		$letter++;
+	}
+
+	foreach my $ep (@existing_panels) { 
+		$ep->delete;   #KILL THE SPARES
+	}
+
+	my $method = $from->event->setting("elim_method");
+	my @snake_panels = @use_panels;
+	my %panel_entries = ();
+
+	$count = 1;
+
+	if (scalar @use_panels == 1) { 
+
+		@{$panel_entries{$use_panels[0]->id}} = @breaks;
+
+	} else { 
+
+		foreach my $entry (@breaks) {
+
+			if ($method eq "ky_semis_snake") { 
+				
+				unless (@snake_panels) { 
+					@use_panels = reverse (@use_panels) unless $count % 3;
+					@snake_panels = @use_panels unless @snake_panels;
+					$count++;
+				}
+
+			} else { 
+
+				unless (@snake_panels) { 
+					@snake_panels = reverse (@use_panels) if $count % 2;
+					@snake_panels = @use_panels unless @snake_panels;
+					$count++;
+				}
+
+			}
+
+			my $panel = shift @snake_panels;
+			push @{$panel_entries{$panel->id}}, $entry if $panel;
+
+		}
+
+		if ($method eq "snake_school" || $method eq "snake_school_rank" || $method eq "snake_school_force" || $method eq "ky_semis_snake") { 
+		
+			foreach my $panel (@use_panels) { 
+
+				my $initial_score = score_panel(\@{$panel_entries{$panel->id}}, \%entry_school);
+
+				next unless $initial_score > 0;
+
+				foreach my $entry (@{$panel_entries{$panel->id}}) { 
+		
+					my @test = @{$panel_entries{$panel->id}};
+
+					my $index = 0;
+					$index++ until $test[$index] == $entry; 
+					splice(@test, $index, 1);
+
+					my $test_score = score_panel(\@test, \%entry_school);
+
+					my $entry_obj = Tab::Entry->retrieve($entry);
+
+					if ($test_score < $initial_score) { 
+					
+						my $swap_seed_dist = 99;
+						my $swap_tb_dist = 99;
+						my $swap_entry;
+						my $swap_panel;
+						my $swap_score = -99;
+
+						foreach my $other (@use_panels) { 
+					
+							next if $other->id == $panel->id;			   			# Can't switch to the same panel
+
+							my @other_panel = @{$panel_entries{$other->id}};		# Find the other panel for scoring
+							my $other_score = score_panel(\@other_panel, \%entry_school);
+
+							push (@other_panel, $entry);					  		# Put me into this panel for testing
+	
+							foreach my $other_entry (@{$panel_entries{$other->id}}) { 
+
+								my $seed_dist = abs($entry_seed{$other_entry} - $entry_seed{$entry});
+								my $tb_dist = abs($entry_tb{$other_entry} - $entry_tb{$entry});
+
+								next if ($seed_dist > 2 && $method eq "snake_school");
+								next if ($tb_dist > 0 && $method eq "snake_school_rank"); 
+								
+								$index = 0;								  		# Remove swap candidate from the panel
+								$index++ until $other_panel[$index] == $other_entry;
+								splice(@other_panel, $index, 1);
+
+								push (@test, $other_entry);
+								my $new_initial_score = score_panel(\@test, \%entry_school);
+								my $new_other_score = score_panel(\@other_panel, \%entry_school);
+
+								my $diff = ($other_score + $initial_score) - ( $new_other_score + $new_initial_score);
+
+								if ( $diff > 0 && $diff > $swap_score) { 
+
+									$swap_entry = $other_entry;
+									$swap_score = $diff;
+									$swap_seed_dist = $seed_dist;
+									$swap_tb_dist = $tb_dist;
+									$swap_panel = $other->id;
+
+								}
+
+								if ( ($diff > 0 && $diff == $swap_score && $seed_dist < $swap_seed_dist && ($method eq "snake_school" || $method eq "ky_semis_snake")) 
+								|| 	 ($diff > 0 && $diff == $swap_score && $tb_dist < $swap_tb_dist && $method eq "snake_school_rank") ) { 
+
+									$swap_entry = $other_entry;
+									$swap_score = $new_other_score;
+									$swap_seed_dist = $seed_dist;
+									$swap_tb_dist = $tb_dist;
+									$swap_panel = $other->id;
+
+								}
+
+								# Reset the table
+
+								if ( grep( /^$other_entry/, @test ) ) { 
+									$index = 0;								  	
+									$index++ until $test[$index] == $other_entry;
+									splice(@test, $index, 1);
+								}
+
+								push (@other_panel, $other_entry);
+
+							}
+
+							if ( grep( /^$entry/, @other_panel ) ) { 
+								$index = 0;								  
+								$index++ until $other_panel[$index] == $entry;
+								splice(@other_panel, $index, 1);
+							}
+
+						}
+
+						if ($swap_entry) {
+									
+							my @panel2 = @{$panel_entries{$swap_panel}};
+							my @panel1 = @{$panel_entries{$panel->id}};
+
+							push (@panel1, $swap_entry);
+
+							my $swapdex = 0;
+							$swapdex++ until $panel1[$swapdex] == $entry;
+							splice(@panel1, $swapdex, 1);
+
+							$swapdex = 0;
+							$swapdex++ until $panel2[$swapdex] == $swap_entry;
+							splice(@panel2, $swapdex, 1);
+
+							push (@panel2, $entry);
+
+							@{$panel_entries{$panel->id}} = @panel1;
+							@{$panel_entries{$swap_panel}} = @panel2;
+
+							$initial_score = score_panel(\@panel1, \%entry_school);
+
+						}
+					}
+				}
+			}
+		}
+	}	
+
+	my @other_ballots = $m->comp("/funclib/other_ballots.mas", round => $into);
+	my %total_positions_by_entry = ();
+	my %positions_by_entry = ();
+
+	foreach my $ob (@other_ballots) {
+		next unless $ob->entry;
+		my $entry = $ob->entry->id;
+		$total_positions_by_entry{$entry} += $ob->speakerorder;
+		$positions_by_entry{$entry."-".$ob->speakerorder}++;
+	}
+
+	#Set speaker order
+	foreach my $key (keys %panel_entries) { 
+
+		my @entries = @{$panel_entries{$key}};
+		@entries = shuffle(@entries);
+		@entries = sort {$total_positions_by_entry{$b} <=> $total_positions_by_entry{$a}} @entries;
+
+		my $size_of_panel = scalar @entries;
+
+		my $moved = 1;
+
+		foreach (1 .. 10) {
+
+			next unless $moved;
+			undef $moved;
+			my $position;
+
+			unless ($ncfl) { 
+				foreach my $entry (@entries) {
+
+					$position++;
+
+					if ($positions_by_entry{$entry."-".$position}) {
+
+						#Remove from place in line
+						my $speakdex = 0;
+						$speakdex++ until $entries[$speakdex] == $entry;
+						splice(@entries, $speakdex, 1);
+
+						#Find a new home
+						my $place = $position;
+						while ($place == $position) {
+							$place = int(rand($size_of_panel));
+						}
+
+						$place--;
+						$place = 1 if $place < 0;
+						splice(@entries,($place - 1),0,$entry);
+						$moved++;
+					}
+				}
+			}
+		}
+
+		@{$panel_entries{$key}} = @entries;
+
+	}	
+
+	foreach my $panel (@use_panels) { 
+
+		my @entries = @{$panel_entries{$panel->id}};
+
+		my @judges = $m->comp("/funclib/panel_judges.mas", panel => $panel);
+
+		foreach my $ballot ($panel->ballots) {
+			$ballot->delete;
+		}
+
+		if (@judges) { 
+
+			foreach my $judge (@judges) {
+
+				my $position;
+
+				foreach my $entry (@entries) {
+
+					$position++;
+
+					next unless $entry;
+					my $ballot = Tab::Ballot->create({
+						panel        => $panel->id,
+						judge        => $judge->id,
+						entry        => $entry,
+						speakerorder => $position
+					})
+
+				}
+
+			}
+
+		} else { 
+
+			my $position;
+
+			foreach my $entry (@entries) {
+				$position++;
+				next unless $entry;
+				my $ballot = Tab::Ballot->create({
+					panel        => $panel->id,
+					judge        => 0,
+					entry        => $entry,
+					speakerorder => $position
+				})
+
+			}
+		}
+	}
+
+	my $msg = "Elim round paneled";
+	$m->redirect("/panel/schemat/show.mhtml?round_id=".$into->id."&msg=$msg");
+
+	sub score_panel {
+		my ($panref, $schref) = @_;
+		my $score = 0;
+		foreach my $entry (@$panref) { 
+			foreach my $other (@$panref) { 
+				next unless $other > $entry;
+				$score++  if ${ $schref }{$entry} == ${ $schref }{$other};
+			}
+		}
+		return $score;
+	}
+
+</%init>

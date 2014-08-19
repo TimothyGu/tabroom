@@ -1,0 +1,45 @@
+<%args>
+	$group_id
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	my $start_done;
+
+	foreach my $qual ($group->rating_tiers( type => "mpj" )) { 
+
+		my $start = $ARGS{$qual->id."_start"};
+		undef $start if $start_done;
+		$start_done++ if $start;
+
+		$qual->name($ARGS{$qual->id."_name"});
+		$qual->max($ARGS{$qual->id."_max"});
+		$qual->min($ARGS{$qual->id."_min"});
+		$qual->start($start);
+
+		$qual->strike($ARGS{$qual->id."_strike"});
+		$qual->conflict($ARGS{$qual->id."_conflict"});
+		$qual->update;
+
+	}
+
+	if ( $ARGS{"new_name"} ) { 
+
+		my $qual = Tab::RatingTier->create({
+			name 		=> $ARGS{"new_name"},
+			max 		=> $ARGS{"new_max"},
+			min 		=> $ARGS{"new_min"},
+			strike 		=> $ARGS{"new_strike"},
+			start 		=> $ARGS{"new_start"},
+			conflict 	=> $ARGS{"new_conflict"},
+			judge_group => $group_id,
+			type 		=> "mpj"
+		});
+
+	}
+
+	my $msg = "MPJ/Community ratings are saved";
+	$m->redirect("/setup/judges/tiers.mhtml?group_id=$group_id&msg=$msg");
+	
+</%init>

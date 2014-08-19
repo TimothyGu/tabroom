@@ -1,0 +1,69 @@
+<%args>
+	$tourn
+	$account
+	$session
+	$err => undef
+</%args>
+<%init>
+
+
+</%init>
+
+	<& "menu.mas", tourn => $tourn, whoami => "mutual_strikes" &>
+
+	<div class="left huge">
+
+		<h2>Strike two schools' judges against each other</h2>
+	
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<tr>
+
+				<td align="center">
+
+					<h4>School 1</h4>
+
+					<form action="mutual_strikes_save.mhtml" method="post">
+					<select name="school_1" size="10">
+
+%					foreach my $school (sort {$a->name cmp $b->name} $tourn->schools) { 
+
+						<option value="<% $school->id %>">
+							<% $school->name %>
+						</option>
+
+%					}
+					
+					</select>
+					
+				</td> 
+
+				<td align="center">
+				
+					<h4>School 2</h4>
+
+					<select name="school_2" size="10">
+
+%					foreach my $school (sort {$a->name cmp $b->name} $tourn->schools) { 
+						<option value="<% $school->id %>">
+							<% $school->name %>
+						</option>
+%					}
+					
+					</select>
+					
+				</td>
+
+			</tr>
+			
+			<tr class="liblrow">
+				<td colspan="2" align="right">
+					<input  type="submit" value="    Block Schools  ">
+					</form>
+				</td>
+			<tr>
+
+		</table>
+
+	</div>
+

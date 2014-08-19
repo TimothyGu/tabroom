@@ -1,0 +1,112 @@
+<%args>
+	$tourn
+	$group_id
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+	my @requests = $group->hires;
+ 	@requests = sort {$a->request_made->epoch <=> $b->request_made->epoch} @requests;
+
+	my $uncovered_fee = $group->setting("uncovered_entry_fee");
+	my $judge_per = $group->setting("judge_per");
+	my $rounds_per = $group->setting("rounds_per");
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, group => $group &>
+
+	<div class="left huge">
+				
+		<h3><% $group->abbr %> judging requests</h3>
+
+		<table cellpadding="5" cellspacing="1" width="100%">
+
+			<tr class="liblrow">
+
+				<th class="smaller">
+					School
+				</th>
+
+				<th class="smaller">
+					Request Made
+				</th>
+
+				<th class="smaller">
+					# <% ($rounds_per) ? "Rounds Requested" : ($uncovered_fee) ? "Entries Covered" : "Judges Reqested" %>
+				</th>
+
+				<th class="smaller">
+					# Accepted
+					<form action="hire_requests_save.mhtml" method="post"> 
+					<input type="hidden" name="group_id" value="<% $group->id %>">
+				</th>
+
+			</tr>
+
+%			my $switch;
+
+%			foreach my $req (@requests) {
+
+%				my $day = $req->request_made->set_time_zone($tourn->tz);
+
+%					if ($req->covers > $req->accepted) { 
+					 	<tr class="<% ($switch++ % 2) ? "redrow" : "lirdrow" %>">
+%					} elsif ($req->covers < $req->accepted) { 
+		 				<tr class="<% ($switch++ % 2) ? "yellowrow" : "yellow" %>">
+%					} else { 
+		 				<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+%					}
+
+					<td>
+						<a class="white" href="/register/index.mhtml?school_id=<% $req->school->id %>">
+							<% $req->school->name %>
+						</a>
+					</td>
+	
+					<td class="smaller">
+						<% &Tab::niceshortdt($day->set_time_zone($tz)) %>
+					</td>
+
+%					if ($judge_per) { 
+	
+						<td class="centeralign">
+							<input 	type="number" min=0 max=99 name="<% $req->id %>_covers" size="4" value="<% ($uncovered_fee) ? $req->covers : $req->covers / $judge_per %>">
+						</td>
+	
+						<td class="centeralign">
+							<input 	type="number" min=0 max=99 name="<% $req->id %>_accepted" size="4" value="<% ($uncovered_fee) ? $req->accepted : $req->accepted / $judge_per %>">
+						</td>
+
+%					} elsif ($rounds_per) { 
+
+						<td class="centeralign">
+							<input type="number" min=0 max=99 name="<% $req->id %>_rounds" size="4" value="<% $req->rounds %>">
+						</td>
+	
+						<td class="centeralign">
+							<input type="number" min=0 max=99 name="<% $req->id %>_rounds_accepted" size="4" value="<% $req->rounds_accepted %>">
+						</td>
+
+%					}
+
+				</tr>
+
+%			}
+
+			<tr class="liblrow">
+			
+				<td colspan="5" align="right">
+					<input type="submit"  value="Save Changes and Notify Coaches">
+					</form>
+				</td>
+
+			</tr>
+
+		</table>
+
+	</div>

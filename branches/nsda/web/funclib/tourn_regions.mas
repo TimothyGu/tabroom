@@ -1,0 +1,42 @@
+<%args>
+	$tourn
+	$sort_by => undef
+</%args>
+<%perl>
+
+	my $sort = "order by region.code, region.name";
+	$sort = "order by region.name, region.code" if $sort_by eq "name";
+
+	Tab::Region->set_sql( by_tourn => "
+		select distinct region.*, 
+		(select count(school.id) 
+			from school
+			where school.registered = 0
+			and school.region = region.id
+			and school.tourn = tourn.id
+		) as unregistered,
+		( select count(school.id)
+			from school
+			where school.registered = 1
+			and school.region = region.id
+			and school.tourn = tourn.id
+			) as registered
+		from region, school, tourn
+		where region.id = school.region
+		and school.tourn = tourn.id
+		and tourn.id = ? 
+		$sort ");
+	
+	my @regions = Tab::Region->search_by_tourn($tourn->id);
+
+	push @regions, $tourn->regions;
+
+	my %seen = (); 
+	@regions = grep { ! $seen{$_->id} ++ } @regions;
+
+	@regions = sort {length($a->code) <=> length($b->code)} @regions;
+
+	return @regions;
+
+</%perl>
+

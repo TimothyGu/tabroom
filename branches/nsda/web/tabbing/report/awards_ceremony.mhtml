@@ -1,0 +1,409 @@
+<%args>
+	$tourn
+	$session
+	$event_id => undef
+	$by_round => undef
+</%args>
+<%init>
+
+	$m->abort unless $event_id;
+	
+	if ($by_round) { 
+		$m->redirect("reading.mhtml?event_id=$event_id");
+	}
+
+	my $event = Tab::Event->retrieve($event_id) if $event_id && $event_id ne "all";
+	my %school_name = map {$_->id => $_->short_name} $tourn->schools;
+
+	my $switch = 1;
+    my $now = DateTime->now;    
+    $now->set_time_zone($tourn->tz);
+
+	my $name = $tourn->name if $event_id eq "all";
+    $name = $event->name if $event && not defined $name;
+    $name =~ s/[\W_]//g;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my @events;
+	push @events, $event if $event;
+	@events = sort {$a->name cmp $b->name} $tourn->events if $event_id eq "all";
+
+    my $filename = "Awards-$name-".$session->id;
+    my $filepath = $Tab::file_root."tmp/".$filename;
+    `rm -f $filepath.*`; 
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1, array => "2.1" );
+
+    open (TEXOUT, ">>$filepath.tex");
+
+	my $tabular = "\\begin{tabular}{p{.35in}p{1.5in}p{2.5in}p{2in}}\n";
+
+	my $not_first_event;
+
+	foreach my $event (@events) { 
+
+		my $novice++ if $event->setting("top_novice") ne "none";
+		my $honmen++ if $event->setting("honorable_mentions");
+
+		print TEXOUT "\\newpage\n" if $not_first_event++;
+
+		my @rounds = sort {$b->name <=> $a->name} $m->comp("/funclib/event_rounds.mas", event => $event, done => "yes");
+		my $top_novice = $m->comp("/tabbing/results/top_novice.mas", event => $event) if $novice;
+
+		my %student_phonetic = map {$_->id => $_->phonetic} $m->comp("/funclib/event_students.mas", event => $event);
+
+		my $final;
+		my @elims;
+		my $last_prelim;
+
+		foreach my $round (@rounds) { 
+			$final = $round if $round->type eq "final";
+			push (@elims, $round) if $round->type eq "elim";
+			$last_prelim = $round if $round->type ne "elim" && $round->type ne "final" && not defined $last_prelim;
+		}
+
+		my %used;
+
+		Tab::Panel->set_sql( empties => " 
+			select distinct panel.id
+			from ballot, panel, round, entry
+			where round.event = ? 
+			and panel.round = round.id
+			and ballot.panel = panel.id
+			and ballot.entry = entry.id
+			and entry.dropped != 1
+			and entry.dq != 1
+			and ballot.audit != 1
+		");
+
+		my @empties = Tab::Panel->search_empties($event->id);
+
+		print TEXOUT "\\Large {\\bf ". Tab::texify($tourn->name)." } \\hfill {\\bf ".Tab::texify($event->name)." } \n";
+		print TEXOUT "\\nopagebreak[3]\n";
+		print TEXOUT "\\medskip\n";
+		print TEXOUT "\\newline\n";
+		print TEXOUT "\\normalsize\n";
+		print TEXOUT "\\emph{.\\hfill WARNING: There are still ".scalar @empties." unentered ballots in this event}\n\\newline\n\\emph{.\\hfill Results may be inaccurate}\n\\newline" if @empties;
+
+		my $done;
+
+		my %id_entry = map {$_->id => $_} $event->entries;
+
+		foreach my $round ($final, @elims) { 
+
+			next unless $round;
+
+			my $type = $round->type;
+			my $label = substr($round->label, 0, 3);
+
+			my ($entries_ref, $tbs_ref, $desc_ref, $noshow_ref) = $m->comp("/tabbing/results/order_entries.mas", round => $round);
+
+			unless ($done) { 
+				print TEXOUT "\\nopagebreak[3]\n";
+				print TEXOUT $tabular;
+				print TEXOUT "\\rowcolor[rgb]{1,.95,.66}\[5.5pt\]\[5.5pt\]\n";
+				print TEXOUT " {\\bf Plc} & {\\bf Name } & {\\bf School} & \\\\ \n ";
+				print TEXOUT "\n \\end{tabular}\n";
+				print TEXOUT "\\newline\n";
+			}
+
+			$done++;
+
+			foreach my $key (sort {$a <=> $b} keys %{$entries_ref}) {
+				
+				my $tie++ if scalar @{${$entries_ref}{$key}} > 1;
+	
+				foreach my $entry_id (@{${$entries_ref}{$key}}) { 
+					
+					next if $used{$entry_id}++;
+					my $entry = $id_entry{$entry_id};
+
+					my @students = $entry->students;
+
+					print TEXOUT "\\nopagebreak[3]\n";
+					print TEXOUT $tabular;
+					print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+					print TEXOUT Tab::texify($key) if $type eq "final";
+					print TEXOUT Tab::texify($label) if $type eq "elim";
+					print TEXOUT Tab::texify("-T") if $tie && $type eq "final";
+
+					if ($top_novice && $entry_id == $top_novice) { 
+						print TEXOUT "\n \\newline \\scriptsize ".Tab::texify(" TopNov");
+						undef $top_novice;
+					}
+
+					print TEXOUT " & \\normalsize ". Tab::texify($entry->name);
+
+					if (scalar @students == 1) { 
+						my $student = $students[0];
+						unless ($entry->name eq $student->first." ".$student->last) { ;
+							print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+							print TEXOUT Tab::texify($student->first." ".$student->last) 
+						}
+					} else { 
+						foreach my $student (@students) { 
+							print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+							print TEXOUT Tab::texify($student->first." ".$student->last) 
+						}
+					}
+
+					print TEXOUT " & \\normalsize ".Tab::texify($school_name{$entry->school->id});
+					print TEXOUT " & ";
+					print TEXOUT Tab::texify($entry->school->region->name) if $ncfl;
+
+					my $notfirst;
+					foreach my $student (@students) { 
+						print TEXOUT "\n\\newline\n" if $notfirst && $student->phonetic;
+						print TEXOUT Tab::texify("(".$student->phonetic.")") if $student->phonetic;
+						$notfirst++ if $student->phonetic;
+					}
+
+					print TEXOUT "\n \\end{tabular}\n";
+					print TEXOUT "\\newline\n";
+
+				}
+			}
+
+		}
+
+		unless ($final || @elims) { 
+
+			my @rounds = sort {$b->name <=> $a->name} $event->rounds;
+			my $round = shift @rounds;
+
+			my ($entries_ref, $tbs_ref, $desc_ref, $noshow_ref) = $m->comp("/tabbing/results/order_entries.mas", round => $round);
+
+			unless ($done) { 
+				print TEXOUT "\\nopagebreak[3]\n";
+				print TEXOUT $tabular;
+				print TEXOUT "\\rowcolor[rgb]{1,.95,.66}\[5.5pt\]\[5.5pt\]\n";
+				print TEXOUT " {\\bf Plc} & {\\bf Name } & {\\bf School} & \\\\ \n ";
+				print TEXOUT "\n \\end{tabular}\n";
+				print TEXOUT "\\newline\n";
+			}
+
+			$done++;
+
+			foreach my $key (sort {$a <=> $b} keys %{$entries_ref}) {
+				
+				my $tie++ if scalar @{${$entries_ref}{$key}} > 1;
+	
+				foreach my $entry_id (@{${$entries_ref}{$key}}) { 
+
+					next if $used{$entry_id}++;
+					my $entry = $id_entry{$entry_id};
+
+					my @students = $entry->students;
+
+					print TEXOUT "\\nopagebreak[3]\n";
+					print TEXOUT $tabular;
+					print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+					print TEXOUT Tab::texify($key);
+					print TEXOUT Tab::texify("-T") if $tie;
+
+					if ($top_novice && $entry_id == $top_novice) { 
+						print TEXOUT " \\scriptsize ".Tab::texify(" TopNov");
+						undef $top_novice;
+					}
+
+					print TEXOUT " & \\normalsize ". Tab::texify($entry->name);
+
+					if (scalar @students == 1) { 
+						my $student = $students[0];
+						unless ($entry->name eq $student->first." ".$student->last) { ;
+							print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+							print TEXOUT Tab::texify($student->first." ".$student->last) 
+						}
+					} else { 
+						foreach my $student (@students) { 
+							print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+							print TEXOUT Tab::texify($student->first." ".$student->last) 
+						}
+					}
+					print TEXOUT " & \\normalsize ".Tab::texify($school_name{$entry->school->id});
+					print TEXOUT " & ";
+					print TEXOUT Tab::texify($entry->school->region->name) if $ncfl;
+
+					my $notfirst;
+					foreach my $student (@students) { 
+						print TEXOUT "\\newline\n" if $notfirst && $student->phonetic;
+						print TEXOUT Tab::texify("(".$student->phonetic.")")."\n" if $student->phonetic;
+						$notfirst++ if $student->phonetic;
+					}
+
+					print TEXOUT "\n \\end{tabular}\n";
+					print TEXOUT "\\newline\n";
+
+				}
+			}
+
+		}
+
+		if ($honmen && $last_prelim) { 
+
+			my ($entries_ref, $tbs_ref, $desc_ref, $noshow_ref) = $m->comp("/tabbing/results/order_entries.mas", round => $last_prelim);
+
+			my $cume;
+
+			my @tb_keys = sort {$a <=> $b} keys %{$desc_ref};
+			my $first_key = shift @tb_keys;
+			my $highest_cume;
+
+			foreach my $key (sort {$a <=> $b} keys %{$entries_ref}) {
+				foreach my $entry_id (@{${$entries_ref}{$key}}) { 
+					
+					if ($used{$entry_id}) { 
+						$highest_cume = ${$tbs_ref}{$entry_id."-".$first_key} if ${$tbs_ref}{$entry_id."-".$first_key} > $highest_cume;
+					}
+				}
+			}
+
+			my @honmens;
+
+			foreach my $key (sort {$a <=> $b} keys %{$entries_ref}) {
+				foreach my $entry_id (@{${$entries_ref}{$key}}) { 
+					push @honmens, $entry_id if ${$tbs_ref}{$entry_id."-".$first_key} == $highest_cume && not defined $used{$entry_id};
+				}
+			}
+
+			foreach my $entry_id (@honmens) { 
+
+				next if $used{$entry_id}++;
+				my $entry = $id_entry{$entry_id};
+
+				my @students = $entry->students;
+
+				print TEXOUT "\\nopagebreak[3]\n";
+				print TEXOUT $tabular;
+				print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+				print TEXOUT Tab::texify("HM ");
+
+				if ($top_novice && $entry_id == $top_novice) { 
+					print TEXOUT " \\scriptsize ".Tab::texify(" TopNov");
+					undef $top_novice;
+				}
+
+				print TEXOUT " & \\normalsize ". Tab::texify($entry->name);
+
+				if (scalar @students == 1) { 
+					my $student = $students[0];
+					unless ($entry->name eq $student->first." ".$student->last) { ;
+						print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+						print TEXOUT Tab::texify($student->first." ".$student->last) 
+					}
+				} else { 
+					foreach my $student (@students) { 
+						print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+						print TEXOUT Tab::texify($student->first." ".$student->last) 
+					}
+				}
+
+				print TEXOUT " & \\normalsize ".Tab::texify($school_name{$entry->school->id});
+				print TEXOUT " & ";
+				print TEXOUT Tab::texify($entry->school->region->name) if $ncfl;
+
+				my $notfirst;
+				foreach my $student (@students) { 
+					print TEXOUT "\\newline\n" if $notfirst;
+					print TEXOUT "\\small ".Tab::texify("(".$student->phonetic.")")."\n" if $student->phonetic;
+					$notfirst++ if $student->phonetic;
+				}
+
+				print TEXOUT "\\\\ \n";
+				print TEXOUT "\n \\end{tabular}\n";
+				print TEXOUT "\\newline\n";
+
+			}
+
+		}
+
+		if ($top_novice) { 
+
+			next if $used{$top_novice}++;
+
+			my $tn = $id_entry{$top_novice};
+			my @students = $tn->students;
+
+			print TEXOUT "\\nopagebreak[3]\n";
+			print TEXOUT $tabular;
+			print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+			print TEXOUT " \\scriptsize ".Tab::texify("TopNov");
+			print TEXOUT " & \\normalsize ". Tab::texify($tn->name);
+
+			if (scalar @students == 1) { 
+				my $student = $students[0];
+				unless ($tn->name eq $student->first." ".$student->last) { ;
+					print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+					print TEXOUT Tab::texify($student->first." ".$student->last) 
+				}
+			} else { 
+				foreach my $student (@students) { 
+					print TEXOUT "\\newline \\footnotesize \\hspace*{.1in} ";
+					print TEXOUT Tab::texify($student->first." ".$student->last) 
+				}
+			}
+
+			print TEXOUT " & \\normalsize ".Tab::texify($school_name{$tn->school->id});
+			print TEXOUT " & ";
+			print TEXOUT Tab::texify($tn->school->region->name) if $ncfl;
+
+			my $notfirst;
+			foreach my $student (@students) { 
+				print TEXOUT "\\newline\n" if $notfirst;
+				print TEXOUT "\\small ".Tab::texify("(".$student->phonetic.")")."\n" if $student->phonetic;
+				$notfirst++ if $student->phonetic;
+			}
+
+			print TEXOUT "\n \\end{tabular}\n";
+			print TEXOUT "\\newline\n";
+
+		}
+
+		print TEXOUT "\\bigskip\n";
+		print TEXOUT "\\newline\n";
+
+		if ($event->setting("speaker_tbset")) { 
+
+			 my ($students_ref, $tbs_ref, $desc_ref, $noshow_ref, $meh, $long_desc_ref, $novice_ref, $name_ref, $code_ref, $school_ref) = $m->comp("/tabbing/results/order_speakers.mas", round => $last_prelim);
+
+			print TEXOUT "\\newpage\n" if $not_first_event++;
+			print TEXOUT "{\\bf \\Large Top Speakers \\hfill ".Tab::texify($event->name)." } \n";
+			print TEXOUT "\\nopagebreak[3]\n";
+			print TEXOUT "\\medskip\n";
+			print TEXOUT "\\newline\n";
+			print TEXOUT "\\normalsize\n";
+
+			foreach my $key (sort {$a <=> $b} keys %{$students_ref}) {
+
+				my $tie++ if scalar @{${$students_ref}{$key}} > 1;
+				next if $key > 24;
+
+				foreach my $student_id (@{${$students_ref}{$key}}) {
+
+					print TEXOUT "\\nopagebreak[3]\n";
+					print TEXOUT $tabular;
+					print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+
+					print TEXOUT $key;
+					print TEXOUT " -T" if $tie;
+					print TEXOUT " & ";
+					print TEXOUT Tab::texify(${$name_ref}{$student_id})." & ";
+					print TEXOUT Tab::texify($school_name{${$school_ref}{$student_id}})." & ";
+					print TEXOUT "\\small ".Tab::texify($student_phonetic{$student_id})."\n";
+					print TEXOUT "\n \\end{tabular}\n";
+					print TEXOUT "\\newline\n";
+				}
+			}
+		}
+	}
+
+	close TEXOUT;
+
+    $m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+</%init>
+

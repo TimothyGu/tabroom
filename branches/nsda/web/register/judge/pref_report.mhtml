@@ -1,0 +1,134 @@
+<%args>
+	$group_id
+	$tourn
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+	my $rounds_per = $group->setting("rounds_per");
+
+	my @judges = $group->judges;
+	my %judge_prefs = $m->comp("/funclib/judges_by_pref.mas", group => $group);
+
+	@judges = sort {$judge_prefs{$b}{"stdv"} <=> $judge_prefs{$a}{"stdv"} } @judges;
+	@judges = sort {$judge_prefs{$a}{"avg"} <=> $judge_prefs{$b}{"avg"} } @judges;
+
+	my @events = Tab::Event->search( judge_group => $group_id);
+	my $round = $m->comp("/funclib/event_current_round.mas", event => $events[0] );
+
+	my $judge_use_ref = $m->comp("/funclib/judge_use.mas", round_id => $round->id) if $round;			
+	my %judge_use = %{$judge_use_ref} if $round;
+
+	my $divtot; my $divavg; my $div_rds_oblig; my $div_rds_judged;
+	my $nondivtot; my $nondivavg; my $non_div_rds_oblig; my $non_div_rds_judged;	
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "prefs", group => $group &>
+
+	<div class="left huge">
+
+		<h4><% $group->abbr %> pref averages</h4>
+	
+		<& /funclib/tablesorter.mas, table => "sortme" &>
+	
+%		my $switch;
+
+		<table id="sortme">
+
+			<thead>
+
+				<tr class="yellowrow">
+
+					<th>
+						First
+					</th>
+
+					<th>
+						Last
+					</th>
+
+%					if ($rounds_per) { 
+						<th>
+							Rounds
+						</th>
+%					}
+
+					<th>
+						Avg Pref
+					</th>
+
+					<th>
+						StDev
+					</th>
+
+				</tr>
+
+			</thead>
+
+			<tbody>
+
+%			foreach my $judge (@judges) { 
+
+%				next unless $judge_prefs{$judge}{"avg"};
+
+				<tr>
+
+					<td>
+						<% $judge->first %>
+					</td>
+
+					<td>
+						<% $judge->last %>
+					</td>
+
+%					if ($round && $rounds_per) { 
+						<td>
+							<% $judge_use{$judge->id}{'left'} %>/<%($judge_use{$judge->id}{'judged_already'} + $judge_use{$judge->id}{'will_judge'}) %>/<%$judge_use{$judge->id}{'oblig'}%>
+							
+						</td>
+%					}
+
+					<td>
+						<% $judge_prefs{$judge}{"avg"} %>
+					</td>
+
+					<td>
+						<% $judge_prefs{$judge}{"stdv"} %>
+					</td>
+<%perl>
+					if ($judge->diverse) {
+						$divtot++;
+						$divavg += $judge_prefs{$judge}{"avg"};
+						$div_rds_oblig += $judge_use{$judge->id}{'oblig'};
+						$div_rds_judged += $judge_use{$judge->id}{'judged_already'} + $judge_use{$judge->id}{'will_judge'};
+					} else {
+						$nondivtot++;
+						$nondivavg += $judge_prefs{$judge}{"avg"};
+						$non_div_rds_oblig += $judge_use{$judge->id}{'oblig'};
+						$non_div_rds_judged += $judge_use{$judge->id}{'judged_already'} + $judge_use{$judge->id}{'will_judge'};
+					}
+</%perl>
+				</tr>
+
+%			} #end of foreach judge
+
+			</tbody>
+
+		</table>
+
+<%perl>
+	if ($divtot>0 and $div_rds_oblig>0) {
+		print "Total diverse judges:$divtot<br>";
+		print "Avg pref of diverse judges:".sprintf("%.1f", $divavg/$divtot)."<br>";	
+		print "Diverse oblig/judged/pct:".$div_rds_oblig."/".$div_rds_judged." ".sprintf("%2d%%\n", ($div_rds_judged/$div_rds_oblig)*100)."<br><br>";
+		print "Total non-diverse judges:$nondivtot<br>";
+		print "Avg pref of non-diverse judges:".sprintf("%.1f",$nondivavg/$nondivtot)."<br>";
+		print "Non-diverse oblig/judged/pct:".$non_div_rds_oblig."/".$non_div_rds_judged." ".sprintf("%2d%%\n", ($non_div_rds_judged/$non_div_rds_oblig)*100)."<br>";
+	}
+</%perl>
+	
+	</div>
+

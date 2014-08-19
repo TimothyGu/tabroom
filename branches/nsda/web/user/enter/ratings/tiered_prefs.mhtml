@@ -1,0 +1,469 @@
+<%args>
+	$school
+	$group_id => undef 
+	$entry_id => undef
+	$prefs => undef
+	$account
+</%args>
+<%init>
+
+	my $group = Tab::JudgeGroup->retrieve($group_id) if $group_id;
+	my $tourn = $school->tourn;
+	my %ratings_by_judge = ();
+	my %conflicts_by_id = ();
+
+	use POSIX;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+	my $strike_end = $group->setting("strike_end");
+	$strike_end->set_time_zone($tz) if $strike_end;
+	my $now = DateTime->now;
+	my $read_only++ if $strike_end < $now;
+
+	my $strike_start = $group->setting("strike_start");
+	$strike_start->set_time_zone($tz) if $strike_start;
+	$read_only++ if $strike_start > $now;
+
+	my $pref_style = $group->setting("prefs");
+
+	my $entry = Tab::Entry->retrieve($entry_id) if $entry_id;
+	$group = $entry->event->judge_group unless $group;
+
+	my $switch;
+	
+	my %total_by_tier = ();
+
+    my %rating_name = (); 
+    foreach my $tier ($group->rating_tiers) { 
+        $rating_name{$tier->id} = $tier->name;
+    }   
+    my %coach_rating_by_judge = (); 
+    foreach my $rating ($m->comp("/funclib/group_ratings.mas", group => $group, type => "coach")) { 
+        $coach_rating_by_judge{$rating->judge->id} = $rating_name{$rating->rating_tier->id} if $rating->judge && $rating->rating_tier;
+    }   
+
+	my @judges = Tab::Judge->search( judge_group => $group->id, active => 1 );
+
+	my $has_max;
+	my $has_min;
+
+    my $freebieref = $m->comp("/funclib/free_strikes.mas", group => $group); 
+    my %freebie = %{$freebieref}; 
+
+	my $no_frees = $group->setting("free_strikes_no_pref");
+
+	my @event_struck_judges = $m->comp("/funclib/event_strike_judges.mas", event => $entry->event) if $entry;
+	my %event_struck = map {$_->id => 1} @event_struck_judges;
+
+	my $rounds_per++ if $group->setting("prefs") eq "tiered_round";
+
+</%init>
+
+
+	<div class="left huge">
+
+%		unless ($prefs) {
+			<h2><% $school->short_name %> at the <% $tourn->name %></h2>
+			<& /user/enter/menu.mas, school => $school, whoami => "ratings" &>
+%		}
+
+%		unless ($entry) { 
+
+			<h3>Judge Ratings in <% $group->name %> </h3>
+			<p>Choose a competitor to continue</p>
+
+%		} else { 
+
+<%perl>
+			my @tiers = Tab::RatingTier->search( 	judge_group => $group->id, type => "mpj" );
+			@tiers = sort {$a->name cmp $b->name} @tiers;
+
+			my %tiername_by_id = ();
+
+			foreach (@tiers) { 
+				$tiername_by_id{$_->id} = $_->name; 
+				$has_max++ if $_->max;
+				$has_min++ if $_->min;
+			}
+
+			@judges = Tab::Judge->search( judge_group => $group->id, active => 1 );
+
+			@judges = sort {$a->last cmp $b->last} @judges;
+			@judges = sort {$a->school->short_name cmp $b->school->short_name} @judges;
+
+			my @conflicts = $m->comp("/funclib/entry_conflicts.mas", entry => $entry);
+			my @school_conflicts = $m->comp("/funclib/school_conflicts.mas", school => $school);
+
+			foreach (@conflicts, @school_conflicts) { $conflicts_by_id{$_->judge->id} = $_; }
+
+			my @ratings = Tab::Rating->search( entry => $entry->id, type => "entry", ordinal => 0);
+
+			foreach my $rating (@ratings) {
+				$ratings_by_judge{$rating->judge->id} = $rating->rating_tier->id;
+			}
+
+
+			my %ordinal_by_judge = ();
+            my @ordinals = Tab::Rating->search( entry => $entry->id, type => "entry", rating_tier => 0); 
+
+            foreach my $ordinal (@ordinals) {
+                $ordinal_by_judge{$ordinal->judge->id} = $ordinal->ordinal if $ordinal;
+            }
+
+            @judges = sort { $ordinal_by_judge{$a->id} <=> $ordinal_by_judge{$b->id} } @judges;
+
+			@judges = sort { $tiername_by_id{$ratings_by_judge{$a}} cmp $tiername_by_id{$ratings_by_judge{$b}} } @judges;
+
+</%perl>
+		
+			<& /funclib/tablesorter.mas, table => "tiers", hover => "yes" &>
+
+			<div>
+				<span class="twothird">
+					<h4>Rate <% $group->abbr %> Judges for <% $entry->name %></h4>
+				</span>
+
+				<span class="third rightalign">
+					<a class="dkgreen centeralign" href="export_prefs.mhtml?entry_id=<% $entry_id %>&school_id=<% $school->id %>">
+						Export to Excel
+					</a>
+				</span>
+			</div>
+
+%			if ($tourn->id == 1518) { 
+
+				<p class="">
+					If you believe that you may be participating in the
+					octafinal round of the 2013 NDT, you should complete an
+					online elim selection sheet below.  You must select as
+					preferred at least 60 judges; rate them in category 1.  You
+					may strike no more than 30 judges.  Remaining judges should
+					be left in category 2.  This sheet must be completed by
+					6:00 PM on Sunday. 
+				</p>
+%			}
+
+%			if ($read_only && $now < $strike_start) { 
+				<p class="exwhite">Prefs open <% Tab::nicedt($strike_start) %> (Timezone: <% $tz %>)
+%			} elsif ($read_only) { 
+				<p class="exwhite">Pref deadline was <% Tab::nicedt($strike_end) %> (Timezone: <% $tz %>).  
+%			} elsif (%freebie) { 
+				<p class="exwhite ">Judges marked in green are free; they do not count against rating quotas</p>
+%			}
+
+			<div class="noscroll padno" style="margin-right: -10px; margin-left: -10px;">
+
+%			unless ($read_only) { 
+				<form action="tiered_prefs_save.mhtml" method="post">
+				<input type="hidden" name="entry_id" value="<% $entry->id %>">
+				<input type="hidden" name="school_id" value="<% $entry->school->id %>">
+				<input type="hidden" name="group_id" value="<% $group->id %>">
+%			} 
+
+			<table cellpadding="3" cellspacing="1" width="100%" id="tiers">
+
+				<thead>
+
+				<tr class="yellowrow">
+
+					<th class="smallish">
+						First
+					</th>
+
+					<th class="smallish">
+						Last
+					</th>
+
+%					if ($rounds_per) { 
+						<th class="smaller">
+							Rd
+						</th>
+%					}
+
+					<th class="smallish">
+						School
+					</th>
+
+%					if ($group->setting('coach_ratings')) { 
+	
+						<th class="smaller">
+							Ex
+						</th>
+%					}
+
+					<th class="smallish" style="width: 440px;">
+						Your Rating
+					</th>
+
+				</tr>
+
+				</thead>
+
+				<tbody>
+
+%				my $total;
+%				my $ratings;
+
+%				foreach my $judge (@judges) { 
+
+%					next if $judge->school->id == $entry->school->id;
+%					next if $conflicts_by_id{$judge->id};
+%					next if $event_struck{$judge->id};
+%					next if $no_frees && $freebie{$judge->id};
+%					my $paradigm = $judge->account->setting("paradigm") if $judge->account;
+
+%					$total++;
+
+					<tr class="<% $freebie{$judge->id} ? 'ligrnrow' : $switch++ % 2 ? 'odd' : 'even' %>">
+
+						<td class="smaller">
+%							if ($paradigm) { 
+								<a class="nospace white" href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>" target="_blank">
+%      	                   	} else { 
+%								my $last_name = $judge->last;
+%								my $first_name = $judge->first;
+%								$last_name =~ s/[^a-zA-Z]//g; 
+%								$first_name =~ s/[^a-zA-Z]//g; 
+    	         				<a class="nospace white" href="http://judgephilosophies.wikispaces.com/<% $last_name %>%2C+<% $first_name %>" target="_blank">
+%                  			}   
+								<% $judge->first %>
+							</a>
+						</td> 
+
+						<td class=" smaller ">
+%							if ($paradigm) { 
+	                   			<a class="nospace white" href="/index/paradigm.mhtml?judge_account_id=<% $judge->account->id %>" target="_blank">
+%      	                  	} else { 
+%								my $last_name = $judge->last;
+%								my $first_name = $judge->first;
+%								$last_name =~ s/[^a-zA-Z]//g; 
+%								$first_name =~ s/[^a-zA-Z]//g; 
+    	                 		<a class="white nospace" href="http://judgephilosophies.wikispaces.com/<% $last_name %>%2C+<% $first_name %>" target="_blank">
+%                          	}   
+								<% $judge->last %>
+							</a>
+						</td>
+
+%						if ($rounds_per) { 
+							<td class="smaller padno centeralign">
+								<% $judge->obligation + $judge->hired %>
+							</td>
+%                     	}   
+						
+						<td class="smaller">
+							<% ($judge->school && $judge->school->id) ? $judge->school->short_name : "Hire" %>
+						</td>
+
+%						if ($group->setting('coach_ratings')) { 
+							<td class="smallish padno centeralign">
+								<% $coach_rating_by_judge{$judge->id} %>
+							</td>
+%						}
+
+						<td class="smallish padno">
+
+							<span style="display: none;">
+%								foreach my $tier (@tiers) {
+									<% $tier->id == $ratings_by_judge{$judge->id} ? $tier->name : "" %>
+%								}
+							</span>
+
+%							if ($read_only) { 
+%								foreach my $tier (@tiers) {
+									<% $tier->id == $ratings_by_judge{$judge->id} ? $tier->name : "" %>
+%								}  
+%							}  else { 
+
+%								my $tier_val = ceil(410 / (scalar @tiers + 1));
+
+%								foreach my $tier (@tiers) {
+
+%									$ratings++ if $ratings_by_judge{$judge->id};
+
+%									if ($rounds_per) { 
+%										$total_by_tier{$tier->id} += $judge->obligation if ($tier->id == $ratings_by_judge{$judge->id}) && not defined $freebie{$judge->id};
+%										$total_by_tier{$tier->id} += $judge->hired if ($tier->id == $ratings_by_judge{$judge->id}) && not defined $freebie{$judge->id};
+%									} else { 
+%										$total_by_tier{$tier->id}++ if ($tier->id == $ratings_by_judge{$judge->id}) && not defined $freebie{$judge->id};
+%									} 
+
+									<label for="<% $tier->id."_".$judge->id %>">
+									<span style="width: <% $tier_val %>px;" class="inline hover">
+										<span class="third rightalign">
+											<input type="radio" name="<% $judge->id %>" class="<% $tier->id %>" style="margin: 1px;"
+%												if ($ratings_by_judge{$judge->id}) { 
+												<% $tier->id == $ratings_by_judge{$judge->id} ? "checked" : "" %>
+%												} else { 
+												<% $tier->start ? "checked" : "" %>
+%												} 
+
+											value="<% $tier->id %>" id="<% $tier->id."_".$judge->id %>">
+										</span>
+										<span class="twothird">
+											<% $tier->strike ? "S" : $tier->conflict ? "C" : $tier->name %>
+										</span>
+									</span>
+									</label>
+%								}
+%							} 
+
+						</td>
+
+					</tr>
+
+%				}
+
+				</tbody>
+
+			</table>
+
+			</div>
+
+%			unless ($read_only) { 
+				<span class="block liblrow rightalign">
+					<input type="submit" class="notfirst thin" value="Save Ratings">
+					</form>
+				</span>
+%			}
+
+%		}
+
+	</div>
+
+    <div class="right small">
+
+%		if ($group && $entry) { 
+
+			<div class="sidenote">
+	
+				<h4>Pref Tools</h4>
+
+                <a class="yellow block" href="export_prefs.mhtml?entry_id=<% $entry->id %>">
+                    Export Prefs to Excel
+                </a>
+
+<%perl>
+
+	        my $ratable_judges;
+
+    	    foreach my $judge (@judges) {
+    	        next if $judge->school->id == $school->id;
+    	        next if $conflicts_by_id{$judge->id};
+				next if $freebie{$judge->id};
+				next if $event_struck{$judge->id};
+				$ratable_judges++ unless $rounds_per;
+
+				if ($rounds_per) { 
+					$ratable_judges += $judge->obligation;
+					$ratable_judges += $judge->hired;
+				}
+
+    	    }
+
+			undef($switch);
+</%perl>
+			<h4>
+				Guide
+			</h4>
+
+			<span class="smaller half inline nowrap">
+%				if ($rounds_per) { 
+					<% $ratable_judges %> rounds of judging to rate
+%				} else { 
+					<% $ratable_judges %> total judges (besides yours)
+%				} 
+			</span>
+
+			<table cellpadding="2" cellspacing="1" width="100%">
+
+				<tr class="yellowrow">
+
+					<th class="smaller">
+						Tier
+					</th>
+
+%					if ($has_max) { 
+						<th class="smaller centeralign padno">
+							Max
+						</th>
+%					}
+
+%					if ($has_min) { 
+						<th class="smaller centeralign padno">
+							Min
+						</th>
+%					}
+
+					<th class="smaller centeralign padno">
+						Done
+					</th>
+
+				</tr>
+
+%				foreach my $tier (sort {$a->name cmp $b->name} Tab::RatingTier->search( judge_group => $group->id, type => "mpj")) {
+
+					<tr <% ($switch++% 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>	
+
+						<th class="smallish">
+							<% ($tier->strike) ? "Strike" : $tier->name %>
+						</td>
+
+%						if ($has_max) { 
+							<td class="smaller centeralign padno">
+								<% $pref_style eq "caps" && $tier->max > 0 ? $tier->max : $tier->max > 0 ? ceil( $tier->max * $ratable_judges / 100) : "" %>
+							</td>
+%						}
+
+%						if ($has_min) { 
+							<td class="smaller centeralign padno">
+								<% $pref_style eq "caps" && $tier->min > 0 ? $tier->min : $tier->min > 0 ? ceil( $tier->min * $ratable_judges / 100) : "" %>
+							</td>
+%						}
+
+						<td class="smaller centeralign padno">
+							<% $total_by_tier{$tier->id} %>
+						</td>
+
+					</tr>
+
+%				}
+
+			</table>
+
+%			my @others = $m->comp("/funclib/school_entry_by_group.mas", group => $entry->event->judge_group, school => $school);
+
+%			if ($prefs < 2 && $entry && scalar @others && not defined $read_only) {
+
+				<p>Clone <% $entry->name %>'s prefs to:</p>
+
+				<span class="evenrow block rightalign padno">
+					<form action="clone.mhtml" method="post">
+					<input type="hidden" name="clone_id" value="<% $entry->id %>">
+					<input type="hidden" name="school_id" value="<% $entry->school->id %>">
+
+					<select name="entry_id" class="fixedsmall notfirst">
+%						foreach my $other (sort {$a->name cmp $b->name} @others) { 
+%							next if $entry->id == $other->id;
+%							next if $entry->dropped;
+%							next if $entry->unconfirmed;
+%							next if $entry->waitlist;
+
+							<option value="<% $other->id %>"><% $other->name %></option>
+%						}
+					</select>
+
+					<input type="submit" class="notfirst thin" value="Go">
+					</form>
+				</span>
+
+%			}
+
+			</div>
+
+%		}
+
+		<& menu.mas, account => $account, school => $school, whoami => "entry_ratings", group_id => $group->id, entry_id => $entry_id,  nodiv => 1, prefs => $prefs &>
+
+
+	</div>

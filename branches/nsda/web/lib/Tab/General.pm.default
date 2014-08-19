@@ -1,0 +1,437 @@
+package Tab;
+
+# Path to your LaTeX binaries
+my $latex_path_prefix="/usr/bin";
+#my $latex_path_prefix="/opt/local/bin";
+
+# FQDN of your server.  Do NOT include http:// 
+$hostname = "local.tabroom.com";
+
+# Debugging status.  Set to a non-zero number to increase logging levels
+my $debug;
+
+#URL Prefix of the server
+$url_prefix = "https://$hostname" if $hostname eq "www.tabroom.com";
+$url_prefix = "http://$hostname" unless $url_prefix;
+$url_domain = "tabroom.com";
+
+#Static cookie-free URL 
+$static_url = "http://static.tabroom.com" if $hostname eq "www.tabroom.com";
+$static_url = $url_prefix unless $static_url;
+
+# Administrator's email address
+$admin_email = "help\@tabroom.com";
+
+#Email SMTP server.  
+$smtp_server ="localhost";
+
+#Database name
+$dbname = "tabroom";
+
+#Database host.  "localhost" will use the mysql local socket, not the network
+$dbhost = "localhost";
+
+#Database username
+$dbuser = "tabroom";
+
+#Database password
+$dbpass = "DataBasePassword";
+#$bakery_key = "StuffFromIdea";
+
+#Component root
+$file_root = '/www/tabroom/web/';
+
+#LDAP synchronization support
+$ldap_enable = "no";  										#change to yes to enable LDAP directory sync
+$ldap_server = "ldapserver.domain.com";
+$ldap_port   = "636";
+$ldap_dn     = "dc=domain,dc=com";
+$ldap_user   = "cn=admin,dc=domain,dc=com";
+$ldap_pw     = "yourpasswordhere";
+$ldap_certs  = "/path/to/ca/cert/file/certification.crt";   #in order to enable SSL.
+
+$ad_enable = "no";  										#change to yes to enable Active Directory sync
+$ad_server = "adserver.domain.com";
+$ad_port   = "636";
+$ad_dn     = "dc=domain,dc=com";
+$ad_user   = "cn=admin,dc=domain,dc=com";
+$ad_pw     = "yourpasswordhere";
+$ad_certs  = "/path/to/ca/cert/file/certification.crt";   #in order to enable SSL.
+
+# S3 file storage
+$s3_config = $file_root."lib/s3.config";
+$s3_cmd = "$latex_path_prefix/s3cmd --config $s3_config ";
+$s3_bucket = "s3://tabroom-files";
+$s3_url = "http://tabroom-files.s3-website-us-east-1.amazonaws.com/tourns";
+
+
+######  You shouldn't have to change anything below this line  ##########
+
+#Cookie domain
+$cookie_domain = $hostname;
+
+# Path to gzip for entryression
+$bzip2 = "$latex_path_prefix/bzip2";
+
+# Path to ghostscript for entryression
+$gs_path = "$latex_path_prefix/gs";
+
+#Path to latex for printing
+$latex_path = "$latex_path_prefix/latex";
+$pdflatex_path = "$latex_path_prefix/pdflatex";
+
+#Path to latex2rtf for printing
+$latex2rtf_path = "$latex_path_prefix/latex2rtf";
+
+#Path to dvipdfm for printing
+$dvipdfm_path = "$latex_path_prefix/dvipdfm -p letter";
+
+#Mason root.  Keep this as a default unless you know what you're doing.
+$mason_root = $file_root .'/mason';
+
+#Perl module library.  Also keep as a default.  
+$perl_lib = $file_root.'/lib';
+
+#String
+$string	= "3EZjdkNB9k92a4qG4Q61";
+
+sub debuglog {
+	my $string = shift;
+	Sys::Syslog::setlogsock('unix'); 
+	Sys::Syslog::openlog ('tabroom','ndelay','local3');
+	Sys::Syslog::syslog('debug',$string); 
+	Sys::Syslog::closelog;
+	return;
+}
+
+sub log {
+	my $string = shift;
+	Sys::Syslog::setlogsock('unix'); 
+	Sys::Syslog::openlog ('tabroom','ndelay','local5');
+	Sys::Syslog::syslog('info',$string); 
+	Sys::Syslog::closelog;
+	return;
+}
+
+sub eventlog {
+	my $string = shift;
+	`$Tab::eventlog $string`;
+}
+
+# Function to sanitize LaTeX strings
+
+sub texify { 
+
+	my $string = shift; 
+	return unless $string;
+
+	$string =~ s/\\/\\\\/g;
+	$string =~ s/#/\\#/g;
+	$string =~ s/\&/\\\&/g;
+	$string =~ s/\$/\\\$/g;
+	$string =~ s/\£/\\pounds/g;
+	$string =~ s/\€/\\euro/g;
+	$string =~ s/\¥/\\yen/g;
+	$string =~ s/{/\\{/g;
+	$string =~ s/}/\\}/g;
+	$string =~ s/_/\\_/g;
+	$string =~ s/<br>/\\break/g;
+
+	return $string;
+
+}
+
+sub school_year {
+
+	my $now = DateTime->now;
+    my $year = $now->year;
+    $year-- if $now->month < 7;
+
+	my $dt = DateTime->new({ 
+		year => $year,
+		month => 7,
+		day => 1,
+		hour => 0,
+		minute => 0,
+		second => 0 });
+	
+	return $dt;
+
+}
+
+sub phoneme { 
+	my $phone = shift;
+	if (length($phone) == 10) { 
+		my ($area, $exch, $number) = unpack "A3A3A4", $phone;
+		return "($area) $exch-$number";
+	} else  {
+		return $phone;
+	}
+}
+
+sub niceshortdt {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->month."/".$dt->day." ".$dt->hour_12.":".$dt->strftime('%M').substr($dt->strftime('%p'),0,1);
+	return $string;
+}
+
+sub shortdate {
+    my $dt = shift;
+    return unless $dt;
+    my $string = $dt->month."/".$dt->day."/".substr($dt->year,2,2);
+    return $string;
+}
+
+sub niceshortdayt {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->day_abbr." ".$dt->hour_12.":".$dt->strftime('%M')." ".$dt->strftime('%p');
+	return $string;
+}
+
+
+sub nicedt {
+
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->day_abbr.", ".$dt->month_abbr." ".$dt->day.", ".$dt->year." at ".$dt->hour_12.":".$dt->strftime('%M')." ".$dt->strftime('%p');
+	return $string;
+
+}
+
+sub nicetime {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->hour_12.":".$dt->strftime('%M')." ".$dt->strftime('%p');
+	return $string;
+}
+
+sub shorttime {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->hour_12.":".$dt->strftime('%M')." ".substr($dt->strftime('%p'),0,1);
+	return $string;
+}
+
+sub shortertime {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->hour.":".$dt->strftime('%M');
+	return $string;
+}
+
+sub nicedate {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->day_abbr.", ".$dt->month_name." ".$dt->day.", ".$dt->year;
+	return $string;
+}
+
+sub niceshortdate {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->month."/".$dt->day;
+	return $string;
+}
+
+sub niceshortdayte {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->day_abbr." ".$dt->month."/".$dt->day;
+	return $string;
+}
+
+sub pickerdate {
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->month."/".$dt->day."/".$dt->year;
+	return $string;
+}
+
+sub pickertime { 
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->hour_12.":".$dt->strftime('%M');
+	$string .= " PM" if $dt->strftime('%p') eq "PM";
+	$string .= " AM" if $dt->strftime('%p') eq "AM";
+	return $string;
+}
+
+sub xmldt { 
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->month."/".$dt->day."/".$dt->year." ".$dt->hour.":".$dt->strftime('%M')." ".$dt->strftime('%p');
+	return $string;
+}
+
+sub csvdt { 
+	my $dt = shift;
+	return unless $dt;
+	my $string = $dt->year."-".$dt->month."-".$dt->day." ".$dt->hour.":".$dt->strftime('%M');
+	return $string;
+}
+
+sub dtme { 
+	my ($date, $time, $tz) = @_;
+	my $month;
+	my $day;
+	my $year;
+	my $hour = "00";
+	my $minute = "00";
+	my $ampm = "AM";
+
+	$tz = 'UTC' unless $tz;
+
+	if ($date) { 
+		($month,$day,$year) = split('/', $date);
+	}
+
+	if ($time) { 
+
+		my $rest;
+
+		($hour,$rest) = split(':', $time);
+
+		$minute = $rest;
+		$ampm = $rest;
+
+		$minute =~ s/\D//g;
+		$ampm =~ s/\d//g;
+		$ampm =~ s/\s//g;
+
+		$minute = "00" unless $minute;
+		$ampm = uc($ampm);
+		$ampm = "PM" if $ampm eq "P";
+		$ampm = "AM" unless $ampm eq "PM";
+
+		$hour = '00' if $hour == 12;
+		$hour = $hour +12 if $ampm eq "PM";
+
+	}
+
+	my $dt;
+
+		$dt = DateTime->new(
+			year => $year,
+			month => $month,
+			day => $day,
+			hour => $hour, 
+			minute => $minute,
+			time_zone => $tz
+		);
+
+	return $dt;
+
+}
+
+sub xmldtme { 
+
+	my ($datetime, $tz) = @_;
+
+	my ($date, $time) = split (/\ /, $datetime);
+	my ($month,$day,$year) = split('/', $date);
+
+	my $rest;
+	my $hour;
+	my $minute;
+	my $ampm;
+
+	$tz = "UTC" unless $tz;
+
+	($hour,$rest) = split(':', $time);
+	($minute,$ampm) = split(/\ /, $rest);
+
+	if ($hour == 12) { $hour = '00'; }
+	if ($ampm eq "PM" || $ampm eq "pm" || $ampm eq "P" || $ampm eq "p") { $hour = $hour +12; }
+
+	my $dt = DateTime->new(
+		year => $year,
+		month => $month,
+		day => $day,
+		hour => $hour, 
+		minute => $minute,
+		time_zone => $tz
+	);
+
+	return $dt;
+
+}
+
+
+
+sub dateme { 
+
+	my $date = shift;
+	return unless $date;
+	my $month;
+	my $day;
+	my $year;
+	my $hour = "00";
+	my $minute = "00";
+	my $ampm = "a";
+
+	if ($date) { 
+		($month,$day,$year) = split('/', $date);
+	}
+
+	my $dt;
+
+	eval{
+
+		$dt = DateTime->new(
+			year => $year,
+			month => $month,
+			day => $day,
+			hour => $hour, 
+			minute => $minute
+		);
+
+	};
+
+	return $dt;
+
+}
+
+sub tzname {
+	my $tz = shift;
+	my $tz_ob = DateTime::TimeZone->new( name => $tz );
+	my $now = DateTime->now(time_zone => $tz);
+	return $tz_ob->short_name_for_datetime( $now )
+}
+
+
+sub short_name {
+	my $name = shift;
+	$name =~ s/of Math and Science$//g;
+	$name =~ s/Academy$//g;
+	$name =~ s/Regional\ High\ School$//g;
+	$name =~ s/High\ School$//g;
+	$name =~ s/Colleges$//g;
+	$name =~ s/School$//g;
+	$name =~ s/High$//g;
+	$name =~ s/Preparatory$/Prep/g;
+	$name =~ s/College\ Prep$/CP/g;
+	$name =~ s/HS$//g;
+	$name =~ s/Regional$//g;
+	$name =~ s/Public\ Charter//g;
+	$name =~ s/Charter\ Public//g;
+	$name =~ s/University\ of//g;
+	$name =~ s/California State University,/CSU/g;
+	$name =~ s/California State University/CSU/g;
+	$name =~ s/University$//g;
+	$name =~ s/State\ University,/State\ /g;
+	$name =~ s/^The//g;
+	$name =~ s/^Saint\ /St\ /g;
+	$name = "College Prep" if $name eq "CP";  #Sometimes it's the whole school name.  Oops.
+	$name =~ s/High\ School/HS/g;
+	$name =~ s/^\s+//;  #leading spaces
+	$name =~ s/\s+$//;  #trailing spaces
+
+    if ($limit) { 
+        return substr($name,0,$limit);
+    } else { 
+    	return $name;
+    }
+}
+

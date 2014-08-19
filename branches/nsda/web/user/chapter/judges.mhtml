@@ -1,0 +1,248 @@
+<%args>
+	$account
+	$chapter_id
+	$show_retired => undef
+	$err => undef
+	$sort_by => "last"
+	$from => undef
+</%args>
+<%init>
+
+	my $chapter = Tab::Chapter->retrieve($chapter_id);
+
+	my @chapter_judges;
+ 
+	if ($show_retired) {
+		@chapter_judges = $chapter->chapter_judges( retired => 1 );
+	} else {
+		@chapter_judges = $chapter->chapter_judges( retired => 0 );
+	}
+
+	unless (@chapter_judges) {
+		$m->redirect("judge_edit.mhtml?newbie=yes&chapter_id=".$chapter_id);
+	}
+
+	@chapter_judges = sort {$a->last cmp $b->last} @chapter_judges;
+	@chapter_judges = sort {$b->started <=> $a->started } @chapter_judges if $sort_by eq "started";
+
+	my $message;
+
+	my @judge_requests = Tab::ChapterJudge->search_where({ 
+		chapter => $chapter->id,
+		acct_request => { ">", 0 }
+	});
+
+	my $switch; 
+
+</%init>
+
+	<div class="left huge">
+
+		<h2><% $chapter->name %>: Judges</h2>
+
+		<& tabbar.mas, chapter => $chapter, whoami => "judges" &>
+
+%		if (@judge_requests) { 
+
+			<h4>Judges requesting online access</h4>
+
+			<p>The following accounts have asked to be linked to these judges.
+			Only permit this if you know the account is the same person as the
+			judge; otherwise online balloting and other access may be given
+			incorrectly</p>
+
+			<& /funclib/tablesorter.mas, table => "requests" &>
+
+			<table width="100%" id="requests" cellpadding="4" cellspacing="1">
+				
+				<tr class="yellowrow">
+
+					<th>
+						Judge
+					</th>
+
+					<th>
+						Requesting Account
+					</th>
+
+					<th colspan="2">
+					</th>
+
+				</tr>
+						
+
+%				foreach my $request (@judge_requests) { 
+					
+					<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						
+						<td>
+							<% $request->first." ".$request->last %>
+						</td>
+
+						<td>
+							<% $request->acct_request->first %>
+							<% $request->acct_request->last %>
+							<a href="mailto:<% $request->acct_request->email %>">
+							(<% $request->acct_request->email %>)
+							</a>
+						</td>
+
+						<td class="centeralign">
+							<a class="dkgreen block" href="permit.mhtml?chapter_judge_id=<% $request->id %>">
+								PERMIT
+							</a>
+						</td>
+
+						<td class="centeralign">
+							<a class="dkred block" href="deny.mhtml?chapter_judge_id=<% $request->id %>">
+								DENY
+							</a>
+						</td>
+
+					</tr>
+%				}
+
+
+			</table>
+
+			<br />
+
+			<h4> Rest of roster:</h4>
+	
+%		}
+
+		<& /funclib/tablesorter.mas, table => "judges" &>
+
+		<table width="100%" id="judges" cellpadding="4" cellspacing="1" class="smallish">
+
+			<thead>
+
+			<tr class="yellowrow">
+
+				<th class="smallish">
+					Last 
+				</th>
+
+				<th class="smallish">
+					First
+				</th>
+
+				<th class="smallish">
+					Phone
+				</th>
+
+				<th class="smallish">
+					Account
+				</th>
+
+%				if ($show_retired) { 
+
+					<th class="centeralign">
+						<a class="white" href="judges.mhtml?chapter_id=<% $chapter_id %>&show_retired=<% $show_retired %>&sort_by=retired">		
+							Active
+						</a>
+					</th>
+
+%				} else { 
+
+					<th class="nosort">
+					</th>
+		
+%				}
+
+			</tr>
+
+			</thead>
+			<tbody>
+
+%			my $last_judge;
+
+% 			foreach my $chapter_judge (@chapter_judges) { 
+
+%				next if $chapter_judge->retired &! $show_retired;
+
+				<tr>
+
+					<td>
+						<a id="<% $chapter_judge->id %>"></a>
+						<a class="white" href="/user/chapter/judge_edit.mhtml?chapter_judge_id=<% $chapter_judge->id %>">
+							<% $chapter_judge->last %>
+						</a>
+					</td>
+
+					<td>
+						<a class="white" href="/user/chapter/judge_edit.mhtml?chapter_judge_id=<% $chapter_judge->id %>">
+							<% $chapter_judge->first %>
+						</a>
+					</td>
+
+
+					<td class="centeralign">
+						<% $chapter_judge->cell %>
+					</td>
+
+					<td class="centeralign">
+%						if ($chapter_judge->account && $chapter_judge->account->email) { 
+							<a class="white" href="mailto:<% ($chapter_judge->account && $chapter_judge->account->email) ? $chapter_judge->account->email : "" %>">
+								<% ($chapter_judge->account && $chapter_judge->account->email) ? $chapter_judge->account->email : "" %>
+							</a>
+%						}
+					</td>
+
+%					if ($show_retired) { 
+							
+						<td class="centeralign">
+							<a class="dkred block" href="judge_retire.mhtml?chapter_judge_id=<% $chapter_judge->id %>&show_retired=<% $show_retired %>&backto=#<% $last_judge %>">
+								ACTIVATE
+							</a>
+						</td>
+
+%					} else { 
+
+						<td class="centeralign">
+							<a class="dkgreen nowrap block smallish" href="judge_retire.mhtml?chapter_judge_id=<% $chapter_judge->id %>&show_retired=<% $show_retired %>&backto=#<% $last_judge %>">
+								DE-ACTIVATE
+							</a>
+						</td>
+
+%					}
+
+				</tr>
+
+%				$last_judge = $chapter_judge->id;
+
+% 			}
+			</tbody>
+
+		</table>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Judge Roster</h4>
+
+			<a class="yellow block" href="judge_edit.mhtml?chapter_id=<% $chapter->id %>">
+				Add a new judge
+			</a>
+
+			<a class="yellow block" href="diets.mhtml?chapter_id=<% $chapter->id %>#judges">
+				Dietary Restrictions
+			</a>
+
+			<a class="yellow block" href="dedupe_judges.mhtml?chapter_id=<% $chapter->id %>">
+				Deduplicate Judges
+			</a>
+		
+			<a class="<% $show_retired ? "dkred" : "blue" %> block" href="judges.mhtml?show_retired=<% ($show_retired) ? "" : "a" %>&chapter_id=<% $chapter->id %>">
+				<% ($show_retired) ? "Hide Inactives" : "Show Inactives" %>
+			</a>
+
+		</div>
+
+        <& /user/menu.mas, chapter => $chapter, account => $account, nodiv => 1 &>
+
+	</div>
+

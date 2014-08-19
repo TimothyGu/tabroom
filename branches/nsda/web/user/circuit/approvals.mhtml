@@ -1,0 +1,104 @@
+<%args>
+	$session
+	$account	
+	$circuit_id => undef
+</%args>
+<%init>
+
+	my $circuit = Tab::Circuit->retrieve($circuit_id);
+	my @approvals = $m->comp("/funclib/circuit_tourns.mas", approval => 1, circuit => $circuit);
+
+	my $switch ;
+	my $school_year = Tab->school_year;
+
+</%init>
+
+	<& /user/menu.mas, account => $account, circuit => $circuit_id &>
+
+	<div class="left huge">
+	
+		<h2><% $circuit->abbr %> Tournaments Pending Approval</h2>
+
+		<p>Approving a tournament places it on your circuit's calendar;
+		deleting it removes its association with your circuit, but does not
+		delete the tournament itself.</p>
+	
+		<table cellpadding="6" cellspacing="1" width="100%">
+
+			<tr class="liblrow">
+
+				<th> 
+					Tournament
+				</th>
+
+				<th>
+					Dates
+				</th>
+
+				<th>
+					Contact(s)
+				</th>
+
+				<th colspan="3">
+					Actions
+				</th>
+
+			</tr>
+
+%			foreach my $tourn (sort {$a->start->epoch <=> $b->start->epoch} @approvals ) { 
+%				my $tz = $tourn->tz;
+%				$tz = "UTC" unless $tz;
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<td class="smallish">
+						<a class="white" href="/index/tourn/index.mhtml?tourn_id=<% $tourn->id %>">
+							<% $tourn->name %>
+						</a>
+					</td>
+
+					<td class="smallish nowrap">
+						<% $tourn->start ? Tab::niceshortdate($tourn->start->set_time_zone($tz)) : "" %>
+						<% ($tourn->start->mdy('') == $tourn->end->mdy('')) ? "" : "-".Tab::niceshortdate($tourn->end->set_time_zone($tz)) %>
+					</td>
+
+					<td class="smallish">
+%						foreach my $director ($tourn->admins) { 
+							<div>
+								<span class="nowrap" title="<% $director->first." ".$director->last %>">
+									<% $director->first." ".$director->last %> 
+								</span>
+								<span class="nowrap">
+									(<a href="mailto:<% $director->email %>" class="smaller inline white"><% $director->email %></a>)
+								</span>
+							</div>
+%						}
+					</td>
+					<td class="smaller">
+						<a class="centeralign dkyellow block" href="/user/tourn/select.mhtml?tourn_id=<% $tourn->id %>">
+							Admin
+						</a>
+					</td>
+
+					<td class="smaller">
+						<a class="centeralign dkgreen block" href="approve.mhtml?tourn_id=<% $tourn->id %>&circuit_id=<% $circuit_id %>">
+							Approve
+						</a>
+					</td>
+			
+%					my $warn = "This will remove the tournament from your circuit. Are you sure you want to so banish ".$tourn->name."?";
+
+					<td class="smaller">
+						<a class="centeralign dkred block" href="deny.mhtml?circuit_id=<% $circuit_id %>&tourn_id=<% $tourn->id %>"
+							<& "/funclib/confirm.mas", warn => $warn &> >
+							Delete
+						</a>
+					</td>
+
+				</tr>
+
+%			}
+
+		</table>
+
+	</div>

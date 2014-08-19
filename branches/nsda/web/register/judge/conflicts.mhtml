@@ -1,0 +1,68 @@
+<%args>
+	$circuit
+	$group_id
+	$tourn
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $group = Tab::JudgeGroup->retrieve($group_id);
+
+</%init>
+
+	<& menu.mas, tourn => $tourn, whoami => "conflicts", group => $group &>
+
+	<div class="left huge">
+
+		<h2><% $group->abbr %> Conflicts</h2>
+	
+%		my $switch;
+
+%		foreach my $judge (sort {$a->code <=> $b->code} $m->comp("/funclib/group_struck_judges.mas", group => $group)) { 
+
+			<div class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="quarter">
+					<a class="under white" href="/register/judge_edit.mhtml?judge_id=<% $judge->id %>">
+						<% $judge->last.", ".$judge->first %>
+					</a>
+				</span>
+
+				<span class="threequarters">
+%					foreach my $strike ($judge->strikes) {
+
+						<div class="smallish">
+
+%   					if (($strike->type eq "entry" ) ||  ($strike->type eq "conflict" )) {
+
+							<span class="quarter nospace">
+								<% $strike->type eq "conflict" ? "Conflict" : "Strike" %>
+							</span>
+
+							<span class="threequarter nospace">
+								<span class="half nowrap">
+									<% ($strike->entry) ? $strike->entry->name : "" %>
+									<% ($strike->school) ? "All ".$strike->school->name : "" %>
+								</span>
+
+								<span class="half nowrap">
+									<% $strike->entry ? $strike->entry->school->short_name : "" %>
+								</span>
+							</span>
+
+%   					}
+
+						</div>
+
+%					} #end of foreach strike
+
+				</span>
+
+			</div>
+
+%		} #end of foreach judge
+
+	</div>
+

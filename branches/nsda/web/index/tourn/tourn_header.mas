@@ -1,0 +1,125 @@
+<%args>
+	$tourn_id => undef
+	$tourn => undef
+	$webpage_id => undef
+	$account => undef
+</%args>
+<%init>
+
+	$tourn = Tab::Tourn->retrieve($tourn_id) if $tourn_id &! $tourn;
+	my $now = DateTime->now;
+
+	my $open++ if $m->comp("/funclib/tourn_events.mas", tourn => $tourn) && ($tourn->reg_end > $now) 
+				&& ($now > $tourn->reg_start) &! ($tourn->setting("ncfl"));
+
+	undef $open if $tourn->setting("closed_entry");
+	
+	Tab::School->set_sql( published => "
+		select distinct school.* 
+		from school, tourn, chapter, chapter_admin
+		where tourn.id = ? 
+		and tourn.id = school.tourn
+		and tourn.end < now()
+		and tourn.hidden != 1
+		and school.chapter = chapter.id
+		and chapter.id = chapter_admin.chapter
+		and chapter_admin.prefs = 0
+		and chapter_admin.account = ?
+	");
+
+	my @results = Tab::School->search_published( $tourn->id, $account->id ) if $tourn && $account;
+
+	my @judges;
+
+	my @schools;
+
+	if ($account) { 
+		@judges = $m->comp("/funclib/account_judges.mas", account => $account, tourn => $tourn, ballot => 1);
+		@schools = $m->comp("/funclib/account_schools.mas", account => $account, tourn => $tourn);
+	}
+
+</%init>
+
+%	 if ($tourn) { 
+
+		<ul id="tabnav">
+
+			<li <% ($r->uri =~ /tourn\/index.mhtml/ && not defined ($webpage_id) ) ? "class=\"selected\"" : "" %>>
+				 <a href="/index/tourn/index.mhtml?tourn_id=<% $tourn->id %>">Invite</a>
+			</li>
+
+%   		if ($m->comp("/funclib/tourn_fields.mas", tourn => $tourn)) { 
+				<li <% ($r->uri =~ /fields/) ? "class=\"selected\"" : "" %>>
+					 <a href="/index/tourn/fields.mhtml?tourn_id=<% $tourn->id %>">Entries</a>
+				</li>
+%			}
+
+%   		if ($m->comp("/funclib/tourn_judge_fields.mas", tourn => $tourn)) { 
+				<li <% ($r->uri =~ /judges/) ? "class=\"selected\"" : "" %>>
+					 <a href="/index/tourn/judges.mhtml?tourn_id=<% $tourn->id %>">Judges</a>
+				</li>
+%			}
+
+
+%   		if ($m->comp("/funclib/tourn_published_rounds.mas", tourn => $tourn) || Tab::File->search( tourn => $tourn->id, posting => 1) || $m->comp('/funclib/listed_rounds.mas', tourn => $tourn)) {
+				<li <% ($r->uri =~ /postings/) ? "class=\"selected\"" : "" %>>
+					 <a href="/index/tourn/postings/index.mhtml?tourn_id=<% $tourn->id %>">Pairings</a>
+				</li>
+%			}
+
+
+%   		if ($m->comp("/funclib/tourn_liveupdates_events.mas", tourn => $tourn)) { 
+				<li <% ($r->uri =~ /updates/) ? "class=\"selected\"" : "" %>>
+					 <a href="/index/tourn/updates/index.mhtml?tourn_id=<% $tourn->id %>">Live Updates</a>
+				</li>
+%			}
+
+%   		if ($m->comp("/funclib/tourn_results_events.mas", tourn => $tourn) || Tab::File->search( tourn => $tourn->id, result => 1)) {
+				<li <% ($r->uri =~ /results/) ? "class=\"selected\"" : "" %>>
+					 <a href="/index/tourn/results/index.mhtml?tourn_id=<% $tourn->id %>">
+					 	Results
+					</a>
+				</li>
+
+%			}
+
+%			if (@judges) { 
+				<li <% ($r->uri =~ /judging/) ? "class=\"selected\"" : "" %>>
+					 <a href="/user/judge/index.mhtml?account_id=<% $account->id %>&tourn_id=<% $tourn->id %>">Ballots</a>
+				</li>
+%			}
+
+%			my %used = ();
+
+%			foreach my $result (@results) { 
+
+%				$used{$result->id}++;
+
+				<li>
+					 <a href="/user/results/tourn.mhtml?school_id=<% $result->id %>"><% $result->short_name %>'s Results</a>
+				</li>
+%			} 
+
+%			foreach my $school (@schools) { 
+
+%				next if $used{$school->id};
+
+				<li>
+					 <a href="/user/enter/entry.mhtml?school_id=<% $school->id %>"><% $school->short_name %>'s Reg</a>
+				</li>
+%			} 
+
+%			if ($open &! @schools) {
+
+				<li>
+					 <a href="/index/register.mhtml?tourn_id=<% $tourn->id %>">Register</a>
+				</li>
+
+%			}
+
+
+		</ul>
+
+%	}
+
+

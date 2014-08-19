@@ -1,0 +1,21 @@
+<%args>
+	$fee_id
+	$tourn
+</%args>
+<%init>
+
+	my $fine = Tab::TournFee->retrieve($fee_id);
+
+	unless ($fine->tourn->id == $tourn->id) { 
+
+		$m->print("<p>That is not a standing fine from this tournament.  Please try again</p>");
+		$m->abort;
+	}
+
+	my $msg = "Standing fee deleted";
+
+	$fine->delete;
+	$m->redirect("schools.mhtml?msg=$msg");
+
+
+</%init>

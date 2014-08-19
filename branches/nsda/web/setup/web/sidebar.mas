@@ -1,0 +1,73 @@
+<%args>
+	$tourn
+	$webpage_type => undef
+	$webpage_id => undef
+</%args>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Standard Pages</h4>
+
+			<a class="<% ($webpage_type eq "main") ? "dkblue" : "blue " %> block" href="edit.mhtml?webpage_type=main">
+				Main Page
+			</a>
+
+			<a class="<% ($webpage_type eq "events") ? "dkblue" : "blue " %> block" href="edit.mhtml?webpage_type=events">
+				Events
+			</a>
+
+			<a class="<% ($webpage_type eq "fields") ? "dkblue" : "blue " %> block" href="edit.mhtml?webpage_type=fields">
+				Field Reports
+			</a>
+
+			<a class="<% ($webpage_type eq "postings") ? "dkblue" : "blue " %> block" href="edit.mhtml?webpage_type=postings">
+				Postings
+			</a>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Custom Pages</h4>
+
+%			foreach my $webpage ($tourn->webpages) { 
+%				next if $webpage->special;
+				<a class="<% ($webpage && $webpage->id == $webpage_id) ? "dkblue" : "blue " %> block" href="edit.mhtml?webpage_id=<% $webpage->id %> block">
+					<% $webpage->title %>
+				</a>
+%			}
+
+			<a class="<% ($webpage_type eq "add") ? "dkblue" : "yellow " %> block" href="edit.mhtml?webpage_type=add">Add Custom Page</a>
+
+		</div>
+
+		<div class="sidenote">
+
+			<h4>Postings</h4>
+
+			<a class="<% ($webpage_type eq "fieldcontrol") ? "dkblue" : "blue " %> block" href="fields.mhtml">
+				Field Reports
+			</a>
+
+			<a class="<% ($webpage_type eq "schematiccontrol") ? "dkblue" : "blue " %> block" href="schematics.mhtml">
+				Publish Schematics
+			</a>
+
+			<a class="<% ($webpage_type eq "clearingcontrol") ? "dkblue" : "blue " %> block" href="clearing.mhtml">
+				Lists of Clearing Students
+			</a>
+
+			<a class="<% ($webpage_type eq "postingcontrol") ? "dkblue" : "blue " %> block" href="postings.mhtml">
+				Upload Files/Postings
+			</a>
+
+			<a class="<% ($webpage_type eq "livecontrol") ? "dkblue" : "blue " %> block" href="live_updates.mhtml">
+				Live Updates
+			</a>
+		
+		</div>
+
+	</div>
+

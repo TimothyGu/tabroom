@@ -1,0 +1,212 @@
+<%args>
+	$school => undef
+	$whoami => undef
+	$tourn
+	$nodiv => undef
+</%args>
+<%init> 
+	
+    my @unreggeds = sort {ucfirst($a->name) cmp ucfirst($b->name)}
+                                    Tab::School->search_where(
+                                        tourn => $tourn->id,
+                                        registered => { '!=', 1 } );
+
+    my @reggeds  = sort {ucfirst($a->name) cmp ucfirst($b->name)}
+                                    Tab::School->search(
+                                        tourn => $tourn->id,
+                                        registered => 1);
+
+    my $switch;
+	
+	my $now = DateTime->now;
+
+	my $short;
+	my $ratings;
+
+	if ($school && $school->id) { 
+
+		foreach my $group ($school->tourn->judge_groups) { 
+			my ($uncovered, $overage) = $m->comp("/funclib/judgemath/uncovered_burden_by_group.mas", group => $group, school => $school); 
+			$short++ if $uncovered;
+			last if $short;
+		}	
+
+		foreach my $group ($school->tourn->judge_groups) { 
+			$ratings++ if $group->setting("strike_start") < $now && $now < $group->setting("strike_end");
+			last if $ratings;
+		}
+
+	}
+
+</%init>
+
+%	unless ($nodiv) { 
+		<div class="blank">
+%	}
+
+	<div class="odd full visible">
+
+		<span class="half">
+
+			<span class="sixth">
+				Not In
+			</span>
+
+			<span class="fivesixth">
+
+%				if ($whoami eq "students") { 
+					<form action="/register/school/entries.mhtml" method="post">
+%				} elsif ($whoami eq "judges") { 
+					<form action="/register/school/judges.mhtml" method="post">
+%				} elsif ($whoami eq "housing") { 
+					<form action="/register/school/housing.mhtml" method="post">
+%				} elsif ($whoami eq "concessions") { 
+					<form action="/register/school/concessions.mhtml" method="post">
+%				} elsif ($whoami eq "money") { 
+					<form action="/register/school/invoice.mhtml" method="post">
+%				} else { 
+					<form action="/register/school/edit.mhtml" method="post">
+%				} 
+
+				<select class="notfirst fixed chosen rightalign" name="school_id" <% ($school) ? "" : "size=\"20\""%> onchange='this.form.submit()'>
+
+%					my $use_codes = $tourn->setting("school_codes");
+
+<%perl>
+					foreach my $unregged (@unreggeds) { 
+
+						my $code = $unregged->code if $use_codes;
+						$code = $unregged->region->code if $unregged && $unregged->region &&  $tourn->setting("ncfl");
+
+						$code = substr($code, 0, 9);
+
+						if ($use_codes) { 	
+ 	    		    		foreach ( length($code) .. 10) {
+	   	   	    	    		$code .= "&nbsp;";
+   	   	    				}
+						}
+
+</%perl>
+
+						<option value="<% $unregged->id %>" <%  ($school && $school->id == $unregged->id) ? "selected" : ""  %>> <% $code %> <% substr($unregged->name,0,25) %>
+						</option>
+%					}
+	
+				</select>
+
+				<noscript><input type="submit" value="Show"></noscript>
+				</form>
+
+			</span>
+
+		</span>
+
+		<span class="half">
+
+			<span class="sixth">
+				 In
+			</span>
+
+			<span class="fivesixth">
+
+%				if ($whoami eq "students") { 
+					<form action="/register/school/entries.mhtml" method="post">
+%				} elsif ($whoami eq "judges") { 
+					<form action="/register/school/judges.mhtml" method="post">
+%				} elsif ($whoami eq "housing") { 
+					<form action="/register/school/housing.mhtml" method="post">
+%				} elsif ($whoami eq "concessions") { 
+					<form action="/register/school/concessions.mhtml" method="post">
+%				} elsif ($whoami eq "money") { 
+					<form action="/register/school/invoice.mhtml" method="post">
+%				} else { 
+					<form action="/register/school/edit.mhtml" method="post">
+%				} 
+
+				<select class="notfirst chosen fixed" name="school_id" <% ($school) ? "" : "size=\"20\""%> onchange='this.form.submit()'>
+
+%					foreach my $regged (@reggeds) { 
+
+<%perl>
+						my $code = $regged->code if $use_codes;
+						$code = $regged->region->code if $regged && $regged->region &&  $tourn->setting("ncfl");
+
+						$code = substr($code, 0, 9);
+
+						if ($code) { 	
+ 	    		    		foreach ( length($code) .. 10) {
+	   	   	    	    		$code .= "&nbsp;";
+   	   	    				}
+   	   	    			}
+
+</%perl>
+						<option value="<% $regged->id %>" <%  ($school && $school->id == $regged->id) ? "selected" : ""  %>> <% $code %> <% substr($regged->name,0,25) %>
+						</option>
+
+%					}
+
+				</select>
+
+			</span>
+
+			<noscript><td><input type="submit" value="Show"></td></noscript>
+			</form>
+		</span>
+
+	</div>
+
+%	unless ($nodiv) { 
+		</div>
+%	}
+
+%	unless ($nodiv) { 
+		<div class="left huge">
+%	}
+
+%	if ($school && $school->id) { 
+
+		<h3><% $school->name %></h3>
+
+%		my $tourn = $school->tourn;
+
+		<ul id="tabnav" style="margin-bottom: 5px;">
+
+			<li class="<% ($whoami eq "tourn") ? "selected" : "" %>">
+				<a href="/register/school/edit.mhtml?school_id=<% $school->id %>">General</a>
+			</li>
+
+			<li class="<% ($whoami eq "students") ? "selected" : "" %>">
+    			<a href="/register/school/entries.mhtml?school_id=<% $school->id %>"> 
+					<% scalar $school->entries(unconfirmed => 0, dropped => 0) + scalar $m->comp("/funclib/school_hybrids.mas", school => $school, others_only => "yup") %> Entries</a>
+			</li>
+
+			<li class="<% $whoami eq "judges" ? "selected" : "" %><% $short ? "warning" : "" %>">
+				<a href="/register/school/judges.mhtml?school_id=<% $school->id %>"><% scalar $school->judges %> Judges</a>
+			</li>
+
+%			if ($tourn->setting("housing")) { 
+				<li <% ($whoami eq "housing") ? "class=\"selected\"" : "" %>>
+					<a href="/register/school/housing.mhtml?school_id=<% $school->id %>">Housing</a>
+				</li>
+%			}
+
+%			if ($tourn->concessions) {
+				<li <% ($whoami eq "concessions") ? "class=\"selected\"" : "" %>>
+					<a href="/register/school/concessions.mhtml?school_id=<% $school->id %>">
+						<% ($tourn->setting("concession_name")) ? $tourn->setting("concession_name") : "Concessions" %>
+					</a>
+				</li>
+%			}
+
+			<li class="<% $whoami eq "money" ? "selected" : "" %><% $short ? "warning" : "" %>">
+				<a href="/register/school/invoice.mhtml?school_id=<% $school->id %>">Money</a>
+			</li>
+
+			<li class="<% ($whoami eq "follower") ? "selected" : "" %>">
+				<a href="/register/school/followers.mhtml?school_id=<% $school->id %>">Followers</a>
+			</li>
+
+
+		</ul>
+
+%	}

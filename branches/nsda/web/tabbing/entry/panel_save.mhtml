@@ -1,0 +1,218 @@
+<%args>
+	$judge_id => undef
+	$panel_id
+	$panel_bye => 0
+</%args>
+<%init>
+
+	my $panel = Tab::Panel->retrieve($panel_id);
+
+	my $now = DateTime->now;
+
+	$panel->bye($panel_bye);
+	$panel->update;
+
+	my $wudc++ if $panel->round->event->type eq "wudc";
+	my $studpoints++ if $panel->round->event->type ne "congress" &&  $panel->round->event->type ne "speech";
+
+	my $judge = Tab::Judge->retrieve($judge_id) if $judge_id;
+
+	foreach my $entry ($m->comp("/funclib/panel_entries.mas", panel => $panel)) { 
+	
+		my @ballots = Tab::Ballot->search( judge => $judge->id, panel => $panel->id, entry => $entry->id ) if $judge;
+		@ballots = Tab::Ballot->search( panel => $panel->id, entry => $entry->id ) unless $judge;
+
+		next unless @ballots;
+		my $ballot = shift @ballots;
+		foreach my $spare (@ballots) { $spare->delete; }
+
+		my $win;
+		my $rank;
+		my $points;
+		my %student_points = ();
+		my %student_ranks = ();
+
+		my %rank_done;
+		my %points_done;
+		my %win_done;
+
+		my @students = $entry->students;
+
+		Tab::Student->set_sql(by_panel => "
+			select distinct student.*
+			from student, ballot_value, ballot
+			where ballot.panel = ?
+			and ballot.id = ballot_value.ballot
+			and ballot_value.student = student.id
+			and ballot.entry = ? 
+		");
+
+		push @students, Tab::Student->search_by_panel($panel->id, $entry->id);
+
+		my %seen = (); 
+		@students = grep { ! $seen{$_->id} ++ } @students;
+
+		VALUE:
+		foreach my $value ($ballot->ballot_values) { 
+
+			if ($value->tag eq "rank") { 
+
+				if ($studpoints && not defined $wudc) { 
+
+					if ($rank_done{$value->student->id}++) { 
+						$value->delete;
+						next VALUE;
+					}
+
+					$value->value($ARGS{"ranks_".$value->student->id}) if $value->student;
+					$student_ranks{$value->student->id}++ if $value->student;
+
+				} else { 
+
+					if ($rank_done{$ballot->id}++) { 
+						$value->delete;
+						next VALUE;
+					}
+
+					$value->value($ARGS{"rank_".$ballot->id});
+					$rank++ if $value->tag eq "rank";
+				}
+			}
+		
+			if ($value->tag eq "points") { 
+
+				if ($studpoints) { 
+
+					if ($points_done{$value->student->id}++) { 
+						$value->delete;
+						next VALUE;
+					}
+
+					if (length($ARGS{"points_".$value->student->id}) == 0) { 
+						$value->delete;
+						next VALUE;
+					}
+
+					$value->value($ARGS{"points_".$value->student->id}) if $value->student;
+					$student_points{$value->student->id}++;
+
+				} else { 
+
+					if ($points_done{$ballot->id}++) { 
+						$value->delete;
+						next VALUE;
+					}
+
+					$value->value($ARGS{"points_".$ballot->id});
+					$points++ if $value->tag eq "points";
+				}
+			}
+
+			if ($value->tag eq "ballot") { 
+
+				if ($win_done{$ballot->id}++ && not defined $wudc) { 
+					$value->delete;
+					next VALUE;
+				}
+
+				$value->value("0");
+				$value->value("1") if $ARGS{"winloss"} == $entry->id;
+				$value->value("1") if $ARGS{$entry->id."_winloss"}; #for WUDC style
+				$win++;
+
+			}
+
+			$value->update;
+		}
+
+		if ($ARGS{"rank_".$ballot->id} > 0 && not defined $rank) { 
+			Tab::BallotValue->create({
+				ballot => $ballot->id,
+				tag => "rank",
+				value => $ARGS{"rank_".$ballot->id},
+			});
+		}
+
+		unless ($win) { 
+
+			if ( $ARGS{$entry->id."_winloss"} || $ARGS{"winloss"} ) { 
+
+				my $tigersblood = 0;
+				$tigersblood++ if $ARGS{"winloss"} == $entry->id;
+				$tigersblood++ if $wudc;
+
+				Tab::BallotValue->create({
+					ballot => $ballot->id,
+					tag    => "ballot",
+					value  => $tigersblood
+				});
+
+			} elsif ($wudc) { 
+
+				Tab::BallotValue->create({
+					ballot => $ballot->id,
+					tag    => "ballot",
+					value  => 0
+				});
+
+			}
+
+		}
+
+		if ($ARGS{"points_".$ballot->id} > 0 && not defined $points) { 
+
+			Tab::BallotValue->create({
+				ballot => $ballot->id,
+				tag    => "points",
+				value  => $ARGS{"points_".$ballot->id},
+			});
+		}
+
+		if ($studpoints) { 
+
+			foreach my $student (@students) { 
+
+				if (length($ARGS{"points_".$student->id}) > 0 && not defined $student_points{$student->id}) { 
+
+					Tab::BallotValue->create({
+						ballot  => $ballot->id,
+						tag     => "points",
+						value   => $ARGS{"points_".$student->id},
+						student => $student->id
+					});
+				}
+
+				if ($ARGS{"ranks_".$student->id} > 0 && not defined $student_ranks{$student->id}) { 
+
+					Tab::BallotValue->create({
+						ballot  => $ballot->id,
+						tag     => "rank",
+						value   => $ARGS{"ranks_".$student->id},
+						student => $student->id
+					});
+				}
+			}
+		}
+
+		$ballot->tv($ARGS{"tv_".$ballot->id});
+		$ballot->noshow($ARGS{"noshow_".$ballot->id});
+		$ballot->audit($ARGS{"audit_".$ballot->id});
+		$ballot->bye($ARGS{"bye_".$ballot->id});
+		$ballot->noshow($ARGS{"noshow_".$ballot->id});
+		$ballot->update;
+
+		if ($ARGS{"audit_".$ballot->id}) { 
+			$panel->started($now) unless $panel->started;
+			$panel->confirmed($now) unless $panel->confirmed;
+			$panel->update;
+		}
+
+	}
+
+	my $msg = "Panel scores saved forcibly.  I hope you know what you are doing.";
+
+	$m->redirect("panel.mhtml?panel_id=".$panel_id."&judge_id=".$judge_id."&msg=$msg");
+
+</%init>
+
+

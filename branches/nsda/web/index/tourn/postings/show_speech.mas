@@ -1,0 +1,156 @@
+<%args>
+	$round
+	$sort_by => "letter"
+	$show => undef
+	$admin => undef
+</%args>
+<%init>
+
+	my $event = $round->event;
+	my $tourn = $event->tourn;
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $ncfl++ if $tourn->setting("ncfl");
+
+	my @panels = sort {$a->letter cmp $b->letter} $round->panels;
+
+	@panels = sort {length($a->letter) <=> length($b->letter)} @panels;
+	@panels = sort {$a->room->name cmp $b->room->name} @panels if $sort_by eq "room";
+
+	my @entries = $m->comp('/funclib/round_entries.mas', round => $round);
+
+	my %entries_by_panel = ();
+
+	foreach my $entry (@entries) { 
+		next if $entry->dropped;
+		next if $entry->dq;
+		push (@{$entries_by_panel{$entry->panelid}}, $entry);
+	}
+
+	my @judges = $m->comp('/funclib/round_judges.mas', round => $round);
+	my %judges_by_panel = ();
+
+	unless ($round->published == 2) { 
+		foreach my $judge (@judges) { 
+			push (@{$judges_by_panel{$judge->panelid}}, $judge);
+		}
+	}
+
+	my @rooms = $m->comp('/funclib/round_rooms.mas', round => $round);
+
+	my %room_by_id = ();
+
+	foreach my $room (@rooms) { 
+		$room_by_id{$room->id} = $room;
+	}
+
+	my $no_judge_codes = 1 if $event->judge_group->setting('no_codes'); 
+	my $big_codes++ if $event->setting("code_style") eq "names";
+
+	my $start = $round->start_time;
+	$start = $round->timeslot->start unless $start;
+	$start->set_time_zone($tz);
+
+
+</%init>
+
+	<div class="block padless">
+		<span class="qualspan">
+			<h4><% $round->realname %> <% $event->abbr %></h4>
+		</span>
+		<span class="bigspan rightalign">
+			<h4>Start time: <% Tab::nicetime($start) %> <% Tab::tzname($tz) %></h4>
+		</span>
+	</div>
+
+	<table cellpadding="4" cellspacing="1" width="100%"> 
+		
+		<tr class="yellowrow">
+
+			<th>
+			</th>
+
+			<th class="smallish">
+				Room
+			</td>
+			
+%			unless ($round->published == 2) { 
+				<th class="smallish">
+					Judges
+				</td>
+%			}
+
+			<th class="smallish">
+				Entries
+			</td>
+
+%			if ($admin) { 
+				<th class="smaller">
+					Score
+				</th>
+%			}
+
+		</tr>
+		
+%		my $switch;
+
+% 		foreach my $panel (@panels) { 
+
+			<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<td>
+					<% $switch %>
+				</td>
+				
+				<td class="smallish">
+					<% ($panel->room && $panel->room->id && $room_by_id{$panel->room->id}) ? $room_by_id{$panel->room->id}->name : "No Room" %>
+				</td>	
+
+%				my @panel_judges = @{$judges_by_panel{$panel->id}} if $judges_by_panel{$panel->id};
+				
+%				unless ($round->published == 2) { 
+					<td class="smallish">
+%						foreach my $judge (@panel_judges) { 
+
+							<div class="block padless nowrap">
+
+								<% $no_judge_codes && $judge->school ? "" : '<span class="padless schemat">'.$judge->school->code." ".$judge->code.'</span>' %>
+								<% $no_judge_codes && not defined $judge->school ? '<span class="padless schemat">XX '.$judge->code.'</span>' : "" %>
+
+%								unless ($ncfl) {
+								<span class="quarter padless">
+									<% $judge->last %>, <% $judge->first %><% ($judge->chair) ? "*" : "" %>
+								</span>
+%								}
+
+							</div>
+% 						} 
+					</td>
+% 				} 
+
+%				my @panel_entries = @{$entries_by_panel{$panel->id}} if $entries_by_panel{$panel->id};
+
+				<td class="smallish">
+
+% 					foreach my $entry (@panel_entries) { 
+						<span class="<% $big_codes ? "namespan nowrap" : $show ? "schemat" : "smallspan" %>" >
+                               <% ($show) ? ($ncfl) ? $entry->region->code : $entry->school->code : "" %>
+                              <% $big_codes ? $entry->name : $entry->code %>
+                        </span>
+%					} # end of foreach entry
+
+				</td>
+
+%				if ($admin) { 
+					<td class='smaller'>
+						<% $panel->score %>
+					</td>
+%				}
+
+			</tr>
+
+%		} #end of foreach panel  
+
+	</table>

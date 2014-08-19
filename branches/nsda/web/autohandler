@@ -1,0 +1,302 @@
+<%args>
+	$err       => undef
+	$msg       => undef
+	$quick     => undef
+	$fullmsg   => undef
+	$greenmsg  => undef
+	$yellowmsg => undef
+</%args>
+<%init>
+
+	my $debug = $Tab::debug;		
+
+	my ($account, $session) = $m->comp( "/user/login/authenticate.mas");
+
+	my $circuit;
+
+	my $tourn;
+
+	if ($session) { 
+		#Tournament being managed
+		$tourn = $session->tourn;
+	}
+
+</%init>
+
+%	unless ($r->uri =~ /\/api\//) { 
+
+	<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+	<html>
+
+		<head>
+
+			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/reset.css">
+			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/jqueryui.css">
+			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/uniform.css">
+			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/tabroom.css">
+
+%			if ($r->hostname eq "local.tabroom.com" || $r->hostname eq "dev.tabroom.com" || $r->hostname =~ "itab.tabroom.com" ) { 
+				<link rel="stylesheet" type="text/css" media=screen href="/lib/css/devsite.css">
+%			}
+
+%			unless ($session) { 
+				<link rel="stylesheet" type="text/css" media=screen href="/lib/css/login.css">
+%			}
+
+			<script type="text/javascript" src="/lib/javascript/tabroom.js"></script>
+			<script type="text/javascript" src="/lib/javascript/jquery.ui.touch-punch.min.js"></script>
+			<script type="text/javascript" src="/lib/javascript/uniform.min.js"></script>
+			<script>
+				$(document).ready(function(){
+					$(':input:enabled:visible:not(.notfirst):first').focus();
+					$(".chosen").chosen({no_results_text: "Oops, nothing found!", disable_search_threshold: 10});
+				}); 
+
+			</script>
+
+%			if ($r->uri eq "/tabbing/status/dashboard.mhtml") { 
+				<meta http-equiv="refresh" content="60" >
+%			}
+
+			<title>
+				<% ($account && $tourn && $account->site_admin) ? $tourn->id : "" %>
+				<% ($tourn) ? $tourn->start->year." ".$tourn->name." : " : "" %>
+				Tabroom.com
+			</title>
+
+%#			This displays errors in a growl-like interface on the right when present. 
+
+%			if ($err) { 
+				<script type="text/javascript" language="javascript">
+					$(document).ready(function() {
+						$.jGrowl("<% $err %>", { header: 'Warning', life: 8000, theme: 'warning', position: 'top-right' });
+					});
+				</script>
+%			}
+
+%#			This displays messages (not errors) in a growl-like interface on the right when present. 
+%			unless ($fullmsg) { 
+
+%				if ($msg) { 
+					<script type="text/javascript" language="javascript">
+						$(document).ready(function() {
+							$.jGrowl("<% $msg %>", { header: 'Result', life: 5000, position: 'top-right'  });
+						});
+					</script>
+%				}
+
+%				if ($greenmsg) { 
+					<script type="text/javascript" language="javascript">
+						$(document).ready(function() {
+							$.jGrowl("<% $greenmsg %>", { header: 'All Done', life: 5000, position: 'top-right', theme: 'green'  });
+						});
+					</script>
+%				}
+
+%				if ($yellowmsg) { 
+					<script type="text/javascript" language="javascript">
+						$(document).ready(function() {
+							$.jGrowl("<% $yellowmsg %>", { header: 'Half Done', life: 5000, position: 'top-right', theme: 'yellow'  });
+						});
+					</script>
+%				}
+
+%				if ($quick) { 
+					<script type="text/javascript" language="javascript">
+						$(document).ready(function() {
+							$.jGrowl("<% $quick %>", { life: 500, theme: 'quick', position: 'top-right' });
+						});
+					</script>
+%				}
+
+%			} else { 
+
+				<script type="text/javascript" language="javascript">
+					$(document).ready(function() {
+						$.jGrowl("<% $fullmsg %>", { header: 'ATTENTION!', theme: 'fullmsg', life: 10000, position: 'center' });
+					});
+				</script>
+%			}
+
+%			if ($r->hostname eq "www.tabroom.com" ) { 
+				<script>
+					  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+					  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+					  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+					  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+					  ga('create', 'UA-43754389-1', 'tabroom.com');
+					  ga('send', 'pageview');
+				</script>
+
+% 			}
+
+	</head>
+
+<%perl>
+
+ 	my $bodystyle;
+#	Change the background to warn me when I'm developing locally, as I am a moron.
+
+	if ($r->hostname =~ /tabdev/ || $r->hostname =~ /tabpro/ || $r->hostname =~ /zain/) { 
+		$bodystyle = "style=\"background-image: none; background-color: #660000;\"";
+	}
+
+
+</%perl>
+
+	<body <% $bodystyle %>>
+
+	<div id="topbar">
+
+		<div class="toplinks">
+		
+			<div class="topleftlinks">
+
+				<a tabindex="-1" href="http://www.idebate.org">
+					IDEA Home
+				</a>
+
+				<a tabindex="-1" href="<% $Tab::url_prefix %>">
+					Tabroom Home
+				</a>
+
+				<a tabindex="-1" href="/index/about.mhtml">
+					About 
+				</a>
+
+				<a tabindex="-1" href="/index/about.mhtml">
+					Help
+				</a>
+
+			
+			</div>
+
+			<div class="toprightlinks">
+
+
+%				if ($session) { 
+
+
+%					if ($session->su && $session->su->id) { 
+						<a tabindex="-1" href="/user/admin/su_return.mhtml">
+							Return to <% $session->su->email %>
+						</a>
+%					}
+
+					<a tabindex="-1" href="/user/login/logout.mhtml">
+						Logout
+					</a>
+
+					<a tabindex="-1" href="/user/home.mhtml">
+						<% $session->account->email %>
+					</a>
+
+					<a tabindex="-1" href="/user/login/profile.mhtml">
+						Account
+					</a>
+
+					<a tabindex="-1" href="/user/home.mhtml">
+						Homepage
+					</a>
+
+
+%				} else { 
+
+					<a tabindex="-1" href="/user/login/new_user.mhtml">
+						Sign Up
+					</a>
+
+					<& "/user/login/login_block.mas" &>
+%				}
+
+			</div>
+
+		</div>
+
+	</div>
+
+	<div id="header">
+		
+		<a tabindex="-1" href="<% $Tab::url_prefix %>">
+			<img src="/lib/images/idea-logo.png" alt="International Debate Education Association">
+		</a>
+
+%		if ($tourn && ($r->uri =~ /setup/ || $r->uri =~ /register/ || $r->uri =~ /panel/ || $r->uri =~ /tabbing/ || $r->uri =~ /com\/results\//)) { 
+
+%			my $ta = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id)->first;
+
+%			if ($account->site_admin || $ta && $ta->entry_only != 1) { 
+
+				<div id="search">	
+					<form action="/register/search/tourn_search.mhtml">	
+					<input type="text" maxlength="128"  size="15" name="search" placeholder="Search Schools, Judges & Entries" class="notfirst">
+					<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
+					<input type="submit" value="Go" class="notfirst">
+					</form>
+				</div>
+%			}
+
+%		} else { 
+
+			<div id="search">	
+				<form action="/index/search.mhtml">	
+	 			<input type="text" maxlength="128"  size="15" name="search" placeholder="Search Tournaments" class="notfirst">
+				<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
+				<input type="submit" value="Go" class="notfirst">
+				</form>
+			</div>
+
+%		}
+
+	</div>
+
+	<a name="yo" /></a>
+
+%		$m->call_next( 	debug   => $debug,
+%						session => $session,
+%						account => $account,
+%						circuit => $circuit,
+%						tourn   => $tourn);
+
+
+	<div id="footer-wrapper">
+
+		<div id="footer">
+
+			<div class="footer-logo">
+				<img src="/lib/images/idea-logo-small.png" alt="International Debate Education Association Logo">
+			</div>
+
+			<div class="footer-links">
+				<a href="http://www.idebate.org/about/idea">About IDEA</a>
+				<a href="http://www.idebate.org/about/debate">About Debate</a>
+				<a href="http://www.idebate.org/publications">Store</a>
+				<a href="http://www.idebate.org/privacy">Privacy Policy</a>
+				<a href="http://www.idebate.org/terms">Ts&Cs</a>
+				<a href="http://www.idebate.org/donate">Donate</a>
+				<a style="border: none;" href="http://www.idebate.org/contact">Contact</a>
+			</div>
+
+			<br style="clear: both;" />
+
+			<div class="footer-message">
+				IDEA Amsterdam, IDEA London, IDEA New York and IDEA Central are
+				separate organizations that operate independently yet cooperate
+				informally with each other.
+			</div>
+
+		</div>
+
+	</div>
+
+
+	</body>
+
+</html>
+
+% }	else { 
+%		$m->call_next;
+% }

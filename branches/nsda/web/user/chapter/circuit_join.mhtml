@@ -1,0 +1,167 @@
+<%args>
+	$circuit_id => undef
+	$chapter_id => undef
+	$account
+	$type
+	$region_id => undef
+	$membership_id => undef
+</%args>
+<%init>
+
+	my $circuit = Tab::Circuit->retrieve($circuit_id);
+	my $chapter = Tab::Chapter->retrieve($chapter_id); 
+	
+	my @cls = Tab::ChapterCircuit->search( chapter => $chapter->id, circuit => $circuit->id );
+
+	my @memberships = $circuit->circuit_memberships;
+	my @regions = $circuit->regions if $circuit->setting("region_based");
+
+	if (@cls) { 
+		my $err = "You are already a member of that circuit";
+		$m->redirect("/user/chapter/circuits.mhtml?chapter_id=".$chapter->id."&err=$err");
+	}
+
+	if ($type eq "to") {  #Tournaments only 
+
+		unless ($circuit->setting("tourn_only")) {
+			my $err = "That circuit does not allow registrations from nonmembers.  You must join to register";
+			$m->redirect("/user/chapter/circuits.mhtml?chapter_id=".$chapter->id."&err=$err");
+		}
+
+		my $cl = Tab::ChapterCircuit->create({
+			circuit => $circuit->id,
+			chapter => $chapter->id,
+			active => 1,
+			full_member => 0
+		});
+
+		my $msg = "You can now register for tournaments in ".$circuit->name;
+		$m->redirect("/user/chapter/circuits.mhtml?chapter_id=".$chapter->id."&msg=$msg");
+
+	} 
+
+	if ($type eq "full") { 
+
+		my $missing;
+
+		unless ($circuit->setting("full_members")) {
+			my $err = "That circuit does not have full members";
+			$m->redirect("/user/chapter/circuits.mhtml?chapter_id=".$chapter->id."&err=$err");
+		}
+
+		# Check if regions are required
+		if ($circuit->setting("region_based")) { 
+			$region_id = shift @regions if @regions && scalar @regions == 1;
+			$missing = "circuit" unless $region_id;
+		}
+
+		if ($circuit->circuit_memberships) { 
+			$membership_id = shift @memberships if @memberships && scalar @memberships == 1;
+			$missing .="membership" unless $membership_id;
+		}
+
+		unless ($missing) { 
+
+			my $cl = Tab::ChapterCircuit->create({
+				circuit => $circuit->id,
+				chapter => $chapter->id,
+				region => $region_id,
+				membership => $membership_id,
+				active => 1,
+				full_member => 1,
+			});
+
+			my $msg = "You are now a member of ".$circuit->name;
+			$m->redirect("/user/chapter/circuits.mhtml?chapter_id=".$chapter->id."&msg=$msg");
+
+		}
+
+	}
+
+	my $switch;
+
+</%init>
+
+	<div class="left huge">
+
+		<h2>More details needed:</h2>
+
+			<form action="circuit_join.mhtml" method="post">
+			<input type="hidden" name="circuit_id" value="<% $circuit->id %>">
+			<input type="hidden" name="chapter_id" value="<% $chapter->id %>">
+			<input type="hidden" name="type" value="<% $type %>">
+
+%			if ($circuit->circuit_memberships && scalar $circuit->circuit_memberships > 1) { 
+
+				<h3>Choose membership type:</h3>
+
+				<table cellpadding="5" cellspacing="1" width="100%">
+
+%					foreach my $mem (@memberships) { 
+
+						<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+							<td>
+								<% $mem->name %>
+							</td>
+
+							<td>
+								<% ($mem->dues) ? "Dues: \$".$mem->dues : "" %>
+							</td>
+
+							<td>
+								<input type="radio" name="membership_id" value="<% $mem->id %>">
+							</td>
+
+						</tr>
+
+%					}
+
+				</table>
+
+%			} 
+
+%			if ($circuit->setting("region_based")) { 
+
+				<h4>Choose your school's region:</h4>
+
+				<table cellpadding="7" cellspacing="1" width="100%">
+
+%					foreach my $region ($circuit->regions) { 
+							
+						<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+							<td>
+								<% $region->name %>
+							</td>
+
+							<td>
+								<% ($region->director) ? "Director: ".$region->director->first." ".$region->director->last : "" %>
+							</td>
+
+							<td>
+								<input type="radio" name="region_id" value="<% $region->id %>">
+							</td>
+			
+						</tr>
+
+%					}
+
+				</table>
+
+%			}
+				
+			<table cellpadding="5" cellspacing="1" width="100%">
+				
+				<tr class="liblrow">
+
+					<td align="right">
+						<input type="submit" value="   Save Circuit Settings   ">
+						</form>
+					</td>
+
+				</tr>
+
+			</table>
+
+	</div>

@@ -1,0 +1,86 @@
+<%args>
+	$tourn
+	$account
+</%args>
+
+    <div class="right small"> 
+		<& menu.mas, tourn => $tourn, whoami => "double" &> 
+	</div> 
+	
+	<div class="left huge">
+		
+		<h2>Add Double Entry Grouping</h2>
+
+			<form action="event_double_save.mhtml" method="post">
+
+%			my $switch;
+
+			<table cellpadding="5" cellspacing="1" width="100%">
+			
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>		
+
+					<th class="smaller">
+						Name
+					</th>
+
+					<td>
+						<input type="text" name="name" size="40">
+					</th>
+
+				</tr>
+				
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>		
+
+					<th class="smaller">
+						Double Entry Policy	
+					</th>
+
+					<td class="smaller" align="right">  
+
+						<span class="spacey">
+							<label for="2">
+								None <input type="radio" id="2" name="setting" value="2" "selected">
+							</label>
+						</span>
+
+						<br />
+
+						<span class="spacey">
+							<label for="0">
+								Unlimited <input type="radio" id="0" name="setting" value="0">
+							</label>
+						</span>
+
+						<br />
+
+						<span class="spacey">
+							<label for="1">
+								None within group <input type="radio" id="1" name="setting" value="1">
+							</label>
+						</span>
+
+						<br />
+
+						<span class="spacey">
+							<label for="3">
+								Max 
+								<input type="number" name="max" size="3" min="0" max="999">
+								events
+								<input type="radio" id="3" name="setting" value="3">
+							</label>
+						</span>
+
+					</td>
+
+				</tr>	
+
+				<tr class="liblrow">
+					<td colspan="3" align="right">
+						<input type="submit" value="Create Group" >
+						</form>
+					</td>
+				</tr>
+
+			</table>
+
+	</div>

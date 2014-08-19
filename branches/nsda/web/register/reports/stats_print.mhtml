@@ -1,0 +1,115 @@
+<%args> 
+	$session
+	$tourn
+	$account
+</%args>
+<%init>
+
+    my @students = $m->comp("/funclib/tourn_students.mas", tourn => $tourn); 
+	my @judges = $m->comp("/funclib/tourn_judges.mas", tourn => $tourn);
+	my @schools = $tourn->schools;
+	my @regions;
+	#= $m->comp("/funclib/tourn_regions.mas", tourn => $tourn); 
+	
+	my @pools = $m->comp("/funclib/tourn_pools.mas", tourn => $tourn);
+
+	my $switch = 1;
+	
+	my $now = DateTime->now;    
+	$now->set_time_zone($tourn->tz);
+
+	my $name = $tourn->name;
+	$name =~ s/[\W_]//g;
+
+    my $filename = "TournStats-$name-".$session->id;
+	my $filepath = $Tab::file_root."tmp/".$filename;
+	`rm -f $filepath.*`; 
+	
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, head => 1 );
+
+	open (TEXOUT, ">>$filepath.tex");
+
+	print TEXOUT "\\bigskip\n";
+	print TEXOUT "\\begin{tabular}{p{1.5in}p{4.75in}} \n  ";
+	print TEXOUT "{\\bf Tournament:} & ".&Tab::texify(substr($tourn->name,0,30))." \\\\ \n ";
+	print TEXOUT "{\\bf Printed:} & ". &Tab::nicedt($now)." \\\\ \\hline \n";
+	print TEXOUT "\\end{tabular}\n";
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\normalsize\n";
+	print TEXOUT "\\begin{tabular}{p{2.5in}p{3.75in}}\n";
+	print TEXOUT "\\multicolumn{2}{l}{\\bf Overall Statistics }\\\\ \n";
+	print TEXOUT "\\hline \n";
+
+	if ($tourn->setting("ncfl") || $tourn->setting("regions")) { 
+
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+		print TEXOUT "Total number of Dioceses" if $tourn->setting("ncfl");
+		print TEXOUT "Total number of regions" if $tourn->setting("regions");
+		print TEXOUT " & ". scalar @regions." \\\\ \n";
+
+	}
+
+	print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+	print TEXOUT "Total number of schools & ".scalar @schools." \\\\ \n";
+	print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+	print TEXOUT "Total number of students & ".scalar @students." \\\\ \n";
+	print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+	print TEXOUT "Total number of judges & ".scalar @judges." \\\\ \n";
+	print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+	print TEXOUT "Total number of people & ".(scalar @students + scalar @judges)." \\\\ \n";
+	print TEXOUT "\\end{tabular}\n";
+
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\normalsize\n";
+	print TEXOUT "\\begin{tabular}{p{2.5in}p{3.75in}}\n";
+	print TEXOUT "\\multicolumn{2}{l}{\\bf Entry numbers by event }\\\\ \n";
+	print TEXOUT "\\hline \n";
+
+	foreach my $event ($m->comp("/funclib/tourn_events.mas", tourn => $tourn)) { 
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+		print TEXOUT $event->name." & ".scalar Tab::Entry->search( event => $event, dropped => 0, waitlist => 0)." \\\\ \n";;
+	}
+
+	print TEXOUT "\\end{tabular}\n";
+
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\newline\n";
+	print TEXOUT "\\medskip\n";
+	print TEXOUT "\\normalsize\n";
+	print TEXOUT "\\begin{tabular}{p{2.5in}p{3.75in}}\n";
+	print TEXOUT "\\multicolumn{2}{l}{\\bf Judge numbers by group }\\\\ \n";
+	print TEXOUT "\\hline \n";
+
+	foreach my $group ($tourn->groups) { 
+		print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+		print TEXOUT $group->name." & ".scalar $group->judges." \\\\ \n";;
+	}
+
+	print TEXOUT "\\end{tabular}\n";
+
+	if (@pools) { 
+
+		print TEXOUT "\\medskip\n";
+		print TEXOUT "\\newline\n";
+		print TEXOUT "\\medskip\n";
+		print TEXOUT "\\normalsize\n";
+		print TEXOUT "\\begin{tabular}{p{2.5in}p{3.75in}}\n";
+		print TEXOUT "\\multicolumn{2}{l}{\\bf Judge numbers by pool }\\\\ \n";
+		print TEXOUT "\\hline \n";
+
+		foreach my $pool (@pools) { 
+			print TEXOUT "\\rowcolor[rgb]{.84,.89,.94}\[5.5pt\]\[5.5pt\]\n" if ($switch++ % 2);
+			print TEXOUT $pool->name." & ".scalar $pool->judges." \\\\ \n";;
+		}
+		
+		print TEXOUT "\\end{tabular}\n";
+
+	}
+
+	$m->comp("/funclib/printout.mas", tourn => $tourn, filename => $filename, tail => 1 );
+
+</%init>

@@ -1,0 +1,71 @@
+<%args>
+	$tourn
+	$chosen => undef
+	$set_id => undef
+</%args>
+<%init>
+
+</%init>
+
+	<div class="right small">
+
+%		my @sets = sort {$a->name cmp $b->name} Tab::TiebreakSet->search(tourn => $tourn->id);
+
+			<div class="sidenote">
+
+				<h4>Tiebreak sets</h4>
+
+					<a class="yellow block" href="tiebreaks.mhtml" style="margin-bottom: 10px;">
+						Add a new set
+					</a>
+
+%					foreach my $tb_set (@sets) { 
+						<a class="<% $set_id == $tb_set->id ? "dk" : "" %>blue block" href="tiebreaks.mhtml?tb_set_id=<% $tb_set->id %>">
+							<% $tb_set->name %>
+						</a>
+%					}
+
+			</div>
+
+%		if ($chosen eq "sweeps") {
+
+%			my @sets = $tourn->sweep_sets;
+
+			<div class="sidenote">
+
+				<h4>Sweeps Sets </h4>
+
+%				foreach my $set (@sets) { 
+					<a class="<% $set_id == $set->id ? "dk" : "" %>blue block" href="sweeps.mhtml?set_id=<% $set->id %>">
+						<% $set->name %>
+					</a>
+%				}
+
+
+				<h5>Add New Set</h5>
+
+				<form action="sweep_set_save.mhtml" method="post">
+				<span class="evenrow smaller block">
+					<input type="text" size="19" style="padding: 4px;" name="name" placeholder="Enter name">
+					<input type="submit" class="skinnier" value="Go" style="margin-left: 3px; margin-right: 0px;">
+				</span>
+				</form>
+
+			</div>
+
+%		}
+
+		<div class="sidenote">
+
+%			if ($chosen eq "Team" || $chosen eq "exwhite") { 
+
+				<a href="tiebreaks_exwhite.mhtml" class="<% ($chosen eq "exwhite") ? "dkblue block" : "yellow block" %>">
+					Guide to Tiebreakers
+				</a>
+
+%			}
+
+		</div>
+
+	</div>
+

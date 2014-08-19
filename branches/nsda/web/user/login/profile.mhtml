@@ -1,0 +1,305 @@
+<%args>
+	$account
+	$first   => undef
+	$idebate => undef
+</%args>
+<%init>
+
+	unless ($account) { 
+		$m->redirect("/index/index.mhtml?err=Your account does not appear to exist.  Please log in");
+	}
+
+</%init>
+
+%	my $switch;
+
+	<div class="left huge">
+
+	<h2>Your Tabroom.com Account</h2>
+
+%	if ($idebate) { 
+		<p>
+			Welcome to the Tabroom.com online tournament management system.  Your
+			IDEA idebate.org account has been activated on Tabroom.  Please fill in the
+			details below to fully activate your account.
+		</p>
+%	}
+
+	<h4>Edit Your Details:</h4>
+
+	<table cellpadding="5" width="100%" border="0">
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Email
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<form action="profile_save.mhtml" method="post"> 
+				<input type="text" name="email" value="<% $account->email %>" size="35">
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				First Name:
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<input type="text" name="first" value="<% $account->first %>" size="35">
+			</td>
+	
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Last Name:
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<input type="text" name="last" value="<% $account->last %>" size="35">
+			</td>
+	
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Street Address:
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<input type="text" name="street" value="<% $account->street %>" size="35">
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				City
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<input type="text" name="city" value="<% $account->city %>" size="35">
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				State
+			</td>
+
+			<td class="rightalign">
+				<select name="state" class="fixed chosen">
+					<& /funclib/state_select.mas, state => $account->state &>
+				</select>
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Country
+			</td>
+
+			<td class="rightalign">
+				<select name="country" class="fixed chosen">
+					<& /funclib/country_select.mas, country => $account->country &>
+				</select>
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				ZIP code
+			</td>
+
+			<td class="rightalign" colspan="3">
+				<input type="text" name="zip" value="<% sprintf("%05d", $account->zip) %>" size="35">
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Phone Number
+			</td>
+
+			<td class="rightalign">
+				<input type="text" name="phone" value="<% $account->phone %>" size="35">
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				Time Zone
+			</td>
+
+			<td class="rightalign">
+				<select name="timezone" class="fixed chosen">
+					<& /funclib/timezones.mas, tz => $account->tz &>
+				</select>
+			</td>
+
+		</tr>
+
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td class="nowrap">
+				Cell phone provider (for texts)
+			</td>
+
+			<td class="rightalign">
+				<select name="provider" class="fixed chosen">
+					<& /funclib/cell_domains.mas, provider => $account->provider &>
+				</select>
+			</td>
+
+		</tr>
+
+		<tr class="<% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+			<td>
+				<label for="shaddap">
+				No Emails*:
+				</label>
+			</td>
+
+			<td colspan="3" class="rightalign">
+				<input type="checkbox"  id="shaddap" value="1" name="no_email" <% ($account->no_email) ? "checked" : "" %>>
+
+			</td>
+
+		</tr>
+
+		<tr class="liblrow">
+
+			<td colspan="2" class="rightalign">
+				<input type="submit" value="<%($account) ? 'Save Changes' : 'Create Account' %>">
+				</form>
+			</td>
+
+		</tr>
+
+		<tr>
+
+			<td class="exwhite" colspan="4" style="padding-top: 35px;">
+
+				<h4></h4>
+
+				* NO EMAILS: This setting will prevent you from getting ANY tournament and
+				circuit announcement emails.  If you're not actively coaching
+				anymore, that's fine, but if you're coaching you'll almost
+				certainly miss something important by checking this box.  
+	
+				If another coach has taken over your program, you should
+				instead go to your home screen, add them to the chapter's
+				access, and remove yourself.
+
+			</td>
+		</tr>
+
+	</table>
+
+</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Change Passwords</h4>
+
+			<p class="warnbox">
+				The NSDA, Joy of Tournaments & Tabroom.com accounts all share
+				the SAME logins and passwords.  Changing one here changes it
+				everywhere!
+			</p>
+
+%			foreach my $login ($account->logins) { 
+
+				<form action="passwd.mhtml" method="post">
+				<input type="hidden" name="login_id" value="<% $login->id %>">
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %> martop">
+					<span class="third rightalign">
+						Login:
+					</span>
+					<span class="twothird">
+						<input type="text" name="username" size="16" value="<% $login->username %>">
+					</span>
+				</div>
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %> ">
+					<span class="third rightalign">
+						Current:
+					</span>
+					<span class="twothird">
+						<input type="password" name="oldpass" size="16" placeholder="Current Password">
+					</span>
+				</div>
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %> ">
+					<span class="third rightalign">
+						New:
+					</span>
+					<span class="twothird">
+						<input type="password" name="newpass" size="16" placeholder="New Password">
+					</span>
+				</div>
+
+				<div class="<% ($switch++ % 2) ? "odd" : "even" %> ">
+					<span class="third rightalign">
+						New again:
+					</span>
+					<span class="twothird">
+						<input type="password" name="repeatpass" size="16" placeholder="Repeat New">
+					</span>
+				</div>
+
+				<div class="liblrow rightalign">
+					<input  type="submit" class="thin" value=" Save ">
+					</form>
+				</div>
+%			}
+
+		</div>
+
+
+	<div class="sidenote">
+		<h4>DO NOT SHARE PASSWORDS</h4>
+
+		<p class="exwhite">
+			Your password controls access to your school, student info, and
+			tournaments.  If someone uses your account to try to pull
+			shenanigans, you will be on the hook.  Every individual should use
+			their OWN tabroom.com account.  Grant them access to your chapter
+			or tournament instead of sharing your password.
+		</p>
+
+			
+		<p class="exwhite">
+			Tabroom.com is a website run for the benefit of the
+			forensics community by the <a class="inline hover" href="http://www.speechanddebate.org">National Speech and Debate Association.</a>
+			Circuit officials and tournament directors will be able to see
+			registrants -- but not student's -- contact information.
+			Tabroom.com itself will never sell or give away your contact
+			information to anyone without your consent.  
+		</p> 
+
+	</div>
+		
+</div>

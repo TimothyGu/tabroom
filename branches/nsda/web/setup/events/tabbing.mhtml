@@ -1,0 +1,701 @@
+<%args>
+	$tourn
+	$event_id => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+ 	my @groups = sort{$a->name cmp $b->name} $tourn->judge_groups;
+	my $event = Tab::Event->retrieve($event_id) if $event_id;
+	$m->redirect("edit.mhtml") unless $event;
+
+	my $switch;
+
+</%init>
+
+    <script type="text/javascript"> 
+		function showMe (it,box) { 
+			var vis = (box.checked) ? "none" : "block"; 
+			document.getElementById(it).style.display = vis;
+		} 
+    </script>
+
+    <div class="left huge">
+
+        <h2><% $event->name %></h2>
+
+        <& tabbar.mas, event => $event, whoami => "tabbing" &>
+    
+		<form action="tabbing_save.mhtml" method="post">
+		<input type="hidden" name="event_id" value="<% $event->id %>">
+
+%		undef $switch;
+		<div class="half top">
+
+			<h4>Pairing/Sectioning</h4>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="half martop">
+					Section labels
+				</span>
+				<span class="half centeralign">
+					<select name="panel_labels" class="fixedtiny">
+						<option value="numbers">Numbers</option>
+						<option <% $event->setting("panel_labels") eq "letters" ? "selected" : "" %> value="letters">Letters</option>
+					</select>
+				</span>
+			</div>
+
+%			if ($event->type eq "wudc") { 
+
+				<label for="avoid_school_hits">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="twothird wrap">
+							Avoid pairing same-school entries 
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" id="avoid_school_hits" name="avoid_school_hits" value="1" <% ($event) ? ($event->setting("avoid_school_hits")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+% 			}
+
+
+% 			if ($event->type ne "congress" && $event->type ne "speech" && $event->type ne "wudc") { 
+
+				<label for="round_robin">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Round Robin format
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="round_robin" id="round_robin" value="1" 
+								<% ($event) ? ($event->setting("round_robin")) ? 'checked' : '' : '' %> onclick="showMe('norr', this)">
+						</span>
+					</div>
+				</label>
+
+				<label for="no_side_constraints">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Flip for sides in all rounds (PF)
+						</span>
+						<span class="quarter centeralign">
+							<input  type="checkbox" name="no_side_constraints" id="no_side_constraints" 
+								value="1" <% ($event) ? ($event->setting("no_side_constraints")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="school_debates_self">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Allow teams to debate own school
+						</span>
+						<span class="quarter centeralign">
+							<input  type="checkbox" name="school_debates_self" id="school_debates_self" 
+								value="1" <% ($event) ? ($event->setting("school_debates_self")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+%				if ($tourn->setting("regions")) { 
+
+					<label for="region_avoid">
+						<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+							<span class="twothird martop">
+								Avoid in-region matchups in presets
+							</span>
+							<span class="quarter centeralign">
+								<input  type="checkbox" name="region_avoid" id="region_avoid" 
+									value="1" <% ($event) ? ($event->setting("region_avoid")) ? 'checked' : '' : '' %>>
+							</span>
+						</div>
+					</label>
+%				}
+
+				<div id="norr" style="display: <% $event->setting("round_robin") ? "none" : "block" %>;">
+
+%					my $seed_presets = $event->setting("seed_presets");
+
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="half martop">
+							Assign presets
+						</span>
+						<span class="half centeralign">
+							<select name="seed_presets" class="fixedtiny">
+
+								<option value="0" <% $seed_presets ? "" : "selected" %> >
+									Randomly
+								</option>
+
+								<option value="all" <% $seed_presets eq "all" ? "selected" : "" %> >
+									Hit All Seed Categories
+								</option>
+
+								<option value="inverse" <% $seed_presets eq "inverse" ? "selected" : "" %> >
+									Hit Inverse Seeds (1 hits 2&amp;3; 3 hits 1&amp;4)
+								</option>
+
+								<option value="balance" <% $seed_presets eq "balance" ? "selected" : "" %> >
+									Balance seeds of presets to same total
+								</option>
+
+								<option value="protect" <% $seed_presets eq "protect" ? "selected" : "" %> >
+									Power Protect (1 hits 6, 2 hits 5)
+								</option>
+
+							</select>
+						</span>
+					</div>
+
+%					my $powermatch = $event->setting("powermatch");
+
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="half martop">
+							Powermatch method
+						</span>
+						<span class="half centeralign">
+							<select name="powermatch" class="fixedtiny">
+								<option value="sop" <% $powermatch eq "sop" ? "selected" : "" %>>SOP (Seed + Opp Seed)</option>
+								<option value="seed" <% $powermatch eq "seed" ? "selected" : "" %>>Seeds Only</option>
+							</select>
+						</span>
+					</div>
+
+%					my $pullup_method = $event->setting("pullup_method");
+
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="half martop">
+							Pullup method
+						</span>
+						<span class="half centeralign">
+							<select name="pullup_method" class="fixedtiny">
+								<option value="sop" <% $pullup_method eq "sop" ? "selected" : "" %>>	
+									Worst SOP (Seed + Opp Seed.  Recommended)</option>
+								<option value="oppwin" <% $pullup_method eq "oppwin" ? "selected" : "" %>>
+									Pullup has worst opponents (based on record)</option>
+								<option value="middle" <% $pullup_method eq "middle" ? "selected" : "" %>>
+									Pull from middle of bracket below</option>
+								<option value="lowseed" <% $pullup_method eq "lowseed" ? "selected" : "" %>>
+									Worst seed from bracket below</option>
+							</select>
+						</span>
+					</div>
+
+					<label for="pullup_repeat">
+						<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+							<span class="threequarter martop">
+								Allow repeat pullups by same team
+							</span>
+							<span class="quarter centeralign">
+								<input  type="checkbox" name="pullup_repeat" id="pullup_repeat" 
+									value="1" <% ($event) ? ($event->setting("pullup_repeat")) ? 'checked' : '' : '' %>>
+							</span>
+						</div>
+					</label>
+
+					<label for="bracket_rooms">
+						<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+							<span class="threequarter martop">
+								Assign rooms by brackets
+							</span>
+							<span class="quarter centeralign">
+								<input type="checkbox" id="bracket_rooms" name="bracket_rooms" 
+									value="1" <% ($event) ? ($event->setting("bracket_rooms")) ? 'checked' : '' : '' %>>
+							</span>
+						</div>
+					</label>
+				</div>
+
+% 			}
+
+			<h4>Judging</h4>
+
+			<label for="allow_judge_own">
+				<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter martop">
+						Judges may judge their own school
+					</span>
+					<span class="quarter centeralign">
+						<input type="checkbox" id="allow_judge_own" name="allow_judge_own" 
+							value="1" <% ($event) ? ($event->setting("allow_judge_own")) ? 'checked' : '' : '' %>>
+					</span>
+				</div>
+			</label>
+						
+			<label for="no_first_years">
+				<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter martop">
+						Block first year out judges
+					</span>
+					<span class="quarter centeralign">
+						<input type="checkbox" id="no_first_years" name="no_first_years" 
+							value="1" <% ($event) ? ($event->setting("no_first_years")) ? 'checked' : '' : '' %>>
+					</span>
+				</div>
+			</label>
+
+
+% 			if ($event->type eq "congress" || $event->type eq "speech") { 
+
+				<label for="min_panel_size">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="twothird martop">
+							Minimum <% $event->type eq "speech" ? "section" : "chamber" %> size
+						</span>
+						<span class="third centeralign">
+							<input type="text" class="thin" name="min_panel_size" 
+								value="<% ($event) ? $event->setting("min_panel_size") : "0" %>" size="5">
+						</span>
+					</div>
+				</label>
+
+				<label for="max_panel_size">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="twothird martop">
+							Maximum <% $event->type eq "speech" ? "section" : "chamber" %> size
+						</span>
+						<span class="third centeralign">
+							<input type="text" class="thin" name="max_panel_size" 
+								value="<% ($event) ? $event->setting("max_panel_size") : "0" %>" size="5">
+						</span>
+					</div>
+				</label>
+
+				<label for="default_panel_size">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="twothird martop">
+							Default <% $event->type eq "speech" ? "section" : "chamber" %> size
+						</span>
+						<span class="third centeralign">
+							<input type="text" class="thin" name="default_panel_size" 
+								value="<% ($event) ? $event->setting("default_panel_size") : "0" %>" size="5">
+						</span>
+					</div>
+				</label>
+
+				<label for="school_percent_limit">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="twothird martop">
+							Limit a school to this % of sections
+						</span>
+						<span class="third centeralign">
+							<input type="text" class="thin" name="school_percent_limit" 
+								value="<% ($event) ? $event->setting("school_percent_limit") : "0" %>" size="5">
+						</span>
+					</div>
+				</label>
+
+
+%				my $elim_method = $event->setting("elim_method");
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+					<span class="half martop">
+						Elim snake adjustment
+					</span>
+
+					<span class="half centeralign">
+
+						<select name="elim_method" class="fixedtiny">
+
+							<option value="snake" 
+								<% ($event->setting("elim_method") eq "snake") ? "selected" : "" %>> 
+								None: do not adjust for same-school hits
+							</option>
+		
+							<option value="snake_school" 
+								<% ($event->setting("elim_method") eq "snake_school") ? "selected" : "" %>> 
+								Seeds: Adjust among entries with similar prelim seed (max 2 places)
+							</option>
+
+							<option value="snake_school_rank" 
+								<% ($event->setting("elim_method") eq "snake_school_rank") ? "selected" : "" %>> 
+								Tiebreak: Adjust among entries tied in the 1st tiebreaker
+							</option>
+
+							<option value="snake_school_prelim_cume" 
+								<% ($event->setting("elim_method") eq "snake_school_prelim_cume") ? "selected" : "" %>> 
+								Prelim Cume: Adjust among entries tied in prelim cume ranks
+							</option>
+
+							<option value="snake_school_overall_cume" 
+								<% ($event->setting("elim_method") eq "snake_school_overall_cume") ? "selected" : "" %>> 
+								Overall Cume: Adjust among entries tied in overall cume ranks
+							</option>
+		
+							<option value="snake_school_force" 
+								<% ($event->setting("elim_method") eq "snake_school_force") ? "selected" : "" %>> 
+								Force: Force-adjust no matter tiebreakers; closer seeds first.
+							</option>
+
+							<option value="ky_semis_snake" 
+								<% ($event->setting("elim_method") eq "ky_semis_snake") ? "selected" : "" %>> 
+								Kentucky States: 3 way semi snake, then adjust for schools
+							</option>
+
+						</select>
+					</span>
+				</div>
+							
+
+% 			}
+
+% 			if ($event->type eq "congress") { 
+
+				<label for="pair_seeds">
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Pair prelims based on seeding
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="pair_seeds" id="pair_seeds" 
+								value="1" <% ($event) ? ($event->setting("pair_seeds")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="parli_ballot">
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Parli fills 1 ballot for all prelims
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="parli_ballot" id="parli_ballot" 
+								value="1" <% ($event) ? ($event->setting("parli_ballot")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+
+				<label for="separate_codes">
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Use separate school codes
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="separate_codes" id="separate_codes" 
+								value="1" <% ($event) ? ($event->setting("separate_codes")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="points_later">
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Enter speaker points after ranks
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="points_later" id="points_later" 
+								value="1" <% ($event) ? ($event->setting("points_later")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+% 			}
+
+% 			if ($event->type eq "congress" || $event->type eq "speech") { 
+				<label for="truncate_fill">
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Auto-fill blanks as truncate rank
+						</span>
+						<span class="quarter centeralign">
+							<input  type="checkbox" name="truncate_fill" id="truncate_fill" 
+								value="1" <% ($event) ? ($event->setting("truncate_fill")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+% 			}
+
+
+%			unless ($event->type eq "speech") { 
+							
+				<label for="allow_repeat_judging">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Allow repeat judging
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" id="allow_repeat_judging" name="allow_repeat_judging" 
+								value="1" <% ($event) ? ($event->setting("allow_repeat_judging")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="allow_repeat_elims">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Allow repeat judging in elims
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" id="allow_repeat_elims" name="allow_repeat_elims" 
+								value="1" <% ($event) ? ($event->setting("allow_repeat_elims")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="disallow_repeat_drop">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter wrap smallish">
+							Disallow repeats in elims by judges who voted against a debater
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" id="disallow_repeat_drop" name="disallow_repeat_drop" 
+								value="1" <% ($event) ? ($event->setting("disallow_repeat_drop")) ? 'checked' : '' : '' %>>
+						</span>
+					</div>
+				</label>
+
+%				unless ($event->type eq "wudc" || $event->setting("no_side_constraints")) { 
+					<label for="allow_repeat_prelim_side">
+						<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+							<span class="threequarter martop">
+								Allow repeats on different sides
+							</span>
+							<span class="quarter centeralign">
+								<input type="checkbox" id="allow_repeat_prelim_side" name="allow_repeat_prelim_side" 
+									value="1" <% ($event) ? ($event->setting("allow_repeat_prelim_side")) ? 'checked' : '' : '' %>>
+							</span>
+						</div>
+					</label>
+
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Ignore prefs once an entry loses:
+						</span>
+						<span class="quarter centeralign">
+							<input type="text" class="thin" name="break_point" 
+								value="<% ($event) ? $event->setting("break_point") : "" %>" size="5">
+						</span>
+					</div>
+% 				}
+
+% 			}
+
+		</div>
+
+		<div class="half top">
+
+%			undef $switch;
+			
+			<h4>Results</h4>
+
+%			unless ($event && ($event->type eq "speech" || $event->type eq 'congress')) { 
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="half martop">
+						Speaker awards:
+					</span>
+
+					<span class="half centeralign">
+%						my $set = $event->setting("speaker_tbset") if $event;
+						<select name="speaker_tbset" class="fixedtiny">
+							<option value="">None</option>
+%							foreach my $tb_set (Tab::TiebreakSet->search( tourn => $tourn->id)) { 
+								<option value="<% $tb_set->id %>" <% $tb_set->id == $set ? "selected" : "" %>>
+									<% $tb_set->name %>
+								</option>
+%							}
+						</select>
+					</span>
+
+				</div>
+%			}
+
+			<label for="live_updates">
+				<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter martop">
+						Use live updates (Text/Emails)
+					</span>
+					<span class="quarter centeralign">
+						<input type="checkbox" id="live_updates" name="live_updates" 
+							value="1" <% ($event) ? ($event->setting("live_updates")) ? 'checked' : '' : '' %>>
+					</span>
+				</div>
+			</label>
+
+			<label for="online_ballots">
+				<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter martop">
+						Online Ballot Entry
+					</span>
+					<span class="quarter centeralign">
+						<input type="checkbox" id="online_ballots" name="online_ballots" 
+							value="1" <% ($event) ? ($event->setting("online_ballots")) ? 'checked' : '' : '' %>>
+					</span>
+				</div>
+			</label>
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="twothird martop">
+					Minimum speaker points
+				</span>
+				<span class="third centeralign">
+					<input type="text" class="thin" name="min_points" value="<% ($event) ? $event->setting("min_points") : "0" %>" size="5">
+				</span>
+			</div>
+
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="twothird martop">
+					Maximum speaker points
+				</span>
+				<span class="third centeralign">
+					<input type="text" class="thin" name="max_points" value="<% ($event) ? $event->setting("max_points") : "100" %>" size="5">
+				</span>
+			</div>
+
+%			if ($event->setting("online_ballots")) { 
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="twothird martop">
+						Min online ballot points
+					</span>
+					<span class="third centeralign">
+						<input type="text" class="thin" name="min_ob_points" value="<% ($event) ? $event->setting("min_ob_points") : "0" %>" size="5">
+					</span>
+				</div>
+
+
+				<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="twothird martop">
+						Max online ballot points
+					</span>
+					<span class="third centeralign">
+						<input type="text" class="thin" name="max_ob_points" value="<% ($event) ? $event->setting("max_ob_points") : "100" %>" size="5">
+					</span>
+				</div>
+%			}
+
+%			my $increments = $event->setting("point_increments") if $event;
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="half martop">
+					Point increments
+				</span>
+				<span class="half centeralign">
+					<select name="point_increments" class="fixedtiny">
+
+						<option value="whole" <% ($event && $increments eq "whole") ? "selected" : "" %>>
+							Whole
+						</option>
+
+						<option value="half" <% ($event && $increments eq "half") ? "selected" : "" %>>
+							Half
+						</option>
+
+						<option value="fourths" <% ($event && $increments eq "fourths") ? "selected" : "" %>>
+							.25
+						</option>
+
+						<option value="tenths" <% ($event && $increments eq "tenths") ? "selected" : "" %>>
+							.10
+						</option>
+
+					</select>
+				</span>
+			</div>
+
+%			unless ($event->type eq "wudc") { 
+
+				<label for="no_lpw">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Forbid low-point wins
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" name="no_lpw" value="1" 
+								<% ($event && $event->setting("no_lpw")) ? "checked" : "" %>>
+						</span>
+					</div>
+				</label>
+
+				<label for="point_ties">
+					<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+						<span class="threequarter martop">
+							Allow tied points
+						</span>
+						<span class="quarter centeralign">
+							<input type="checkbox" id="point_ties" name="point_ties" 
+								value="1" <% ($event) ? ($event->setting("point_ties")) ? 'checked' : '' : '' %>> 
+						</span>
+					</div>
+				</label>
+
+%				unless ($event->type eq "speech" || $event->type eq "congress" || $event->type eq "wudc") { 
+
+%					my $mavericks = $event->setting("mavericks");
+
+					<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+						<span class="half martop">
+							Mavericks get:
+						</span>
+
+						<span class="half centeralign">
+							<select name="mavericks" class="fixedtiny">
+								<option value="double" <% $mavericks eq "double" ? "selected" : "" %>>Ranks/points doubled</option>
+								<option value="average" <% $mavericks eq "average" ? "selected" : "" %>>Points averaged, ranks 4</option>
+								<option value="nothing" <% $mavericks eq "nothing" ? "selected" : "" %>>No points, ranks 4</option>
+							</select>
+						</span>
+
+					</div>
+%				}
+
+%			}
+
+			<div class="optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+
+				<span class="half martop">
+					Recognize top novices
+				</span>
+
+				<span class="half centeralign">
+
+%					my $top_novice = $event->setting("top_novice");
+
+					<select name="top_novice" class="fixedtiny">
+
+						<option value="none" <% ( $top_novice eq "none") ? "selected" : "" %>>
+							None
+						</option>
+
+						<option value="top" <% ( $top_novice eq "top") ? "selected" : "" %>>
+							Overall
+						</option>
+
+						<option value="noelim" <% ( $top_novice eq "noelim") ? "selected" : "" %>>
+							Non-advancing
+						</option>
+					</select>
+				</span>
+			</div>
+
+			<label for="honorable_mentions">	
+				<div class="hover optionblock <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="threequarter wrap">
+						Recognize honorable mentions (tied non-advancers)
+					</span>
+					<span class="quarter centeralign">
+						<input type="checkbox" id="honorable_mentions" name="honorable_mentions" 
+							value="1" <% ($event) ? ($event->setting("honorable_mentions")) ? 'checked' : '' : '' %>> 
+					</span>
+				</div>
+			</label>
+
+		</div>
+
+		<div class="liblrow block rightalign">
+			<input type="submit" value="Save Tabbing Settings">
+			</form>
+		</div>
+
+	</div>
+		
+	<div class="right small">
+		<& menu.mas, tourn => $tourn, whoami => "tabbing", event_id => ($event) ? $event->id : "" &>		
+	</div>

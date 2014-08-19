@@ -1,0 +1,14 @@
+<%args> 
+	$session
+	$account
+	$tourn
+	$class => undef
+</%args>
+
+	<& "menu.mas", class => $class, tourn => $tourn &>
+
+	<div id="left huge"> 
+
+		<h2>Reports <% ucfirst($class) %></h2>
+
+	</div>

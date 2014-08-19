@@ -1,0 +1,178 @@
+<%args>
+	$account
+	$tourn
+	$region
+</%args>
+<%init>
+
+	my $tz = $account->tz;
+	$tz = "UTC" unless $tz;
+
+	my $switch; 
+
+	my $sample_school;
+
+	if ($region) { 
+		$region->unregistered( scalar Tab::School->search( tourn => $tourn, region => $region, registered => 0 ) );
+		$sample_school = Tab::School->search( tourn => $tourn, region => $region)->first;
+	}
+
+	my $regtime = $sample_school->registered_on;
+	$regtime->set_time_zone($tz) if $regtime;
+
+
+</%init>
+
+	<& menubar.mas, tourn => $tourn, region => $region, whoami => "summary" &>
+
+	<div class="huge left">
+
+		<div class="evenrow block med">
+			<span class="medbigspan rightalign">
+				Diocese Code:
+			</span>
+			<span class="hundo">
+				<% $region->code %>
+			</span>
+
+			<span class="medspan rightalign">
+				Entry Limit:
+			</span>
+			<span class="medspan">
+				<% $region->quota %>
+			</span>
+		</div>
+
+		<h4>Contacts:</h4>
+
+%			my $main;
+
+%			foreach my $admin ($region->admins) { 
+
+				<div class="block med <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+					<span class="medbigspan rightalign padmore">
+						<% $main ? "" : "Main" %> Contact Name:
+					</span>
+					<span class="onesixty">
+						<% $admin->first." ".$admin->last %>
+					</span>
+					<span class="medbigspan">
+						<a class="white inline" href="mailto:<% $admin->email %>">
+							<% $admin->email %>
+						</a>
+					</span>
+				</div>
+
+%				$main = $admin unless $main;
+
+
+%			}
+
+			<form action="contact_save.mhtml">
+			<input type="hidden" name="tourn_id" value="<% $tourn->id %>">
+			<input type="hidden" name="region_id" value="<% $region->id %>">
+
+			<div class="block med <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="medbigspan rightalign">
+					Main Contact Phone:
+				</span>
+				<span class="medbigspan">
+					<input type="tel" name="phone" value="<% $main->phone %>">
+				</span>
+			</div>
+
+			<div class="block med <% ($switch++ % 2) ? "oddrow" : "evenrow" %>">
+				<span class="medbigspan rightalign">
+					Main Contact Hotel:
+				</span>
+				<span>
+					<input type="text" size="40" name="hotel" value="<% $main->setting("hotel") %>">
+				</span>
+			</div>
+
+			<div class="liblrow rightalign">
+				<input type="submit" class="thin" value=" Save Contact Info">
+				</form>
+			</div>
+
+	</div>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Status</h4>
+
+%			if ($region->unregistered) { 
+
+				<div class="dkred centeralign block" style="text-transform: uppercase;">
+					Not Registered
+				</div>
+
+				<a class="yellow martop block centeralign" href="register.mhtml?region_id=<% $region->id %>">
+					Mark as Registered
+				</a>
+
+%			} else { 
+
+				<div class="dkgreen centeralign block" style="text-transform: uppercase;">
+					Registered On <% Tab::nicetime($regtime) %>
+				</div>
+
+				<a class="yellow martop block centeralign" href="register.mhtml?region_id=<% $region->id %>&undo=1">
+					Mark as Unregistered
+				</a>
+%			} 
+	
+		</div>
+	
+		<div class="sidenote">
+
+			<h4>Records</h4>
+
+			<a href="tourn_print_event.mhtml?tourn_id=<% $tourn->id %>&region_id=<% $region->id %>" class="blue block">
+				Print Registration (by Event)
+			</a>
+
+			<a href="tourn_print_school.mhtml?tourn_id=<% $tourn->id %>&region_id=<% $region->id %>" class="blue block">
+				Print Registration (by School)
+			</a>
+
+			<h4>Invoices</h4>
+
+			<a href="invoice_print.mhtml?tourn_id=<% $tourn->id %>&region_id=<% $region->id %>" class="blue block">
+				Print Diocese Invoice
+			</a>
+
+			<a href="invoice_school_print.mhtml?tourn_id=<% $tourn->id %>&region_id=<% $region->id %>" class="blue block">
+				Print Individual School Invoices
+			</a>
+
+			<h4>Cards</h4>
+
+			<a href="entry_cards_print.mhtml?region_id=<% $region->id %>" class="blue block">
+				Entry Cards
+			</a>
+
+			<a href="judge_cards_print.mhtml?region_id=<% $region->id %>" class="blue block">
+				Judge Cards
+			</a>
+
+			<h4>Assignments</h4>
+
+			<a href="entry_report_print.mhtml?region_id=<% $region->id %>" class="blue block">
+				Entry Report
+			</a>
+
+			<a href="judge_report_print.mhtml?region_id=<% $region->id %>" class="blue block">
+				Judge Report
+			</a>
+
+			<a href="combined_report_print.mhtml?region_id=<% $region->id %>" class="blue block">
+				Combined Report
+			</a>
+
+		</div>
+
+	</div>
+

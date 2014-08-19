@@ -1,0 +1,21 @@
+<%args>
+	$round_id
+	$post => undef
+</%args>
+<%init>
+
+	my $round = Tab::Round->retrieve($round_id);
+	my $msg;
+
+	$post = 2 if $post > 2;
+
+	$round->post_results($post);
+	$round->update;
+
+	$msg = "Speaker points and results are posted" if $post == 2;
+	$msg = "Results without speaker points are posted" if $post == 1;
+	$msg = "No results are posted" unless $post;
+	$m->redirect("show.mhtml?round_id=$round_id&msg=$msg");
+
+
+</%init>

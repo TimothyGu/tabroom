@@ -1,0 +1,84 @@
+<%args>
+	$tourn_id => undef
+	$username => undef
+	$msg      => undef
+</%args>
+
+	<div class="left huge">
+
+	<h2>Log In</h2>
+
+	<h5 class="centeralign">
+		<% $msg %>
+	</h5>
+
+	<table cellpadding="5" cellspacing="1">
+
+		<tr class="evenrow">
+			<td>
+				User:
+			</td>
+	
+			<td>
+				<form action="login_save.mhtml" method="post">
+				<input type="email" name="username" size="30" value="<% $username %>">
+				<input type="hidden" name="tourn_id" value="<% $tourn_id %>">
+			</td>
+		</tr>
+	
+		<tr class="oddrow">
+			<td>
+				Password:
+			</td>
+	
+			<td>
+				<input type="password" name="password" size="30">
+			</td>
+		</tr>
+	
+		<tr class="liblrow">
+			<td></td>
+
+			<td class="rightalign">
+				<input class="evenrow" type="submit" value=" Log Into Your Account ">
+				</form>
+			</td>
+		</tr>
+
+
+		<tr>
+			<td colspan="2" class="exwhite" style="padding-top: 15px; text-align: right;">
+				<a href="/user/login/new_user.mhtml">Create a New Account</a> * 
+				<a href="/user/login/forgot.mhtml">Forgotten Password?</a>
+			</td>
+		</tr>
+
+	</table>
+
+	</div>
+
+	<div class="right small">
+
+		<br />
+
+		<h4>Having trouble?</h4>
+
+		<p style="padding: 5px;">
+
+			Be sure that you're using the email address you used when you first
+			signed up for an account; tabroom.com doesn't know when you get a
+			new address.</p>
+
+		<p style="padding: 5px;">
+
+			If you're totally unable to log in, please email <% $Tab::admin_email %> 
+			with your name, school name and the text of any error messages you
+			might get.  And remember, tabroom.com is a volunteer effort; we
+			don't have paid staff to answer your email, so it might be a couple
+			days before I can get back to you
+		
+		</p>
+
+
+	</div>
+	

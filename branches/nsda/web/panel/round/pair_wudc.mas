@@ -1,0 +1,453 @@
+<%args>
+	$round
+	$debug => 0
+	$entries_ref => undef
+</%args>
+<%perl>
+
+	use POSIX;
+	use List::Util 'shuffle';
+	my $event = $round->event;
+
+	my @entries = ${$entries_ref} if $entries_ref;
+
+	@entries = $event->entries( unconfirmed => 0, waitlist => 0, dropped => 0, dq => 0 ) unless @entries;
+
+	my %entry_code = map {$_->id => $_->code} @entries;
+
+	Tab::BallotValue->set_sql( get_ranks => "
+		select distinct ballot_value.*, entry.id as entryid, ballot.pullup as pullup
+		from ballot, entry, ballot_value, panel, round
+		where entry.event = ? 
+		and entry.id = ballot.entry
+		and ballot.id = ballot_value.ballot
+		and ballot_value.tag = \"rank\"
+		and ballot.panel = panel.id
+		and panel.round = round.id
+		and round.name < ?
+		order by entry.id
+	");
+	
+	my @values = Tab::BallotValue->search_get_ranks($event->id, $round->name);
+
+	my %entry_score = ();
+	my %score_count = ();
+
+	foreach my $value (sort {$a->entryid <=> $b->entryid} @values) { 
+		$entry_score{$value->entryid} += (4 - $value->value);
+		$score_count{(4 - $value->value)}++;
+	}
+
+	my %entry_school = ();
+	foreach my $entry (@entries) { 
+		$entry_school{$entry->id} = $entry->school->id;
+	}
+
+	my @position_array = shuffle(1, 2, 3, 4);
+
+	my %positions = ();
+
+	my @other_ballots = $m->comp("/funclib/other_ballots.mas", round => $round);
+
+	foreach my $ballot (@other_ballots) { 
+		next unless $ballot->chair;
+		$positions{$ballot->entry->id."-".$ballot->speakerorder}++;
+	}
+
+	my %can_do = ();
+
+	foreach my $entry (@entries) { 
+
+		my %position_count = ();
+
+		my $min_count;
+
+		foreach my $position ( @position_array ) {
+
+			if ($positions{$entry->id."-".$position}) { 
+				$position_count{$position}++;
+			}
+
+			$min_count = $position_count{$position} if $min_count > $position_count{$position};
+		}
+
+		Tab::debuglog("Minimum count for $entry is $min_count") if $entry == 471921;
+
+		foreach my $position (@position_array) { 
+		
+			Tab::debuglog("Position $position count is $position_count{$position}") if $entry == 471921;
+
+			if ($position_count{$position} == $min_count) { 
+				$can_do{$entry->id."-".$position}++;
+			}
+		}
+
+	}
+
+	my %panels = ();
+	my $panel_count;
+
+	@entries = shuffle(@entries);
+	@entries = sort {$entry_score{$b->id} <=> $entry_score{$a->id}} @entries;
+
+	my @used;
+	my %used_position;
+	my %used_panel;
+
+	while (@entries) {
+
+		$panel_count++;
+
+		my $min_score = $entry_score{$entries[3]->id} if scalar @entries == 4;
+
+		my $bracket_count;
+
+		foreach my $entry (@entries) { 
+			$bracket_count++ if $entry_score{$entry->id} >= $min_score;
+		}
+
+		my $pullup_limit = $bracket_count % 4;
+
+		foreach my $position (@position_array) { 
+
+			next unless @entries;
+			my $victim;
+			my $index = 0;
+
+			# Attempt to find a free entry from the random stack who can debate
+			# in this position.
+			
+			ENTRY:
+			foreach my $entry (@entries) { 
+				if ($can_do{$entry->id."-".$position} && $entry_score{$entry->id} >= $min_score) {
+					$victim = $entry->id;
+					last ENTRY;
+				} else {
+					$index++;
+				}
+			}
+
+			my $swap;
+			my $swap_position;
+
+			unless ($victim) { 
+
+				# Failing that, see if anyone already in this bracket can swap
+				# into this position without harm.
+
+				my $swapdex;
+			
+				USED:
+				foreach my $used (@used) { 
+
+					next if $used_position{$used} == $position;
+
+					if ($entry_score{$used} == $min_score && ($can_do{$used."-".$position})) { 
+
+						$swapdex = 0;
+
+						foreach my $entry (@entries) { 
+							if ($can_do{$entry->id."-".$used_position{$used}} && $entry_score{$entry->id} >= $min_score) {
+								$victim = $used;
+								$swap = $entry;
+								last USED;
+							} else { 
+								$swapdex++;
+							}
+						}
+					}
+				}
+
+				if ($swap) { 
+
+					$panels{$panel_count."-".$position} = $victim;
+					$panels{$used_panel{$victim}."-".$used_position{$victim}} = $swap;
+
+					push (@used, $swap); #I FEEL SO USED;
+					splice @entries, $swapdex, 1 unless $swapdex > scalar @entries;
+
+					$used_position{$swap} = $used_position{$victim};
+					$used_panel{$swap} = $used_panel{$victim};
+
+					$used_position{$victim} = $used_position{$position};
+					$used_panel{$victim} = $used_panel{$panel_count};
+
+				} 
+
+			}
+				
+			if (not defined $victim && $pullup_limit) { 
+			
+				# If we haven't found someone within the our bracket who can
+				# speak here, and haven't exhausted our pullups, select a
+				# pullup at random who can speak in this position to even the
+				# bracket.
+				
+				$index = 0;
+
+				ENTRY:
+				foreach my $entry (@entries) { 
+					if ($can_do{$entry->id."-".$position} && $entry_score{$entry->id} >= $min_score - 1) {
+						$victim = $entry;
+						last ENTRY;
+					} else {
+						$index++;
+					}
+				}
+
+				$pullup_limit-- if $victim;
+
+			} 
+			
+			if (not defined $victim) { 
+
+				# Still haven't found anyone? Just pick someone free in this
+				# bracket whether or not they fit.
+
+				$index = 0;
+
+				ENTRY:
+				foreach my $entry (@entries) { 
+					if ($entry_score{$entry->id} >= $min_score) {
+						$victim = $entry;
+						last ENTRY;
+					} else {
+						$index++;
+					}
+				}
+
+			}
+
+			if (not defined $victim) {
+
+				# If still nobody fits, then we must have no debaters free and
+				# must force a pullup into the lineup, even if I must dip below
+				# this bracket.  If I don't find someone this time, something
+				# has gone horridly wrong and I will assign the panel as a bye.
+
+				$index = 0;
+				my $pullup_score = $min_score;
+
+				while ($pullup_score && not defined $victim) { 
+
+					ENTRY:
+					foreach my $entry (@entries) { 
+						if ($entry_score{$entry->id} >= $pullup_score) {
+							$victim = $entry;
+							last ENTRY;
+						} else {
+							$index++;
+						}
+					}
+
+					$pullup_score-- if $victim;
+					$pullup_limit-- if $victim;
+				}
+			}
+
+			if ($victim) { 
+				splice @entries, $index, 1 unless $index > scalar @entries;
+				$panels{$panel_count."-".$position} = $victim;
+				push (@used, $victim); #I FEEL SO USED;
+				$used_position{$victim} = $position;
+				$used_panel{$victim} = $panel_count;
+			}
+
+		}
+
+	}
+
+	if ($event->setting("avoid_school_hits")) { 
+
+		# This setting will swap debaters in the draw to avoid the same school
+		# hitting itself in debates as long as all else is equal.
+
+		foreach my $key (1 .. 4) { 
+
+			foreach my $key (1 .. $panel_count) { 
+
+				my @entries;
+
+				my %entry_position;
+
+				foreach my $position (@position_array) { 
+					push @entries, $panels{$key."-".$position};
+					$entry_position{$panels{$key."-".$position}} = $position;
+				}
+
+				my $score = score_panel(\@entries, \%entry_school);
+				
+				next unless $score;
+
+				foreach my $entry (@entries) { 
+
+					my $swap;
+					my $swap_key;
+
+					my $position = $entry_position{$entry};
+			
+					foreach my $other_key (1 .. $panel_count) { 
+
+						next if $other_key == $key;
+						my $candidate = $panels{$other_key."-".$position};
+
+						next unless $entry_score{$candidate} == $entry_score{$entry};
+						next if $entry_school{$candidate} == $entry_school{$entry};
+
+						my @test_panel = @entries;
+						my @test_swap_panel;
+
+						foreach my $other_position (@position_array) { 
+							push @test_swap_panel, $panels{$other_key."-".$other_position};
+						}
+
+						my $swap_score = score_panel(\@test_swap_panel, \%entry_school);
+
+						my $index = 0;
+						$index++ until $test_panel[$index] == $entry;
+						splice(@test_panel, $index, 1);
+
+						$index = 0;
+						$index++ until $test_swap_panel[$index] == $candidate;
+						splice(@test_swap_panel, $index, 1);
+
+						push @test_panel, $candidate;
+						push @test_swap_panel, $entry;
+
+						my $score_new = score_panel(\@test_panel, \%entry_school);
+						my $swap_score_new = score_panel(\@test_swap_panel, \%entry_school);
+
+						next if $score_new > $score;
+						next if $swap_score_new > $swap_score;
+
+						$swap = $candidate;
+						$swap_key = $other_key;
+					}
+
+					if ($swap) { 
+						$panels{$swap_key."-".$position} = $entry;
+						$panels{$key."-".$position} = $swap;
+					}
+
+				}
+			}
+		}
+	}
+
+	#Out with the old.
+
+	Tab::BallotValue->set_sql( delete_round => "
+		delete ballot_value from ballot_value, ballot, panel
+		where panel.round = ?
+		and panel.id = ballot.panel
+		and ballot.id = ballot_value.ballot
+	");
+
+	Tab::Ballot->set_sql( delete_round => "
+		delete ballot from ballot, panel
+		where panel.round = ?
+		and panel.id = ballot.panel
+	");
+
+	Tab::Panel->set_sql( delete_round => "
+		delete from panel where round = ?
+	");
+
+	Tab::BallotValue->sql_delete_round->execute($round->id);
+	Tab::Ballot->sql_delete_round->execute($round->id);
+	Tab::Panel->sql_delete_round->execute($round->id);
+
+	my $letter = 1;
+	$letter = "A" if $event->setting("panel_labels") eq "letters";
+
+	foreach my $key (1 .. $panel_count) { 
+
+		my $bracket;
+
+		foreach my $position (@position_array) { 
+			my $entry = $panels{$key."-".$position};
+			$bracket = $entry_score{$entry} if $bracket < $entry_score{$entry};
+		}
+
+		$bracket = 0 unless $bracket;
+		
+		my $panel = Tab::Panel->create({
+			round   => $round->id,
+			letter  => $letter,
+			bracket => $bracket,
+			flight  => 1
+		});
+
+		if ($letter eq "Z") { 
+			$letter = "AA";
+		} elsif ($letter eq "AZ") { 
+			$letter = "BA";
+		} elsif ($letter eq "BZ") {
+			$letter = "CA";
+		} elsif ($letter eq "CZ") {
+			$letter = "DA";
+		} elsif ($letter eq "DZ") {
+			$letter = "EA";
+		} elsif ($letter eq "EZ") {
+			$letter = "FA";
+		} else { 
+			$letter++;
+		}
+
+		foreach my $position (@position_array) { 
+
+			my $entry = $panels{$key."-".$position};
+
+			my $pullup;
+			$pullup++ if $entry_score{$entry} != $bracket;
+
+			if ($entry) { 
+
+				my $ballot = Tab::Ballot->create({
+					panel        => $panel->id,
+					judge        => 0,
+					entry        => $entry,
+					speakerorder => $position,
+					seed         => $entry_score{$entry},
+					pullup       => $pullup
+				})
+
+			} else { 
+
+				$panel->bye(1);
+				$panel->update;
+
+			}
+		}
+	}
+
+	my $now = DateTime->now;
+	$round->created($now);
+	$round->update;
+
+	return;
+
+    sub score_panel {
+
+        my ($panref, $schref) = @_; 
+
+        my @pan_entries = @$panref;
+
+        my $score = 0;
+        my $tick;
+
+        foreach my $entry (@pan_entries) { 
+            foreach my $other (@pan_entries) { 
+                next unless $other > $entry;
+
+                if (${ $schref }{$other} == ${ $schref }{$entry}) { 
+                    $score += 10000;
+                }   
+            }   
+        }   
+
+        return $score;
+
+    }   
+
+</%perl>

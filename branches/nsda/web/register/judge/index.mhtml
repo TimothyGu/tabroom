@@ -1,0 +1,116 @@
+<%args>
+	$tourn
+</%args>
+<%init>
+
+	use POSIX;
+
+	my $switch;
+
+	my @judge_groups = $tourn->groups;
+
+	if (scalar @judge_groups == 1) { 
+		$m->redirect("roster.mhtml?group_id=".$judge_groups[0]->id);
+	}
+
+
+</%init>
+
+	<& menu.mas, tourn => $tourn &>
+
+	<div class="left huge">
+
+		<h2>Judge Groups at <% $tourn->name %></h2>
+
+		<table cellpadding="4" cellspacing="1" width="100%">
+
+			<tr class="yellowrow">
+
+				<th class="smaller">
+					Group
+				</th>
+
+				<th class="smaller">
+					Judges/Rounds
+				</th>
+
+				<th class="smaller">
+					Hire Requests
+				</th>
+
+			</tr>
+
+%			my $total;
+%			my $total_hires;
+
+%			foreach my $group (sort {$a->name cmp $b->name} @judge_groups) { 
+
+%				my $judge_per = $group->setting("judge_per");
+%				my $rounds_per = $group->setting("rounds_per");
+%				my $by_entry++ if $group->setting("uncovered_entry_fee");
+
+%				my @judges = Tab::Judge->search( judge_group => $group->id );
+%				my @hires = Tab::JudgeHire->search( judge_group => $group->id );
+
+%				my $hire_total = 0;
+%				my $hire_rounds_total = 0;
+
+%				foreach my $hire (@hires) {
+%					if ($by_entry) { 
+%						$hire_total += $hire->covers;
+%					} else { 
+%						$hire_total += ceil($hire->covers / $judge_per) if $judge_per;
+%						$hire_rounds_total += $hire->rounds;
+%					}
+%				}
+
+%				$total += scalar @judges;
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+					<td>
+						<a class="white" href="roster.mhtml?group_id=<% $group->id %>">
+							<% $group->name %>
+						</a>
+					</td>
+
+					<td class="smallish rightalign">
+						<% scalar @judges %>
+					</td>
+
+					<td class="rightalign">
+						<a class="white" href="hire_requests.mhtml?group_id=<% $group->id %>">
+							<span class="twothird nospace under">
+								<% $rounds_per ? $hire_rounds_total : $hire_total %>
+							</span>
+							<span class="third nospace under">
+								<% $rounds_per ? "rounds" : " judges" %>
+							</span>
+						</a>
+					</td>
+
+				</tr>
+
+%			}
+
+			<tr class="liblrow">
+
+				<th>
+					Total
+				</th>
+
+				<th class="rightalign smallish">
+					<% $total %>
+				</th>
+
+				<th class="rightalign smallish">
+					<% $total_hires %>
+				</th>
+
+			</tr>
+
+		</table>
+
+	</div>
+
+

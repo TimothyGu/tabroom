@@ -1,0 +1,227 @@
+<%args>
+	$tourn
+	$school_id => undef
+</%args>
+<%init>
+
+	unless ($school_id) { 
+		$m->print("No school id sent.  Go back and try again");
+		$m->abort;
+	}
+
+	my $school = Tab::School->retrieve($school_id);
+	my ($total, $feline_ref) = $m->comp("/funclib/school_fees.mas", school_id => $school_id);
+	my @felines = @{$feline_ref};
+	my $switch; 
+
+	my $concessions = $tourn->setting("concession_invoice");
+	my $label = $tourn->setting("concession_name");
+
+	my ($con_total, $conline_ref) = $m->comp("/funclib/school_fees.mas", school_id => $school_id, concessions_only => "Yes");
+	my @conlines = @{$conline_ref};
+	my $symbol = $tourn->setting("currency");
+
+</%init>
+
+    <& /register/menubar.mas, school => $school, whoami => "money", tourn => $tourn &>
+
+		<br />
+
+		<h4>Entry Fees for <% $school->name %></h4>
+
+
+		<table cellpadding="6" cellspacing="1" width="100%">
+	
+%			foreach my $line (@felines) { 
+
+				<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+%					if ($line->{'fee'}) { 
+
+						<td class="smallish">
+							<%$line->{'name'} %>
+						</td>
+			
+						<td class="rightalign smallish">
+							<% $symbol %> <% sprintf ("%.2f", $line->{'fee'}) %>
+						</td>
+
+						<td class="centeralign smallish">
+%							if ($line->{'fine_id'}) {
+								<a href="fine_forgive.mhtml?fine_id=<% sprintf ("%.2f", $line->{'fine_id'}) %>" class="dkgreen block">
+									Forgive & Forget
+								</a>
+%							}
+						</td>
+
+%					} else { 
+						
+						<td colspan="3" class="rightalign smallish">
+							<%$line->{'name'} %>
+						</td>
+%					}
+
+
+				</tr>
+
+%			} 
+
+
+%			unless ($concessions eq "combined") { 
+
+				<tr>
+					<td colspan="3">
+						<h4><% $label ? $label : "Concession" %> Fees for <% $school->name %></h4>
+					</td>
+				</tr>
+				
+%				foreach my $line (@conlines) { 
+
+					<tr <% ($switch++ % 2) ? "class=\"oddrow\"" : "class=\"evenrow\"" %>>
+
+						<td class="smallish">
+							<%$line->{'name'} %>
+						</td>
+				
+						<td class="rightalign smallish">
+							$<% sprintf ("%.2f", $line->{'fee'}) %>
+						</td>
+
+					</tr>
+%				}
+
+%			}
+
+			<tr>
+				<td colspan="3">
+					<hr />
+				</td>
+			</tr>
+
+			<tr class="liblrow">
+				
+				<th class="smallish">
+					Entry Fee Total
+				</th>
+				
+				<th class="rightalign">
+					<% $symbol %> <% sprintf ("%.2f", $total) %>
+				</th>
+				
+				<td></td>
+				
+			</tr> 
+
+%			if ($tourn->concessions && $concessions ne "combined") { 
+
+%				$total += $con_total;
+
+				<tr class="yellowrow">
+				
+					<th class="smallish">
+						<% $label ? $label : "Concessions" %> Total
+					</th>
+				
+					<th class="rightalign">
+						<% $symbol %> <% sprintf ("%.2f", $con_total) %>
+					</th>
+				
+					<td></td>
+				
+				</tr> 
+
+				<tr class="liblrow">
+				
+					<th class="smallish">
+						Overall Total
+					</th>
+				
+					<th class="rightalign">
+						<% $symbol %> <% sprintf ("%.2f", $total) %>
+					</th>
+				
+					<td></td>
+				
+				</tr> 
+
+%			}
+			
+		</table>
+
+	</div>
+
+	<div class="right small"> 
+
+		<div class="sidenote">
+
+			<h4>Money printouts</h4>
+
+			<a href="invoice_print.mhtml?school_id=<% $school->id %>" class="green block">
+				Print Entry Fee Invoice
+			</a>
+
+			<a href="concessions_print.mhtml?school_id=<% $school->id %>" class="green block">
+				Print Concessions Invoice
+			</a>
+
+			<a href="combined_print.mhtml?school_id=<% $school->id %>" class="green block">
+				Print Combined Invoice
+			</a>
+
+		</div>
+
+
+		<div class="sidenote">
+	
+		<h4>Add charges</h4>
+
+		<table cellpadding="4" cellspacing="1" width="100%">
+		
+			<tr>
+				<td colspan="2" class="smaller">
+					(Use negative values for credits)
+				</td>
+			</tr>
+
+
+			<tr class="evenrow">
+				<th class="smaller">
+					Reason
+				</th> 
+				
+				<td align="right">
+					<form action="fine_add.mhtml" method="post">
+					<input type="hidden" name="school_id" value="<% $school_id %>">
+					<input type="text" name="reason" size="15">
+				</td>
+			</tr>
+
+			<tr class="oddrow">
+
+				<th class="smaller">
+					Amount
+				</th>
+				
+				<td align="right">
+					<% $symbol %> <input type="text" name="amount" size="10">
+				</td>
+
+			</tr> 
+			
+			<tr class="liblrow">
+
+				<td align="right" colspan="2">
+					<input  type="submit" class="thin" value="Add Fine">
+					</form>
+				</td>
+			</tr>
+			
+		</table>
+
+		</div>
+
+	</div>
+
+	<br style="clear: both;">
+
+

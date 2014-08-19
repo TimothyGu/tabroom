@@ -1,0 +1,206 @@
+<%args>
+	$account
+	$tourn 
+	$from       => undef
+	$email      => undef
+	$first      => 0
+	$last       => 0
+	$phone      => 0
+	$school_id  => 0
+	$obligation => 0
+	$hired      => 0
+	$first_year => undef
+	$gender     => undef
+	$tab_rating => undef
+	$group_id   => undef
+</%args>
+<%init>
+
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	my $now = DateTime->now->set_time_zone($tz);
+
+	my $group = Tab::JudgeGroup->retrieve( $group_id );
+
+	unless ($group && $group->tourn && $group->tourn->id == $tourn->id) { 
+		$m->print("<p>Just what are you trying to pull?  Quit messing around.  </p>");
+		$m->abort;
+	}
+
+	my $code;
+	my $judge;
+
+	unless ($group->setting("no_codes")) { 
+		$code = $m->comp("/funclib/group_code.mas", group => $group);
+	}
+
+	if ($email) { 
+
+		my $judge_account = Tab::Account->search( email => $email )->first;
+		$m->redirect("add.mhtml?group_id=$group_id&err=No account found with email $email") unless $judge_account;
+
+		my $already = Tab::Judge->search( judge_group => $group_id, account => $judge_account->id)->first;
+		$m->redirect("add.mhtml?group_id=$group_id&err=That judge is already judging in that judge group") unless $judge_account;
+
+		$judge = Tab::Judge->create({
+			first       => $judge_account->first,
+			last        => $judge_account->last,
+			gender      => $judge_account->gender,
+			tab_rating  => $tab_rating,
+			account     => $judge_account->id,
+			reg_time    => $now,
+			active      => 1,
+			dropped     => 0,
+			obligation  => $obligation,
+			hired       => $hired,
+			school      => $school_id,
+			judge_group => $group->id,
+			code        => $code,
+			special     => $ARGS{"special"},
+			notes       => $ARGS{"notes"},
+		});
+
+		my $phone = $judge_account->phone if $judge_account;
+		my $provider = $judge_account->provider if $judge_account;
+
+		Tab::FollowJudge->create({
+			judge  => $judge->id,
+			cell   => $phone,
+			domain => $provider,
+		}) if $provider;
+
+		my $email = $judge_account->email if $judge_account;
+		my $no_email = $judge_account->no_email if $judge_account;
+
+		Tab::FollowJudge->create({
+			judge => $judge->id,
+			email => $email
+		}) unless $no_email;
+
+		$m->comp("/funclib/account_conflict.mas", tourn => $tourn, account => $account);
+
+	} else { 
+
+		$judge = Tab::Judge->create({
+			first       => $first,
+			last        => $last,
+			gender      => $gender,
+			tab_rating  => $tab_rating,
+			reg_time    => $now,
+			active      => 1,
+			dropped     => 0,
+			obligation  => $obligation,
+			hired       => $hired,
+			school      => $school_id,
+			judge_group => $group->id,
+			code        => $code,
+			special     => $ARGS{"special"},
+			notes       => $ARGS{"notes"},
+		});
+
+	}
+
+	my $text = $account->first." ".$account->last." entered ".$group->abbr." judge ".$judge->code ." ".$judge->first." ".$judge->last;
+
+	my $change = Tab::TournChange->create({
+	   tourn => $tourn->id,
+	   school => $school_id,
+	   judge => $judge->id,
+	   type => "registration",
+	   text => $text
+	}) if $school_id;
+
+    if ($group->rating_subsets) { 
+
+        foreach my $subset ($group->rating_subsets) { 
+    
+            my @judge_ratings = Tab::Rating->search(
+                judge => $judge->id,
+                rating_subset => $subset->id,
+                type => "coach"
+            );
+
+            my $notfirst;
+
+            JR:
+            foreach my $jr (@judge_ratings) { 
+
+                if ($notfirst) { 
+                    $jr->delete;
+                    next JR;
+                } else { 
+					my $tier = $ARGS{$subset->id."_rating"};
+					$tier = 0 unless $tier;
+                    $jr->rating_tier($tier);
+                    $jr->entered($now);
+                    $jr->update;
+                    $notfirst++;
+                }
+
+            }
+
+            unless ($notfirst) { 
+
+                my $tier = $ARGS{$subset->id."_rating"};
+				$tier = 0 unless $tier;
+
+                Tab::Rating->create({
+                    judge => $judge->id,
+                    tourn => $tourn->id,
+                    type => "coach",
+                    rating_tier => $tier,
+                    rating_subset => $subset->id,
+                    entered => $now
+                });
+            }
+
+        }
+
+    } else {
+
+        my @judge_ratings = Tab::Rating->search(
+            judge => $judge->id,
+            type => "coach"
+        );
+
+        my $notfirst;
+
+        JR:
+        foreach my $jr (@judge_ratings) {
+
+            if ($notfirst) {
+                $jr->delete;
+                next JR;
+            } else {
+                $jr->rating_tier($ARGS{"rating"});
+                $jr->update;
+                $notfirst++;
+            }
+        }
+
+        unless ($notfirst) {
+
+			my $tier = $ARGS{"rating"};
+			$tier = 0 unless $tier;
+
+            Tab::Rating->create({
+                judge       => $judge->id,
+                tourn       => $tourn->id,
+                type        => "coach",
+                rating_tier => $tier,
+                entered     => $now
+            });
+
+        }
+
+    }
+
+	$judge->setting("phone", $phone);
+	$judge->setting("first_year", $first_year);
+
+	$m->redirect("/register/school/judges.mhtml?school_id=".$school_id."&group_id=$group_id&msg=$text") if $from && $school_id;
+	$m->redirect("add.mhtml?group_id=$group_id&msg=$text");
+	
+</%init>
+

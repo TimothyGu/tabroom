@@ -1,0 +1,60 @@
+<%args>
+	$whoami => undef
+	$tourn => undef
+	$account => undef
+</%args>
+
+	<div class="right small">
+
+		<div class="sidenote">
+
+			<h4>Results Reports</h4>
+
+			<a class="blue block" href="/tabbing/report/index.mhtml">
+				Return to Reports
+			</a>
+
+			<a class="blue block" href="naudl_student_export.mhtml">
+				NAUDL student export
+			</a>
+
+			<a class="blue block" href="naudl_tourn_export.mhtml">
+				NAUDL tournament export
+			</a>
+
+
+		</div>
+
+
+<%perl>
+
+	my $access;
+
+	if ($whoami eq "ncfl") { 
+		my $tourn_access = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id )->first;
+		if ($tourn_access && not defined $tourn_access->no_setup && not defined $tourn_access->entry_only) { 
+			$access++;
+		} 
+    }   
+
+</%perl>
+
+%	if ($access) { 
+	
+		<div class="sidenote">
+
+			<h4>NCFL Cooke Points</h4>
+
+			<a class="blue block" href="/tabbing/report/ncfl/save_cooke_points.mhtml">
+				Save <% $tourn->start->year %> Points to Running Total
+			</a>
+
+			<a class="blue block" href="/tabbing/report/ncfl/save_cooke_points.mhtml?unsave=yes">
+				Unsave <% $tourn->start->year %> Points from Total
+			</a>
+
+		</div>
+
+%	}
+
+	</div>

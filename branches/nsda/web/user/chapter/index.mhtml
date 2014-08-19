@@ -1,0 +1,26 @@
+<%args>
+	$account
+	$session
+	$chapter_id => undef
+	$err => undef
+	$msg => undef
+
+</%args>
+<%init>
+
+	my $chapter;
+
+	if ($chapter_id) { 
+		$chapter = Tab::Chapter->retrieve($chapter_id);
+	} else { 
+		my @chapters = $m->comp('/funclib/account_chapters.mas', account => $account);
+		$chapter = shift @chapters if @chapters;
+	}
+
+	if ($chapter) { 
+		$m->redirect("/user/chapter/tournaments.mhtml?chapter_id=".$chapter->id."&err=$err&msg=$msg");
+	} else { 
+		$m->redirect("/user/setup.mhtml?err=$err&msg=$msg");
+	}
+
+</%init>

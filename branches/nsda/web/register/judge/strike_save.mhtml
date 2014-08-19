@@ -1,0 +1,272 @@
+<%args> 
+	$tourn
+	$account
+	$type => undef
+	$judge_id
+	$from => undef
+</%args>
+<%init> 
+
+	$m->abort unless $type;
+
+	my $now = DateTime->now;
+	my $tz = $tourn->tz;
+	$tz = "UTC" unless $tz;
+
+	if ($type eq "time") { 
+	
+		my $start_date = $ARGS{"start_date"};
+		my $start_time = $ARGS{"start_time"};
+
+		my $end_date = $ARGS{"end_date"};
+		my $end_time = $ARGS{"end_time"};
+
+		$end_date = $start_date unless $end_date;
+
+		my $start_dt = Tab::dtme($start_date, $start_time, $tz);
+		my $end_dt = Tab::dtme($end_date, $end_time, $tz);
+
+		my $msg;
+		my $err;
+
+		if ($start_dt > $end_dt) { 
+
+			$err = "Your strike time starts after it ends.  Tabroom.com does not support travel back in time.  Try again";
+
+		} else {
+			
+			my $strike = Tab::Strike->create({
+				judge => $judge_id,
+				tourn => $tourn->id,
+				type  => "time",
+				start => $start_dt,
+				end   => $end_dt
+			});
+
+			$msg = "Time strike saved";
+
+		}
+
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&err=$err&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&err=$err&msg=$msg");
+
+	}
+
+	if ($type eq "event") { 
+	
+		my $event = Tab::Event->retrieve($ARGS{event});
+
+		my $strike = Tab::Strike->create({ 
+			judge => $judge_id,
+			tourn => $tourn->id,
+			type  => "event",
+			event => $event->id
+		});
+
+		my $msg = "Judge struck against ". $event->abbr;
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+	
+	}
+	
+	if ($type eq "elim") {
+	
+		my $event = Tab::Event->retrieve($ARGS{event});
+		my $strike = Tab::Strike->create({ 
+			judge => $judge_id,
+			tourn => $tourn->id,
+			type  => "elim",
+			event => $event->id
+		});
+		my $msg = "Judge reserved for elims in ". $event->abbr;
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+
+	}
+
+	if ($type eq "entry") {
+
+		my $code = $ARGS{code};
+
+		my $msg;
+		my $err;
+
+		my @entries = Tab::Entry->search( code => $code, tourn => $tourn->id );
+
+		foreach my $entry (@entries) { 
+
+			my $strike = Tab::Strike->create({ 
+				tourn => $tourn->id,
+				judge => $judge_id,
+				type  => "entry",
+				entry => $entry->id
+			});
+
+			$msg = "Judge blocked against speaker ". $entry->code." (".$entry->name.") <br />";
+		} 
+		
+		$err = "Entry codes $code does not exist" unless @entries;
+
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg&err=$err");
+
+	}
+
+	if ($type eq "student") {
+
+		my $msg;
+
+		my $judge = Tab::Judge->retrieve($judge_id);
+		my $student = Tab::Student->retrieve($ARGS{student_id}) if $ARGS{student_id};
+		my $entry = Tab::Entry->retrieve($ARGS{entry_id}) if $ARGS{entry_id};
+
+		my @search_entries = $m->comp('/funclib/student_entries.mas', name => $ARGS{search_name}, tourn => $tourn) if $ARGS{search_name};
+
+		my @entries;
+
+		if ($student) { 
+
+			@entries = $m->comp('/funclib/student_entries.mas', student => $student, tourn => $tourn);
+
+		} elsif ($entry) {  
+
+			push (@entries, $entry);
+
+		} elsif ($ARGS{search_name}) { 
+
+			foreach my $entry (@search_entries) { 
+				next unless $ARGS{$entry->id};
+				push (@entries, $entry);
+			}
+
+		} else { 
+
+			my $name = $ARGS{name};
+			my $search_name = $name."%";
+			@entries = $m->comp('/funclib/student_entries.mas', name => $search_name, tourn => $tourn);
+
+			unless (@entries)  {  
+				my $err = "No student with the last name $name was found";
+				$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+				$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&err=$err");
+			} 
+
+			if (scalar @entries > 1) { 
+				$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+				$m->redirect("/register/judge/entry_strikes.mhtml?name=$name&judge_id=$judge_id");
+			} 
+
+		}
+
+		foreach my $entry (@entries) { 
+
+			my $strike = Tab::Strike->create({ 
+				tourn => $tourn->id,
+				judge => $judge_id,
+				type  => "entry",
+				entry => $entry->id
+			});
+			
+			$msg .= "Judge was conflicted against ".$entry->code." <br />";
+				
+		}
+			
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+
+	}
+
+	
+	if ($type eq "school") {
+	
+		my $school = Tab::School->retrieve($ARGS{school});
+
+		my $strike = Tab::Strike->create({ 
+			tourn  => $tourn->id,
+			judge  => $judge_id,
+			type   => "school",
+			school => $school->id,
+		});
+		my $msg = "Judge struck against school ".$school->name;
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+	
+	}
+
+	
+	if ($type eq "region") { 
+	
+		my $region = Tab::Region->retrieve($ARGS{region});
+
+		my $strike = Tab::Strike->create({ 
+			tourn  => $tourn->id,
+			judge  => $judge_id,
+			type   => "region",
+			region => $region->id,
+		});
+
+		my $msg = "Judge struck against region ".$region->name;
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+	}
+
+	if ($type eq "diocese") { 
+	
+		my $diocese = Tab::Region->retrieve($ARGS{diocese});
+
+		my $strike = Tab::Strike->create({ 
+			tourn  => $tourn->id,
+			judge  => $judge_id,
+			type   => "diocese",
+			region => $diocese->id,
+		});
+
+		my $msg = "Judge struck against diocese ". $diocese->name;
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+	}
+
+	if ($type eq "strike_time") {
+
+		my $judge = Tab::Judge->retrieve($judge_id);
+
+	    foreach my $strike_time ($judge->judge_group->strike_times) {
+
+   	  		my $strike_timekey = "strike_time_".$strike_time->id;
+        	my $existing_strike = $strike_time->strike($judge);
+
+        	my $strike_time_yes = $ARGS{$strike_timekey};
+
+        	next if $strike_time_yes && $existing_strike;
+        	next unless $strike_time_yes || $existing_strike;
+
+        	if ( defined $strike_time_yes &! defined $existing_strike) {
+
+        	    #There should be one.  and there ISN'T ALREADY!!!  HAHAHAHAHA
+        	    my $strike = Tab::Strike->create({
+        	        tourn       => $tourn->id,
+        	        strike_time => $strike_time->id,
+        	        type        => "time",
+        	        judge       => $judge->id,
+        	        start       => $strike_time->start,
+        	        end         => $strike_time->end            });
+
+        	}
+
+        	if ( defined $existing_strike &! defined $strike_time_yes) {
+	
+	            $existing_strike->delete;
+	
+   		     }
+   		}
+
+		my $msg = "Time strike saved";
+		$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg#yo") if $from;
+		$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+	}
+
+	my $msg = "That type of strike is unknown.  This is either a bug or you're attemping something weird.";
+	$m->redirect("/register/judge/edit.mhtml?judge_id=$judge_id&msg=$msg") if $from;
+	$m->redirect("/register/judge/judge_strikes.mhtml?judge_id=$judge_id&msg=$msg");
+
+</%init>
