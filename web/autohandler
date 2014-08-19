@@ -38,9 +38,9 @@
 			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/uniform.css">
 			<link rel="stylesheet" type="text/css" media=screen href="/lib/css/tabroom.css">
 
-%			if ($r->hostname eq "local.tabroom.com" || $r->hostname eq "dev.tabroom.com" || $r->hostname =~ "itab.tabroom.com" ) { 
-				<link rel="stylesheet" type="text/css" media=screen href="/lib/css/devsite.css">
-%			}
+%#%			if ($r->hostname eq "local.tabroom.com" || $r->hostname eq "dev.tabroom.com" || $r->hostname =~ "itab.tabroom.com" ) { 
+%#				<link rel="stylesheet" type="text/css" media=screen href="/lib/css/devsite.css">
+%#%			}
 
 %			unless ($session) { 
 				<link rel="stylesheet" type="text/css" media=screen href="/lib/css/login.css">
@@ -149,36 +149,21 @@
 
 	<body <% $bodystyle %>>
 
-	<div id="topbar">
+	<div id="overlay">
 
-		<div class="toplinks">
-		
-			<div class="topleftlinks">
+	<div id="header">
 
-				<a tabindex="-1" href="http://www.idebate.org">
-					IDEA Home
-				</a>
+		<span id="logo">
+			<a tabindex="-1" href="<% $Tab::url_prefix %>" class="logo">
+				<img src="/lib/images/nsda-logo-header-small.png" alt="National Speech and Debate Association">
+			</a>
+		</span>
 
-				<a tabindex="-1" href="<% $Tab::url_prefix %>">
-					Tabroom Home
-				</a>
+		<span id="menus">
 
-				<a tabindex="-1" href="/index/about.mhtml">
-					About 
-				</a>
-
-				<a tabindex="-1" href="/index/about.mhtml">
-					Help
-				</a>
-
-			
-			</div>
-
-			<div class="toprightlinks">
-
+			<div id="toprow">
 
 %				if ($session) { 
-
 
 %					if ($session->su && $session->su->id) { 
 						<a tabindex="-1" href="/user/admin/su_return.mhtml">
@@ -190,18 +175,13 @@
 						Logout
 					</a>
 
+					<a tabindex="-1" href="/user/login/profile.mhtml">
+						Profile
+					</a>
+
 					<a tabindex="-1" href="/user/home.mhtml">
 						<% $session->account->email %>
 					</a>
-
-					<a tabindex="-1" href="/user/login/profile.mhtml">
-						Account
-					</a>
-
-					<a tabindex="-1" href="/user/home.mhtml">
-						Homepage
-					</a>
-
 
 %				} else { 
 
@@ -212,44 +192,44 @@
 					<& "/user/login/login_block.mas" &>
 %				}
 
+%				if ($tourn && ($r->uri =~ /setup/ || $r->uri =~ /register/ || $r->uri =~ /panel/ || $r->uri =~ /tabbing/ || $r->uri =~ /com\/results\//)) { 
+
+%					my $ta = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id)->first;
+
+%					if ($account->site_admin || $ta && $ta->entry_only != 1) { 
+
+						<span id="search" title="Search schools, judges and entries">	
+							<form action="/register/search/tourn_search.mhtml">	
+							<input type="text" maxlength="128"  size="15" name="search" placeholder="SEARCH" class="notfirst">
+							<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
+							<input type="submit" value="Go" class="notfirst">
+							</form>
+						</span>
+%					}
+
+%				} else { 
+
+					<span id="search" title="Search for tournaments">
+						<form action="/index/search.mhtml">	
+						<input type="text" maxlength="128"  size="15" name="search" placeholder="SEARCH" class="notfirst">
+						<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
+						<input type="submit" value="Go" class="notfirst">
+						</form>
+					</span>
+
+%				}
+
 			</div>
 
-		</div>
-
-	</div>
-
-	<div id="header">
-		
-		<a tabindex="-1" href="<% $Tab::url_prefix %>">
-			<img src="/lib/images/idea-logo.png" alt="International Debate Education Association">
-		</a>
-
-%		if ($tourn && ($r->uri =~ /setup/ || $r->uri =~ /register/ || $r->uri =~ /panel/ || $r->uri =~ /tabbing/ || $r->uri =~ /com\/results\//)) { 
-
-%			my $ta = Tab::TournAdmin->search( account => $account->id, tourn => $tourn->id)->first;
-
-%			if ($account->site_admin || $ta && $ta->entry_only != 1) { 
-
-				<div id="search">	
-					<form action="/register/search/tourn_search.mhtml">	
-					<input type="text" maxlength="128"  size="15" name="search" placeholder="Search Schools, Judges & Entries" class="notfirst">
-					<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
-					<input type="submit" value="Go" class="notfirst">
-					</form>
-				</div>
-%			}
-
-%		} else { 
-
-			<div id="search">	
-				<form action="/index/search.mhtml">	
-	 			<input type="text" maxlength="128"  size="15" name="search" placeholder="Search Tournaments" class="notfirst">
-				<input type="hidden" name="caller" value="<% $r->unparsed_uri %>">
-				<input type="submit" value="Go" class="notfirst">
-				</form>
+			<div class="menus"> 
+%				if ($tourn && ($r->uri =~ /setup/ || $r->uri =~ /register/ || $r->uri =~ /panel/ || $r->uri =~ /tabbing/ || $r->uri =~ /com\/results\//)) { 
+					<& /lib/menu/menubar_tourn.mas, account => $account, session => $session &>
+%				} else { 
+					<& /lib/menu/menubar_index.mas, account => $account, session => $session &>
+%				}
 			</div>
 
-%		}
+		</span>
 
 	</div>
 
@@ -290,6 +270,7 @@
 
 		</div>
 
+	</div>
 	</div>
 
 
