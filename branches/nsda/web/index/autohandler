@@ -7,8 +7,6 @@
 
 </%init>
 
-	<& /lib/menu/menubar_index.mas &>
-
 %	if ($r->uri =~ /index\/index.mhtml/) { 
 		<div id="title">
 			<h1>Tabroom.com</h1>
