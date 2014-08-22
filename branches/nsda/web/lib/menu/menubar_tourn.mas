@@ -149,8 +149,8 @@
 %               	my $class = "martop" if $event->type ne $last_type;
 %					$last_type = $event->type;
 
-					<li class="<% $class %>">
-						<a href="/panel/schemat/show.mhtml?event_id=<%	$event->id %>" title="<% $event->name %>">
+					<li>
+						<a class="<% $class %>" href="/panel/schemat/show.mhtml?event_id=<%	$event->id %>" title="<% $event->name %>">
 							<%	$event->abbr %>
 						</a>
 					</li>

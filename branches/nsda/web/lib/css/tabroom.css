@@ -45,10 +45,9 @@ body {
 #overlay {	
 	background-image    : url("/lib/images/lens-flair.png");
 	background-repeat   : no-repeat;
-	background-position : -36% -64%;
+	background-position : -256px -206px;
 	padding             : 0;
 	margin              : 0;
-	width               : 100%;
 }
 
 #header {
@@ -59,11 +58,36 @@ body {
 	max-width : 1170px;
 }
 
+#title { 
+	color          : white;
+	font-family    : LeagueGothic;
+	text-align     : left;
+	font-size      : 54px;
+	font-weight    : normal;
+	letter-spacing : 3px;
+}
+
+#logo .banner{
+	display     : block;
+	padding     : 0;
+	padding-top : 8px;
+}
+
+#logo a.logo { 
+	display        : block;
+	padding-bottom : 0;
+	color          : #fafafa;
+	color          : #fefefe;
+	font-family    : open_sans_ital;
+	font-size      : 11px;
+}
+
 #logo { 
-	width   : 27%;
+	width   : 25%;
 	display : inline-block;
 	margin  : 0;
 	padding : 0;
+	padding-bottom : 8px;
 }
 
 #toprow { 
@@ -85,12 +109,12 @@ body {
 	padding-right   : 8px;
 	padding-bottom  : 4px;
 	text-decoration : none;
-	font-size       : 11px;
-	font-weight     : bold;
+	font-size       : 12px;
+	font-family     : open_sans_bold;
 }
 
 #toprow a:hover { 
-	background-color : rgba(255, 255, 255, 0.14);
+	background-color : rgba(255, 255, 255, 0.32);
 }
 
 /* Search box */
@@ -104,6 +128,7 @@ body {
 	margin-left      : 8px;
     overflow         : hidden;
 	padding          : 0;
+	margin-top 		 : 2px;
 }
 
 #search input[type="text"], #search input[type="number"] {
@@ -111,22 +136,26 @@ body {
     border      : 0 none !important;
     color       : #FFFFFF !important;
     padding     : 7px !important;
-    width       : 164px !important;
+    width       : 128px !important;
 	font-size   : 16px !important;
 	font-family : "Lucida Sans","Lucida Grande",sans-serif;
 }
 
-#search input[type="submit"] {
-    background  : none repeat scroll 0 0 transparent !important;
-    border      : 0 none!important;
-    cursor      : pointer !important;
-    font-size   : 1px;
-    height      : 32px;
-    position    : absolute;
-    right       : -4px;
-    text-indent : -9999px;
-    top         : -4px;
-    width       : 36px;
+button:focus {outline:none;}
+button::-moz-focus-inner{
+  border: 0;
+}
+
+#search button {  
+    background : none;
+	color      : #00394D;
+    border     : 0;
+    cursor     : pointer !important;
+    font-size  : 20px;
+    height     : 32px;
+    width      : 32px;
+	margin     : 0;
+	padding    : 0;
 }
 
 #search input::-moz-placeholder {
@@ -140,97 +169,67 @@ body {
 	color:#00394d;
 }
 
-
 .login-window {
 	font-weight		: bold;
 }
 
-#title {
-	color          : #fff;
-	margin-left    : auto;
-	margin-right   : auto;
-	padding-top    : 1px;
-	padding-bottom : 10px;
-	padding-left   : 35px;
-	width          : 975px;
-}
-
 #wrapper {
-	width            : 88%;
-	min-width        : 970px;
-	max-width        : 1170px;
-	min-height       : 650px;
-	background-color : #fefefe;
-	margin           : auto;
-	padding          : 0;
+	width      : 88%;
+	min-width  : 970px;
+	max-width  : 1170px;
+	min-height : 650px;
+	margin     : auto;
+	padding    : 0;
+	overflow   : hidden;
 }
 
 #content {	
-	display   : block;
-	color     : black;
-	padding   : 20px;
-	min-width : 970px;
-	max-width : 1170px;
+	display             : block;
+	color               : black;
+	padding             : 20px;
+	min-width           : 970px;
+	max-width           : 1170px;
+	background-color    : #fefefe;
+	background-image    : url('/lib/images/right-repeat.png');
+	background-repeat   : repeat-y;
+	background-position : right;
 }
 
 #content-spacer { 
-	width            : 960px;
-	height           : 25px;
+	width            : 200%;
+	padding          : 0;
+	margin           : 0;
+	height           : 32px;
 	background-color : #fefefe;
 	clear            : both;
-}
-
-#footer-wrapper { 
-	width               : 100%;
-	margin-top          : 0pt;
-	margin-right        : auto;
-	margin-bottom       : 0pt;
-	margin-left         : auto;
-	position            : relative;
-	background-color    : #e8e8de;
-	background-image    : url("/lib/images/footer.png");
-	background-repeat   : repeat-x;
-	background-position : center top;
+	margin-top       : -24px;
+	margin-bottom    : -24px;
+	margin-right     : -24px;
+	margin-left      : -24px;
 }
 
 #footer { 
-	width       : 1000px;
+	min-width   : 970px;
+	max-width   : 1170px;
+	width       : 88%;
 	margin      : auto;
 	min-height  : 130px;
 	padding-top : 15px;
 }
 
-.footer-logo { 
-	float       : left;
-	padding-top : 1px;
-}
-
-.footer-links { 
-	float		: right;
-	margin-top	: 12px;
-}
-
-.footer-links a { 
-	color         : #003957;
+#footer a { 
+	color         : #00394D;
 	display       : inline-block;
-	font-size     : 74%;
-	padding-left  : 5px;
-	padding-right : 10px;
-	border-right  : 1px solid #003957;
+	padding		  : 4px;
+	padding-left  : 16px;
+	padding-right : 16px;
 	margin        : 0;
 }
 
-.footer-links a:hover { 
-	color: #4ccaf8;
+#footer a:hover { 
+	background		: #9DD5E9;
+	text-decoration : none;
 }
-
-.footer-message { 
-	padding-top : 8px;
-	color       : #9E9E9D;
-	font-size   : 68%;
-	text-align  : center;
-}
-
 
 /* Generic elements */
 
@@ -399,30 +398,28 @@ input[type="button"] {
 	font-family    : Arvo;
 	letter-spacing : 1px;
 	font-size      : 100%;
-	font-weight    : bold;
 	margin         : none;
 	padding-bottom : 2px;
-	color          : #fefefe;
-	background     : #477b23;
-	border         : 2px solid #477b23;
+	color          : #FEC92E;
+	background     : #00394D;
 	border-radius  : 10px;
 	margin-top     : 5px;
 	margin-right   : 5px;
 	margin-bottom  : 5px;
-	border-bottom  : 1px solid #447b23;
-	border-right   : 1px solid #447b23;
-	border-top     : 1px solid #91bd73;
-	border-left    : 1px solid #91bd73;
+	border-bottom  : 1px solid #00AAE7;
+	border-right   : 1px solid #00AAE7;
+	border-top     : 1px solid #009CD4;
+	border-left    : 1px solid #009CD4;
 }
 
 input[type="submit"]:hover { 	
 	border        : 1px solid #ccc;
-	color         : #477b23;
-	background    : #dfdfdf;
-	border-top    : 1px solid #447b23;
-	border-left   : 1px solid #447b23;
-	border-bottom : 1px solid #91bd73;
-	border-right  : 1px solid #91bd73;
+	color         : #00394D;
+	background    : #FEC92E;
+	border-top    : 1px solid #00AAE7;
+	border-left   : 1px solid #00AAE7;
+	border-bottom : 1px solid #009CD4;
+	border-right  : 1px solid #009CD4;
 }
 
 input[type="submit"].skinny { 	
@@ -674,7 +671,7 @@ h3 	 {
 h4 {	
 	font-family		: Arvo;
 	font-size		: 18px;
-	font-weight		: bold;
+	font-weight     : bold;
 	padding-left	: 8px;
 	letter-spacing	: 1px;
 	padding-top		: 8px;
@@ -698,7 +695,6 @@ h5 {
 }
 
 h6 {
-	font-weight		: bold;
 	font-size		: 78%;
 	padding-left	: 2px;
 	padding-right	: 0;
@@ -718,6 +714,13 @@ td  {
 	line-height    : 18px;
 	vertical-align : middle;
 	padding        : 8px;
+}
+
+table.narrow td { 
+	line-height    : 16px;
+	vertical-align : middle;
+	padding        : 2px;
+	padding-left   : 4px;
 }
 
 tr.fixed { 
@@ -768,7 +771,7 @@ td.more {
 	padding-left : .75em;
 	font-size    : 1.4em;
 	height       : 26px;
-	width		 : 575px;
+	width        : 575px;
 }
 
 .sortarrow {
@@ -844,12 +847,12 @@ tr.dkgreen th.sortup {
 }
 
 .liblrow, .libl  {
-	background-color : #CBDEED;
+	background-color : #9DD5E9;
 	overflow         : hidden;
 }
 
 .yellowrow  {
-	background-color : #FFF1A8;
+	background-color : #FFDC7C;
 	overflow         : hidden;
 }
 
@@ -896,14 +899,14 @@ table.hoverme tr.even:hover    { background-color: #D3EEF3; }
 /*Coloring*/
 
 .redrow  {
-	background-color : #fbd0c0;
+	background-color : #920A0E;
 }
 
 .ligrnrow  {
 	background-color : #CAE6B8;
 }
 .lirdrow  {
-	background-color : #FFE3CF;
+	background-color : #EBC5BF;
 }
 .dkblrow  {
 	background-color : #359CEA;
@@ -936,31 +939,20 @@ table.hoverme tr.even:hover    { background-color: #D3EEF3; }
 }
 
 .red:hover, .dkred, .dkrednohover { 
-	background		: #A04233;
-	color			: #eee;
+	background		: #920A0E;
+	color			: #ddd;
 }
 
-.blue, .bluenohover, .dkblue:hover { 
-	background		: #C7DBEB;
+.blue, .bluenohover, .dkblue:hover, .green, .dkgreen:hover, .greennohover { 
+	background		: #9DD5E9;
 	color			: #000000;
 }
 
-.blue:hover, .dkblue, .dkbluenohover {
-	background		: #1761A4;
-	color			: #fcfcfc;
-	font-weight		: bold;
+.blue:hover, .dkblue, .dkbluenohover, .dkgreen, .green:hover, .dkgreennohover { 
+	background      : #00394D;
+	color           : #FEC92E;
+	font-family     : open_sans_bold;
 	text-decoration : none;
-}
-
-.green, .dkgreen:hover, .greennohover { 
-	background		: #CAE6B8;
-	color			: #000000;
-}
-
-.dkgreen, .green:hover, .dkgreennohover { 
-	background      : #477b23;
-	color           : #fcfcfc;
-	font-weight     : bold;
 }
 
 .white, .plain { 
@@ -993,22 +985,22 @@ a.white {
 }
 
 .ltyellow { 
-	background-color : #FFF1A8;
+	background-color : #FFDC7C;
 	overflow         : hidden;
 }
 
 .yellow, .dkyellow:hover, .yellownohover, .hover:hover, .white:hover { 
-	background		: #fedf7d;
+	background		: #FFDC7C;
 	color			: #000000;
 }
 
 .yellow:hover, .dkyellow, .dkyellownohover { 
-	background		: #CC5500;
+	background		: #F05123;
 	color			: #FCFCFC;
 }
 
 .dkblue, .dkred, .dkyellow, .dkgreen, .dkgrey {
-	font-weight     : bold;
+	font-family		: open_sans_bold;
 	text-decoration : none;
 	text-align      : center;
 	padding-left    : 6px;
@@ -1018,13 +1010,30 @@ a.white {
 	font-size       : 95%;
 }
 
+/* text shenanigans */
+
+.bluetext { 
+	font-family : open_sans_bold;
+	color       : #00394D;
+}
+
+.redtext { 
+	color       : #920A0E;
+	font-family : open_sans_bold;
+}
+
+.greentext { 
+	color       : #00394D;
+	font-family : open_sans_bold;
+}
+
 
 /* Positional element generic sizing */
 
 .huge { 
 	min-height     : 600px;
-	width          : 685px;
-	padding-bottom : 25px;
+	width          : 73%;
+	padding-bottom : 42px;
 }
 
 .audit_scroll {
@@ -1075,6 +1084,10 @@ a.white {
 	border        : none;
 }
 
+.left.huge { 
+	padding-right  : 16px;
+}
+
 .center { 
 	margin-left	: 150px;
 }
@@ -1091,14 +1104,15 @@ a.white {
 	line-height : 24px;
 }
 
-
 .blank { 
 	background    : #fefefe;
 	margin-top    : -20px;
+	margin-bottom : 8px;
+	border-bottom : 2px solid #eee;
 	margin-left   : -20px;
+	margin-right  : -20px;
 	padding-left  : 20px;
 	padding-right : 20px;
-	border-bottom : 2px solid #eee;
 }
 
 .blankpart { 
@@ -1123,16 +1137,14 @@ a.white {
 /* Slideshow */
 
 .blankfull { 
-	background     : #fdfdfd;
-	width          : 960px;
-	min-height     : 760px;
-	margin-bottom  : -40px;
-	padding-bottom : 20px;
-	margin-top     : -20px;
-	padding-top    : 20px;
-	padding-right  : 10px;
-	margin-left    : -20px;
-	padding-left   : 20px;
+	background    : #fefefe;
+	margin-top    : -20px;
+	margin-bottom : 8px;
+	margin-left   : -20px;
+	margin-right  : -20px;
+	padding-left  : 20px;
+	padding-right : 20px;
+	min-height    : 650px;
 }
 
 .blankfull p { 
@@ -1383,12 +1395,12 @@ a.white {
 	width                 : 650px;
 	margin-top            : 175px;
 	display               : block;
-	border				  : 3px solid #477b23;
+	border				  : 3px solid #00394D;
 }
 
 .slideshow_begin:hover { 
 	color      : #fdfdfd;
-	background : #477b23;
+	background : #00394D;
 }
 
 .redtext { 
@@ -1412,7 +1424,7 @@ h1.warning {
 
 .warning {
 	color          : #660000;
-	font-weight    : bold;
+	font-family		: open_sans_bold;
 	padding-bottom : 10px;
 }
 
@@ -1428,8 +1440,8 @@ h1.warning {
 .smallwarning {
 	color          : #660000;
 	font-size      : 90%;
-	font-weight    : bold;
 	padding-bottom : 5px;
+	font-family		: open_sans_bold;
 }
 
 h2.warning { 
@@ -1752,6 +1764,13 @@ div.sidenote .third {
 	margin-bottom  : 4px;
 }
 
+.truefull { 
+	display       : block;
+	width         : 99%;
+	padding       : .5%;
+	margin        : 0;
+}
+
 .full { 
 	display        : inline-block;
 	line-height    : 18px;
@@ -1888,7 +1907,7 @@ div.sidenote .third {
 
 .sidenote { 
 	display             : block;
-	width               : 226px;
+	width               : 240px;
 	margin-top          : 5px;
 	margin-bottom       : 20px;
 	padding             : 8px;
@@ -1904,6 +1923,7 @@ div.sidenote .third {
 	border-color        : #dcdcdc;
 	border-radius       : 10px;
 	font-size           : 12px;
+	min-height			: 32px;
 }
 
 .plainnote { 
@@ -2039,11 +2059,11 @@ ul#tabnav li a {
 }
 
 ul#tabnav li:hover { 
-	background			: #009; 
+	background : #00394D;
 }
 
-ul#tabnav li:hover a { 
-	color				: #fcfcfc;
+ul#tabnav li:hover a {
+	color : #FEC92E;
 }
 
 ul#tabnav li.selected {
@@ -2128,7 +2148,7 @@ div.center div.jGrowl-notification, div.center div.jGrowl-closer {
 }
 
 div.jGrowl div.jGrowl-notification, div.jGrowl div.jGrowl-closer {
-	background-color      : #cbdeed;
+	background-color      : #9DD5E9;
 	color                 : #000066;
 	border                : 2px solid #660000;
 	width                 : 235px;
@@ -2162,7 +2182,7 @@ div.jGrowl div.crud {
 	padding-left		: 10%;
 	padding-right		: 10%;
 	line-height			: 30px;
-	background-color 	: #FFE3CF;
+	background-color 	: #EBC5BF;
 	color				: #222222;
 	width				: 50%;
 	margin				: auto;
@@ -2170,7 +2190,7 @@ div.jGrowl div.crud {
 }
 
 div.jGrowl div.warning {
-	background-color : #FFE3CF;
+	background-color : #EBC5BF;
 	color            : #222222;
 }
 
@@ -2179,16 +2199,16 @@ div.jGrowl div.green {
 }
 
 div.jGrowl div.yellow {
-	background-color : #FFF1A8;
+	background-color : #FFDC7C;
 }
 
 div.jGrowl div.quick {
-	background-color : #FFF1A8;
+	background-color : #FFDC7C;
 	color            : #222222;
 }
 
 div.jGrowl div.fullmsg {
-	background-color    : #FFE3CF;
+	background-color    : #EBC5BF;
 	color               : #222222;
 	margin  			: 0;
 	margin-top          : 100px;
@@ -2312,7 +2332,7 @@ This stylesheet and the associated (x)html may be modified in any
 way to fit your requirements. 
 =================================================================== */ 
 
-#menus { 
+#info { 
 	width      : 69%;
 	display    : inline-block;
 	text-align : right;
@@ -2320,6 +2340,13 @@ way to fit your requirements.
 	margin     : 0;
 	padding    : 0;
 	min-width  : 680px;
+}
+ 
+#menus { 
+	text-align : right;
+	float      : right;
+	margin     : 0;
+	padding    : 0;
 }
  
 .preload1 { 
@@ -2337,7 +2364,7 @@ way to fit your requirements.
 	list-style  : none;
 	z-index     : 500;
 	font-size   : 10pt;
-	padding-top : 32px;
+	padding-top : 30px;
 } 
  
 #nav li.top { 
@@ -2347,8 +2374,8 @@ way to fit your requirements.
 	padding-bottom : 0px;
 } 
 
-#nav li.martop { 
-	border-top : 4px solid #fec92e;
+#nav li a.martop { 
+	border-top : 6px solid #00394d !important;
 	margin-top : 0px !important;
 }
  
@@ -2357,7 +2384,7 @@ way to fit your requirements.
 	float           : left;
 	color           : #fec92e;
 	text-decoration : none;
-	font-weight     : 600;
+	font-family		: open_sans_bold;
 	font-size       : 15px;
 	letter-spacing  : .24px;
 	cursor          : pointer;
@@ -2369,11 +2396,11 @@ way to fit your requirements.
 	display          : block;
 	padding          : 0;
 	margin           : 0;
-	background-color : rgba(255, 255, 255, 0.08);
+	background-color : rgba(255, 255, 255, 0.16);
 } 
 
 #nav li:hover a.top_link span { 
-	background-color    : rgba(255, 255, 255, 0.16);
+	background-color    : rgba(255, 255, 255, 0.32);
 }
 
 #nav li a.top_link span.down { 
@@ -2390,19 +2417,18 @@ way to fit your requirements.
 /* Default list styling */ 
  
 #nav li:hover { 
-	position	: relative; 
-	z-index		: 200; 
+	position : relative;
+	z-index  : 200;
 } 
 
 #nav li:hover ul.sub { 
-	left          : 2px;
-	top           : 34px;
-	background    : #00394d;
-	margin-left   : 1px;
-	white-space   : nowrap;
-	width         : 110px;
-	height        : auto;
-	z-index       : 300;
+	left        : -8px;
+	top         : 34px;
+	margin-left : 1px;
+	white-space : nowrap;
+	width       : 128px;
+	height      : auto;
+	z-index     : 300;
 } 
 
 #nav li:hover a.top_left ul.sub { 
@@ -2413,7 +2439,7 @@ way to fit your requirements.
 	display       : block;
 	position      : relative;
 	float         : left;
-	width         : 110px;
+	width         : 124px;
 	font-weight   : normal;
 	font-family   : open_sans_semibold;
 	margin-bottom : -16px;
@@ -2421,15 +2447,16 @@ way to fit your requirements.
 } 
 
 #nav li:hover ul.sub li a { 
+
 	text-align      : center;
 	display         : block;
 	font-size       : 12px;
-	width           : 106px;
+	width           : 124px;
+	background      : #FFDC7C;
+	color           : #00394d;
 	line-height     : 16px;
-	color           : #fec92e;
 	text-decoration : none;
-	border-top      : 1px solid #fec92e;
-	border-bottom   : 1px solid #fec92e;
+	border          : 1px solid #00394d;
 	letter-spacing  : 1px;
 	margin          : 0px;
 	padding-top     : 10px;
@@ -2441,8 +2468,8 @@ way to fit your requirements.
 } 
  
 #nav li:hover ul.sub li a:hover { 
-	background		: #00aae7;
-	color			: #00394d;
+	background		: #00394d;
+	color			: #fec92e;
 	border-color	: #444; 
 	margin-bottom   : 0px;
 	margin-top      : 0px;
