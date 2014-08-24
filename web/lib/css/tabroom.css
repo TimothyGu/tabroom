@@ -67,6 +67,10 @@ body {
 	letter-spacing : 3px;
 }
 
+a#title:hover { 
+	text-decoration: none;
+}
+
 #logo .banner{
 	display     : block;
 	padding     : 0;
@@ -335,6 +339,9 @@ a:hover {
 	padding      : 8px !important;
 }
 
+.padtop {
+	padding-top : 8px !important;
+}
 .martop {
 	margin-top : 8px !important;
 }
@@ -889,7 +896,7 @@ table.hoverme tr.even:hover    { background-color: #D3EEF3; }
 }
 
 .border { 
-	border : 1px solid #444;
+	border : 1px solid #444 !important;
 }
 
 .ltborder { 
@@ -1564,14 +1571,17 @@ a.block {
 	padding-left   : 4px;
 	display        : block;
 	width          : 100%;
-	overflow       : hidden;
 }
 
 .optionblock span { 
-	padding-top : 1px;
-	margin-top  : 2px;
-	overflow    : visible;
-	height         : 44px;
+	margin-top    : -2px;
+}
+
+.optionblock span input { 
+	margin-top : 2px;
+}
+.optionblock span input[type="checkbox"] { 
+	margin-top : 8px;
 }
 
 .eighth { 

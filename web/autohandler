@@ -49,17 +49,18 @@
 			<script type="text/javascript" src="/lib/javascript/tabroom.js"></script>
 			<script type="text/javascript" src="/lib/javascript/jquery.ui.touch-punch.min.js"></script>
 			<script type="text/javascript" src="/lib/javascript/uniform.min.js"></script>
+
 			<script>
 				$(document).ready(function(){
 					$('*:input:enabled:visible:not(.notfirst):first').focus();
-					$(".chosen").chosen({no_results_text: "Oops, nothing found!", disable_search_threshold: 10});
+					$('.starthere').focus();
+					$("select").chosen({no_results_text: "Oops, nothing found!", disable_search_threshold: 10});
 
-					Mousetrap.bind('mod+f', function(e) {
+					Mousetrap.bind('mod+s', function(e) {
 						$('#searchtext').focus();
 						return false;
 					});
 				}); 
-
 			</script>
 
 %			if ($r->uri eq "/tabbing/status/dashboard.mhtml") { 
@@ -68,7 +69,7 @@
 
 			<title>
 				<% ($account && $tourn && $account->site_admin) ? $tourn->id : "" %>
-				<% ($tourn) ? $tourn->start->year." ".$tourn->name." : " : "" %>
+				<% $tourn && $tourn->start ? $tourn->start->year." ".$tourn->name : $tourn ?  $tourn->name : "" %>
 				Tabroom.com
 			</title>
 
